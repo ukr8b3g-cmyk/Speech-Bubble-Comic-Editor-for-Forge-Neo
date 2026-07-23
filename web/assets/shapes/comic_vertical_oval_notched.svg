@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
+  <metadata>
+    Comic Vertical Oval Accented v4. Body only.
+    Four small outward comic accents are preserved. The large right-side tail is excluded.
+  </metadata>
+  <path id="bubble-shape"
+        d="
+M 355 215
+C 470 155 705 150 835 205
+C 890 230 920 275 940 330
+L 965 365
+L 940 390
+C 955 455 960 555 960 690
+L 960 1035
+C 960 1110 950 1170 935 1225
+L 960 1260
+L 925 1268
+C 900 1330 850 1380 790 1415
+C 675 1480 500 1480 385 1418
+C 320 1385 270 1330 245 1268
+L 210 1258
+L 235 1228
+C 220 1168 212 1100 212 1020
+L 212 610
+C 212 530 220 455 235 390
+L 205 360
+L 245 350
+C 270 285 310 240 355 215
+Z
+"
+        fill="#ffffff"
+        stroke="#111111"
+        stroke-width="20"
+        stroke-linejoin="round"
+        stroke-linecap="round"/>
+</svg>

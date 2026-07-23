@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "assetVersion": "20260722-classic-sticky-note-v2",
+  "presets": [
+    {
+      "id": "base-oval",
+      "label": "Classic Oval",
+      "category": "dialogue",
+      "shape": "custom",
+      "w": 380,
+      "h": 245,
+      "tail": "bottom-left",
+      "svg": "classic-oval.svg",
+      "keywords": "classic natural manga dialogue oval asymmetric",
+      "tuning": {
+        "family": "oval",
+        "intensity": 68,
+        "asymmetry": 18,
+        "roundness": 64,
+        "radial": 0.18,
+        "tangent": 0.08
+      }
+    },
+    {
+      "id": "base-oval-alt",
+      "label": "Classic Oval 2",
+      "category": "dialogue",
+      "shape": "custom",
+      "w": 335,
+      "h": 275,
+      "tail": "bottom-left",
+      "svg": "classic-oval-alt.svg",
+      "keywords": "classic manga dialogue oval tall egg asymmetric",
+      "tuning": {
+        "family": "oval",
+        "intensity": 58,
+        "asymmetry": 20,
+        "roundness": 46,
+        "radial": 0.18,
+        "tangent": 0.08
+      }
+    },
+    {
+      "id": "base-box",
+      "label": "Box",
+      "category": "narration",
+      "shape": "custom",
+      "w": 390,
+      "h": 220,
+      "tail": "none",
+      "svg": "box.svg",
+      "keywords": "box rectangle rounded narration",
+      "tuning": {
+        "family": "box",
+        "intensity": 100,
+        "asymmetry": 0,
+        "roundness": 34,
+        "radial": 0.08,
+        "tangent": 0.04
+      }
+    },
+    {
+      "id": "base-jagged",
+      "label": "Hard Jagged",
+      "category": "emotion",
+      "shape": "custom",
+      "w": 425,
+      "h": 245,
+      "tail": "none",
+      "svg": "hard-jagged.svg",
+      "keywords": "sharp jagged shout explosion manga asymmetric spikes",
+      "tuning": {
+        "family": "jagged",
+        "intensity": 72,
+        "asymmetry": 58,
+        "spikeCount": 17,
+        "valleyStyle": "straight",
+        "valleyConcavity": 64,
+        "radial": 0.24,
+        "tangent": 0.09
+      }
+    },
+    {
+      "id": "base-soft-burst",
+      "label": "Soft Burst",
+      "category": "emotion",
+      "shape": "custom",
+      "w": 420,
+      "h": 245,
+      "tail": "none",
+      "svg": "soft-burst.svg",
+      "keywords": "soft curved burst manga emphasis asymmetric",
+      "tuning": {
+        "family": "soft",
+        "intensity": 62,
+        "asymmetry": 42,
+        "spikeCount": 13,
+        "radial": 0.18,
+        "tangent": 0.08
+      }
+    },
+    {
+      "id": "base-thought",
+      "label": "Thinking Cloud",
+      "category": "thought",
+      "shape": "custom",
+      "w": 385,
+      "h": 270,
+      "tail": "bottom-left",
+      "tail_style": "dots",
+      "svg": "thought-cloud.svg",
+      "keywords": "thinking thought cloud japanese manga fixed rounded lobes body only",
+      "tuning": {
+        "family": "fixed-cloud",
+        "asymmetry": 0,
+        "radial": 0,
+        "tangent": 0
+      },
+      "fixed_path": true,
+      "allow_morph": false,
+      "allow_path_edit": false,
+      "lock_aspect_ratio": true,
+      "defaults": {
+        "shadow_enabled": false
+      }
+    },
+    {
+      "id": "base-heart",
+      "label": "Heart",
+      "category": "special",
+      "shape": "custom",
+      "w": 340,
+      "h": 300,
+      "tail": "none",
+      "svg": "heart.svg",
+      "keywords": "heart love romantic",
+      "tuning": {
+        "family": "heart",
+        "intensity": 70,
+        "asymmetry": 14,
+        "radial": 0.1,
+        "tangent": 0.04
+      }
+    },
+    {
+      "id": "comic_tall_panel_soft",
+      "label": "Comic Tall Panel Soft",
+      "category": "dialogue",
+      "shape": "custom",
+      "w": 360,
+      "h": 480,
+      "tail": "bottom-left",
+      "tail_style": "pointed",
+      "svg": "comic_tall_panel_soft.svg",
+      "keywords": "vertical comic speech bubble tall panel soft manga dialogue",
+      "tuning": {
+        "family": "comic-panel-soft"
+      }
+    },
+    {
+      "id": "comic_tall_panel_irregular",
+      "label": "Comic Tall Panel Irregular",
+      "category": "dialogue",
+      "shape": "custom",
+      "w": 360,
+      "h": 480,
+      "tail": "bottom-left",
+      "tail_style": "pointed",
+      "svg": "comic_tall_panel_irregular.svg",
+      "keywords": "vertical comic speech bubble irregular asymmetric manga dialogue",
+      "tuning": {
+        "family": "comic-panel-irregular"
+      }
+    },
+    {
+      "id": "comic_vertical_oval_notched",
+      "label": "Comic Vertical Oval Accented v4",
+      "category": "dialogue",
+      "shape": "custom",
+      "w": 360,
+      "h": 480,
+      "tail": "bottom-left",
+      "tail_style": "pointed",
+      "svg": "comic_vertical_oval_notched.svg",
+      "keywords": "vertical comic speech bubble oval accented manga dialogue",
+      "revision": 4,
+      "tuning": {
+        "family": "comic-vertical-oval-accented"
+      }
+    },
+    {
+      "id": "rpg-dialogue-box-no-marker",
+      "label": "RPG Dialogue Box",
+      "category": "dialogue",
+      "shape": "dialogue",
+      "renderMode": "layered-rounded-rectangle",
+      "preview": "dialogue/rpg_dialogue_box_no_marker.png",
+      "dialogueStyle": "rpg",
+      "w": 630,
+      "h": 154,
+      "tail": "none",
+      "dialogue_defaults": {
+        "outerColor": "#000000",
+        "borderColor": "#FFFFFF",
+        "fillColor": "#000000",
+        "textColor": "#FFFFFF",
+        "outerEdge": 5,
+        "borderWidth": 8,
+        "cornerRadius": 20,
+        "paddingLeft": 32,
+        "paddingRight": 32,
+        "paddingTop": 28,
+        "paddingBottom": 28
+      }
+    },
+    {
+      "id": "classic-sticky-note",
+      "label": "Classic Sticky Note",
+      "category": "dialogue",
+      "shape": "dialogue",
+      "renderMode": "asset-overlay",
+      "preview": "dialogue/classic_sticky_note_preview.png",
+      "asset": "dialogue/classic_sticky_note.webp",
+      "dialogueStyle": "sticky-note",
+      "w": 420,
+      "h": 402,
+      "tail": "none",
+      "lock_aspect_ratio": true,
+      "sourceSize": {
+        "width": 910,
+        "height": 871
+      },
+      "recommendedWidthPx": 420,
+      "minWidthPx": 260,
+      "maxWidthPx": 560,
+      "keywords": "sticky note memo classic yellow folded corner dialog",
+      "dialogue_defaults": {
+        "fillColor": "#FFF4AA",
+        "textColor": "#2B2B2B",
+        "borderWidth": 0,
+        "cornerRadius": 0,
+        "paddingLeft": 36,
+        "paddingRight": 55,
+        "paddingTop": 38,
+        "paddingBottom": 72
+      }
+    }
+  ]
+}

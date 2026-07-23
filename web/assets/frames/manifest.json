@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "asset_version": "20260719-08",
+  "asset_contract": {
+    "nine_slice_raster": {
+      "standard_sizes": [
+        "1024x1536",
+        "1536x1024"
+      ],
+      "minimum_short_side": 1024,
+      "intended_max_long_side_at_100_percent": 1536,
+      "warn_scale": 1.25,
+      "replace_scale": 1.5,
+      "slice_units": "ratio"
+    },
+    "full_overlay_raster": {
+      "minimum_short_side": 1024,
+      "default_fit_mode": "cover",
+      "fit_modes": [
+        "cover",
+        "contain",
+        "stretch",
+        "tile"
+      ]
+    },
+    "svg": {
+      "portrait_logical_size": "1024x1536",
+      "require": [
+        "width",
+        "height",
+        "viewBox"
+      ],
+      "text_as_paths": true,
+      "external_resources": false,
+      "baked_effects": false,
+      "runtime_format_until_python_svg_support": "lossless-webp"
+    },
+    "alpha": {
+      "mode": "straight",
+      "bleed_px_at_1024_short_side": [
+        2,
+        4
+      ],
+      "decontaminate_edges": true
+    }
+  },
+  "frames": [
+    {
+      "id": "frame-border",
+      "label": "Frame Border",
+      "category": "border",
+      "kind": "border",
+      "render_mode": "border",
+      "pin_to_top": true,
+      "border_color": "#ffffff",
+      "border_width": 36,
+      "inner_stroke_color": "#111111",
+      "inner_stroke_width": 4,
+      "keywords": "white border black inner outline panel"
+    },
+    {
+      "id": "black-border",
+      "label": "Black Border",
+      "category": "border",
+      "kind": "border",
+      "render_mode": "border",
+      "pin_to_top": true,
+      "border_color": "#111111",
+      "border_width": 24,
+      "inner_stroke_color": "#111111",
+      "inner_stroke_width": 0,
+      "keywords": "black comic panel border"
+    }
+  ]
+}

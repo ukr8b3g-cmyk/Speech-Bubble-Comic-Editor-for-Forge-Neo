@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
+  <metadata>Comic Tall Panel Soft. Body only; existing editor tail/spike handles remain separate.</metadata>
+  <path id="bubble-shape"
+        d="
+M 215 250
+C 280 295 360 305 470 305
+C 590 305 700 300 805 245
+C 800 330 820 405 905 430
+C 875 500 860 600 865 760
+L 865 1110
+C 855 1210 865 1280 910 1335
+C 835 1325 790 1365 775 1435
+C 680 1390 590 1395 505 1465
+C 420 1395 330 1385 240 1435
+C 245 1360 200 1325 130 1335
+C 160 1250 155 1160 150 1050
+L 150 585
+C 145 505 130 455 95 420
+C 165 410 200 340 215 250
+Z
+"
+        fill="#ffffff"
+        stroke="#111111"
+        stroke-width="20"
+        stroke-linejoin="round"
+        stroke-linecap="round"/>
+</svg>

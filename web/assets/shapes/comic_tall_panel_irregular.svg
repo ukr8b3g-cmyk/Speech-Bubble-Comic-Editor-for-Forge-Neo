@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
+  <metadata>Comic Tall Panel Irregular. Body only; existing editor tail/spike handles remain separate.</metadata>
+  <path id="bubble-shape"
+        d="
+M 210 250
+C 265 315 325 335 375 295
+C 455 335 585 325 690 245
+C 690 325 710 350 745 295
+C 742 365 765 385 805 325
+C 805 410 845 450 910 420
+C 865 510 850 610 855 750
+L 855 1105
+C 850 1200 865 1260 910 1310
+C 835 1310 805 1365 800 1430
+C 710 1385 635 1395 555 1465
+C 480 1390 405 1380 330 1440
+C 320 1370 285 1340 230 1355
+C 255 1270 250 1210 190 1195
+C 220 1120 220 1045 210 970
+C 205 900 190 850 155 820
+C 205 780 220 725 205 660
+C 195 610 170 560 130 520
+C 205 505 225 425 210 350
+C 205 315 200 280 210 250
+Z
+"
+        fill="#ffffff"
+        stroke="#111111"
+        stroke-width="20"
+        stroke-linejoin="round"
+        stroke-linecap="round"/>
+</svg>

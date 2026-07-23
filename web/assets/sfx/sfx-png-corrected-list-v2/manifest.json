@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "sfx-png-corrected-list-v2",
+  "label": "SFX PNG Corrected List v2",
+  "category": "Japanese SFX",
+  "revision": 2,
+  "defaults": {
+    "fillColor": "#FFD42A",
+    "outlineColor": "#111111",
+    "outlineWidth": 3,
+    "opacity": 1
+  },
+  "preview": "preview/SFX_PNG_Corrected_List_v2_preview.png",
+  "items": [
+    {"id":"jupu-mask","label":"じゅぷっ","ocrLabel":"じゅぷっ","sortKey":"じゅぷっ","asset":"png/01_jipu_small_tsu.png","category":"japanese","mask":true,"w":406,"h":614,"tags":["corrected","vertical","japanese"]},
+    {"id":"biku-katakana-mask","label":"ビクッ","ocrLabel":"ビクッ","sortKey":"ビクッ","asset":"png/02_biku_katakana_heart.png","category":"japanese","mask":true,"w":300,"h":680,"tags":["corrected","vertical","japanese"]},
+    {"id":"biku-hiragana-mask","label":"びくっ","ocrLabel":"びくっ","sortKey":"びくっ","asset":"png/03_biku_hiragana_heart.png","category":"japanese","mask":true,"w":386,"h":680,"tags":["corrected","vertical","japanese"]},
+    {"id":"doku-small-tsu-katakana-reference-vertical-mask","label":"ドクッ","ocrLabel":"ドクッ","sortKey":"ドクッ","asset":"png/04_doku_tsu_heart.png","category":"japanese","mask":true,"w":438,"h":720,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-05-a-small-tsu-heart","label":"あっ♡","ocrLabel":"あっ♡","sortKey":"あっ♡","asset":"png/05_a_small_tsu_heart.png","category":"japanese","mask":true,"w":438,"h":652,"tags":["corrected","vertical","japanese"]},
+    {"id":"a-small-tsu-mask","label":"あっ","ocrLabel":"あっ","sortKey":"あっ","asset":"png/06_a_small_tsu.png","category":"japanese","mask":true,"w":474,"h":542,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-07-a-long-small-tsu-heart","label":"あぁーっ♡","ocrLabel":"あぁーっ♡","sortKey":"あぁーっ♡","asset":"png/07_a_long_small_tsu_heart.png","category":"japanese","mask":true,"w":398,"h":742,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-08-byurururu-small-tsu","label":"びゅるるるっ","ocrLabel":"びゅるるるっ","sortKey":"びゅるるるっ","asset":"png/08_byurururu_small_tsu.png","category":"japanese","mask":true,"w":308,"h":786,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-09-dopu-small-tsu-heart","label":"どぷっ♡","ocrLabel":"どぷっ♡","sortKey":"どぷっ♡","asset":"png/09_dopu_small_tsu_heart.png","category":"japanese","mask":true,"w":446,"h":760,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-10-bibyurururu-small-tsu","label":"びびゅるるるっ","ocrLabel":"びびゅるるるっ","sortKey":"びびゅるるるっ","asset":"png/10_bibyurururu_small_tsu.png","category":"japanese","mask":true,"w":394,"h":828,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-11-a-dakuten-small-tsu","label":"あ゛っ","ocrLabel":"あ゛っ","sortKey":"あ゛っ","asset":"png/11_a_dakuten_small_tsu.png","category":"japanese","mask":true,"w":436,"h":488,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-12-oku-small-tsu-heart","label":"おくっ♡","ocrLabel":"おくっ♡","sortKey":"おくっ♡","asset":"png/12_oku_small_tsu_heart.png","category":"japanese","mask":true,"w":332,"h":776,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-13-dopyuyu-small-tsu","label":"どぴゅっ","ocrLabel":"どぴゅっ","sortKey":"どぴゅっ","asset":"png/13_dopyuyu_small_tsu.png","category":"japanese","mask":true,"w":390,"h":734,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-14-a-dakuten","label":"あ゛","ocrLabel":"あ゛","sortKey":"あ゛","asset":"png/14_a_dakuten.png","category":"japanese","mask":true,"w":358,"h":360,"tags":["corrected","japanese"]},
+    {"id":"sfx-corrected-15-o-a-long-small-tsu-heart","label":"お゛ーっ♡","ocrLabel":"お゛ーっ♡","sortKey":"お゛ーっ♡","asset":"png/15_o_a_long_small_tsu_heart.png","category":"japanese","mask":true,"w":836,"h":314,"tags":["corrected","horizontal","japanese"]},
+    {"id":"sfx-corrected-16-byurururu-small-tsu-2","label":"びゅるるるっ（短）","ocrLabel":"びゅるるるっ（短）","sortKey":"びゅるるるっ（短）","asset":"png/16_byurururu_small_tsu_2.png","category":"japanese","mask":true,"w":396,"h":476,"tags":["corrected","vertical","japanese"]},
+    {"id":"handdrawn-filled-heart-mask","label":"手描き塗りハート","ocrLabel":"手描き塗りハート","sortKey":"手描き塗りハート","asset":"png/17_heart_large_and_small.png","category":"symbols","mask":true,"outlineWidth":0,"w":342,"h":420,"tags":["corrected","heart","symbol"]},
+    {"id":"filled-heart-mask","label":"塗りハート","ocrLabel":"塗りハート","sortKey":"塗りハート","asset":"png/18_heart_large.png","category":"symbols","mask":true,"outlineWidth":0,"w":358,"h":262,"tags":["corrected","heart","symbol"]},
+    {"id":"sfx-corrected-19-ogatsu-two-dots-heart","label":"お゛っ♡","ocrLabel":"お゛っ♡","sortKey":"お゛っ♡","asset":"png/19_ogatsu_two_dots_heart.png","category":"japanese","mask":true,"w":360,"h":488,"tags":["corrected","vertical","japanese"]},
+    {"id":"sfx-corrected-20-biku-biku-biku-question","label":"びく！びく！びく！？","ocrLabel":"びく！びく！びく！？","sortKey":"びく！びく！びく！？","asset":"png/20_biku_biku_biku_question.png","category":"japanese","mask":true,"w":180,"h":538,"defaults":{"fillColor":"#EC407A","outlineColor":"#111111","outlineWidth":2},"tags":["corrected","vertical","japanese","pink"]}
+  ]
+}
