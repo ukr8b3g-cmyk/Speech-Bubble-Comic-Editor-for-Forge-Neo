@@ -35,8 +35,8 @@
     .empty-canvas-card strong { display:block; margin-bottom:8px; font-size:20px; }
     .empty-canvas-card p { margin:5px 0; color:#aeb9c6; line-height:1.45; }
     .empty-canvas-card button { margin:10px 0 4px; padding:8px 16px; background:#2e79bc; border-color:#63b5ff; color:#fff; }
-    dialog#replaceImageDialog { max-width:460px; border:1px solid #596675; border-radius:8px; background:#1d222a; color:#e7edf4; box-shadow:0 18px 60px #000a; }
-    dialog#replaceImageDialog::backdrop { background:#0009; }
+    dialog.document-dialog { max-width:520px; border:1px solid #596675; border-radius:8px; background:#1d222a; color:#e7edf4; box-shadow:0 18px 60px #000a; }
+    dialog.document-dialog::backdrop { background:#0009; }
     .replace-dialog-actions { display:flex; justify-content:flex-end; gap:7px; flex-wrap:wrap; margin-top:16px; }
     .replace-dialog-actions button { min-width:110px; }
     #replaceDiscard { background:#ffb000; border-color:#ffe16b; color:#211500; font-weight:700; }
@@ -254,7 +254,7 @@
     :root[data-theme="light"] .layer-menu { background:#fff; box-shadow:0 7px 24px #0003; }
     :root[data-theme="light"] .empty-canvas-card { background:#ffffffee; color:#20252b; border-color:#91a0b0; box-shadow:0 14px 40px #0002; }
     :root[data-theme="light"] .empty-canvas-card p { color:#5e6a77; }
-    :root[data-theme="light"] dialog#replaceImageDialog { background:#fff; color:#20252b; }
+    :root[data-theme="light"] dialog.document-dialog { background:#fff; color:#20252b; }
   </style>
 </head>
 <body>
@@ -488,7 +488,7 @@
     <div id="fontList" class="font-list" role="listbox" aria-label="Available fonts"></div>
   </div>
   <div id="layerMenu" class="layer-menu"><button id="copyLayer">Copy　Ctrl+C</button><button id="pasteLayer" disabled>Paste　Ctrl+V</button><button id="duplicateLayer">Duplicate</button><button id="deleteLayer">Delete</button></div>
-  <dialog id="replaceImageDialog">
+  <dialog id="replaceImageDialog" class="document-dialog">
     <strong>背景画像を置き換えますか？</strong>
     <p>現在の画像には未保存の変更があります。</p>
     <div class="replace-dialog-actions">
@@ -497,12 +497,40 @@
       <button id="replaceSave" class="primary" type="button">Save Layout & Replace</button>
     </div>
   </dialog>
+  <dialog id="imageLayoutRestoreDialog" class="document-dialog">
+    <strong>この画像の保存済みレイアウトがあります</strong>
+    <p>画像側のレイアウトを、この単体編集へコピーして復元しますか？</p>
+    <div class="replace-dialog-actions">
+      <button id="imageRestoreCancel" type="button">キャンセル</button>
+      <button id="imageRestoreNew" type="button">新規レイアウト</button>
+      <button id="imageRestoreCopy" class="primary" type="button">復元する</button>
+    </div>
+  </dialog>
+  <dialog id="resumeStandaloneDialog" class="document-dialog">
+    <strong>前回の単体編集があります</strong>
+    <p>前回の背景画像と編集状態を再開しますか？</p>
+    <div class="replace-dialog-actions">
+      <button id="standaloneStartNew" type="button">新規で開く</button>
+      <button id="standaloneResumePrevious" class="primary" type="button">前回の単体編集を再開</button>
+    </div>
+  </dialog>
   <script>
     const params = new URLSearchParams(location.search);
     const jsonKey = params.get("jsonKey") || `speech_bubble:standalone:${Date.now()}`;
     const hostMode = params.get("host") || "standalone";
     let imageUrl = params.get("imageUrl") || "";
     let imageHash = params.get("imageHash") || "";
+    let documentMode = params.get("mode")==="image"||imageUrl||imageHash?"image":"standalone";
+    function createUuid(){
+      if(globalThis.crypto?.randomUUID)return globalThis.crypto.randomUUID();
+      const bytes=new Uint8Array(16);globalThis.crypto?.getRandomValues?.(bytes);
+      if(!bytes.some(Boolean))for(let index=0;index<bytes.length;index++)bytes[index]=Math.floor(Math.random()*256);
+      bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+      const hex=[...bytes].map(value=>value.toString(16).padStart(2,"0")).join("");
+      return`${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+    }
+    let standaloneId=params.get("standaloneId")||createUuid();
+    let documentId=documentMode==="standalone"?`standalone:${standaloneId}`:(imageHash?`image:${imageHash}`:"");
     let sourceName = params.get("sourceName") || "speech_bubble";
     let sourceTab = params.get("sourceTab") || params.get("tabName") || "";
     const apiBase = (params.get("apiBase") || "/speech_bubble").replace(/\/$/, "");
@@ -511,8 +539,13 @@
     const autoSaveDelay = Math.max(800, Math.min(10000, Number(params.get("autoSaveDelay")) || 2200));
     const keepLayoutEnabled = params.get("keepLayout") !== "0";
     const assetCacheVersion = params.get("assetVersion") || "20260723-04";
-    const SAVED_LAYOUT_PREFIX = "speech_bubble:forge:layout:saved:";
-    const DRAFT_LAYOUT_PREFIX = "speech_bubble:forge:layout:draft:";
+    const SAVED_LAYOUT_PREFIX = "speech-bubble/layout/";
+    const DRAFT_LAYOUT_PREFIX = "speech-bubble/draft/";
+    const LEGACY_SAVED_LAYOUT_PREFIX = "speech_bubble:forge:layout:saved:";
+    const LEGACY_DRAFT_LAYOUT_PREFIX = "speech_bubble:forge:layout:draft:";
+    const LAST_STANDALONE_ID_KEY = "speech-bubble/standalone/last-document-id";
+    const DOCUMENT_DB_NAME = "speech-bubble-forge-documents";
+    const DOCUMENT_DB_STORE = "backgrounds";
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     const cleanSceneCanvas = document.createElement("canvas");
@@ -530,17 +563,23 @@
     let dirtyTrackingEnabled = false;
     let pendingReplacementSource = null;
     let pendingFreshBaseline = false;
+    let imageRestoreResolver = null;
+    let standaloneResumeResolver = null;
     const DEBUG_RENDER = false;
     let renderFrameId = 0;
     let renderRevision = Math.max(0, Math.round(Number(params.get("revisionBase")) || 0));
     let pendingRenderOptions = {canvas:false,layers:false,preview:false};
     const state = { width: 1024, height: 1024, zoom: 1, panX: 0, panY: 0, backgroundVisible: true, elements: [], selected: null, selection: [], vectorEditId: null, vectorAnchorIndex: null, vectorAddMode: false, drag: null, undo: [], redo: [], propertyEditSnapshot: null, canvasFromLayout: false, spaceDown: false };
-    const savedLayoutKey = () => imageHash ? `${SAVED_LAYOUT_PREFIX}${imageHash}` : "";
-    const draftLayoutKey = () => imageHash ? `${DRAFT_LAYOUT_PREFIX}${imageHash}` : "";
+    const savedLayoutKey = (id=documentId) => id ? `${SAVED_LAYOUT_PREFIX}${id}` : "";
+    const draftLayoutKey = (id=documentId) => id ? `${DRAFT_LAYOUT_PREFIX}${id}` : "";
+    function legacyImageHash(id=documentId){return id?.startsWith("image:")?id.slice(6):"";}
     function postHost(type,payload={}){window.opener?.postMessage({type,key:jsonKey,source_tab:sourceTab,...payload},location.origin);}
-    function editorConnectionState(){return{jsonKey,documentId:imageHash?`image:${imageHash}`:"",mode:imageLoaded?"image":"standalone",sourceTab,sourceName};}
+    function editorConnectionState(){return{jsonKey,documentId,mode:documentMode,sourceTab,sourceName};}
     function safeStoredLayout(value){if(typeof value!=="string"||!value.trim())return"{}";try{return JSON.stringify(JSON.parse(value),null,2);}catch{return"{}";}}
-    function localLayoutCache(){if(!imageHash)return{saved:"{}",draft:"",hasSaved:false,hasDraft:false};let saved="{}",draft="",hasSaved=false,hasDraft=false;try{const savedRaw=localStorage.getItem(savedLayoutKey());const draftRaw=autoSaveEnabled?localStorage.getItem(draftLayoutKey()):null;hasSaved=typeof savedRaw==="string";hasDraft=typeof draftRaw==="string";saved=safeStoredLayout(savedRaw||"{}");draft=hasDraft?safeStoredLayout(draftRaw):"";}catch{}return{saved,draft,hasSaved,hasDraft};}
+    function localLayoutCache(id=documentId){if(!id)return{saved:"{}",draft:"",hasSaved:false,hasDraft:false};let saved="{}",draft="",hasSaved=false,hasDraft=false;try{let savedRaw=localStorage.getItem(savedLayoutKey(id)),draftRaw=autoSaveEnabled?localStorage.getItem(draftLayoutKey(id)):null;const legacyHash=legacyImageHash(id);if(savedRaw===null&&legacyHash)savedRaw=localStorage.getItem(`${LEGACY_SAVED_LAYOUT_PREFIX}${legacyHash}`);if(draftRaw===null&&legacyHash&&autoSaveEnabled)draftRaw=localStorage.getItem(`${LEGACY_DRAFT_LAYOUT_PREFIX}${legacyHash}`);hasSaved=typeof savedRaw==="string";hasDraft=typeof draftRaw==="string";saved=safeStoredLayout(savedRaw||"{}");draft=hasDraft?safeStoredLayout(draftRaw):"";}catch{}return{saved,draft,hasSaved,hasDraft};}
+    function openDocumentDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DOCUMENT_DB_NAME,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(DOCUMENT_DB_STORE))request.result.createObjectStore(DOCUMENT_DB_STORE,{keyPath:"documentId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+    async function documentBackground(id){if(!id?.startsWith("standalone:"))return null;try{const db=await openDocumentDb();return await new Promise((resolve,reject)=>{const transaction=db.transaction(DOCUMENT_DB_STORE,"readonly"),request=transaction.objectStore(DOCUMENT_DB_STORE).get(id);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);transaction.oncomplete=()=>db.close();});}catch(error){console.warn("Speech Bubble standalone background unavailable",error);return null;}}
+    async function storeDocumentBackground(id,blob,name){if(!id?.startsWith("standalone:")||!blob)return;try{const db=await openDocumentDb();await new Promise((resolve,reject)=>{const transaction=db.transaction(DOCUMENT_DB_STORE,"readwrite");transaction.objectStore(DOCUMENT_DB_STORE).put({documentId:id,blob,sourceName:name||"speech_bubble",updatedAt:Date.now()});transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});db.close();localStorage.setItem(LAST_STANDALONE_ID_KEY,id);}catch(error){console.warn("Speech Bubble standalone background save failed",error);}}
     function setSaveState(message,level="info"){const node=document.getElementById("saveState");if(!node)return;node.textContent=message;node.dataset.level=level;}
     function updateActionState(){const hasImage=imageLoaded&&Boolean(image.naturalWidth);document.getElementById("saveLayout").disabled=!hasImage;document.getElementById("exportImage").disabled=!hasImage;document.getElementById("discardChanges").disabled=!hasImage||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasImage;if(!hasImage)setSaveState("画像を読み込んでください","info");else if(layoutDirty)setSaveState(autoSaveEnabled?"未保存の変更（下書き保存対象）":"未保存の変更があります","dirty");else if(hasExplicitSavedLayout)setSaveState("レイアウト保存済み","saved");else setSaveState("新規レイアウト","info");}
     function markLayoutDirty(){if(!dirtyTrackingEnabled||!imageLoaded)return;layoutDirty=currentLayoutJson()!==lastSavedLayout;updateActionState();}
@@ -1488,23 +1527,23 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||""));reader.onerror=()=>reject(reader.error||new Error("画像を読み込めませんでした。"));reader.readAsDataURL(blob);});}
     function resolveForgeUrl(value){if(!value)return"";try{return new URL(value,location.href).href;}catch{return String(value);}}
     function downloadUrl(url,filename){const anchor=document.createElement("a");anchor.href=url;anchor.download=filename||"speech_bubble.png";anchor.rel="noopener";document.body.appendChild(anchor);anchor.click();anchor.remove();}
-    async function fetchSavedLayout(hash){
-      if(!hash||!keepLayoutEnabled)return{saved:"{}",hasSaved:false};
+    async function fetchSavedLayout(id){
+      if(!id||!keepLayoutEnabled)return{saved:"{}",hasSaved:false};
       try{
-        const response=await fetch(`${forgeApiBase}/layout/${encodeURIComponent(hash)}`,{cache:"no-store"});
+        const response=await fetch(`${forgeApiBase}/layout/${encodeURIComponent(id)}`,{cache:"no-store"});
         const payload=await response.json().catch(()=>({}));
         if(response.ok&&payload.ok&&payload.exists){
           const saved=safeStoredLayout(payload.layout_json||"{}");
-          try{localStorage.setItem(`${SAVED_LAYOUT_PREFIX}${hash}`,saved);}catch{}
+          try{localStorage.setItem(savedLayoutKey(id),saved);}catch{}
           return{saved,hasSaved:true};
         }
       }catch(error){console.warn("Speech Bubble saved-layout API unavailable; using local cache.",error);}
-      const local=localLayoutCache();
+      const local=localLayoutCache(id);
       return{saved:local.saved,hasSaved:local.hasSaved};
     }
-    async function selectPersistentLayout(hash){
-      const savedResult=await fetchSavedLayout(hash);
-      const local=localLayoutCache();
+    async function selectPersistentLayout(id=documentId){
+      const savedResult=await fetchSavedLayout(id);
+      const local=localLayoutCache(id);
       const draft=keepLayoutEnabled&&local.hasDraft?local.draft:"";
       return{
         saved:savedResult.saved,
@@ -1542,14 +1581,15 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       updateActionState();
     }
     function persistDraftNow(){
-      if(!autoSaveEnabled||!imageLoaded||!imageHash||!layoutDirty)return;
+      if(!autoSaveEnabled||!imageLoaded||!documentId||!layoutDirty)return;
       const layout=currentLayoutJson();
       try{localStorage.setItem(jsonKey,layout);localStorage.setItem(draftLayoutKey(),layout);}catch{}
-      postHost("speech_bubble:autosave_layout",{revision:renderRevision,image_hash:imageHash});
+      if(documentMode==="standalone")try{localStorage.setItem(LAST_STANDALONE_ID_KEY,documentId);}catch{}
+      postHost("speech_bubble:autosave_layout",{revision:renderRevision,image_hash:imageHash,document_id:documentId});
       setSaveState("下書きを自動保存しました","dirty");
     }
     function scheduleAutoSave(revision=renderRevision){
-      if(!autoSaveEnabled||!imageLoaded||!imageHash)return;
+      if(!autoSaveEnabled||!imageLoaded||!documentId)return;
       clearTimeout(autoSaveTimer);
       autoSaveTimer=setTimeout(()=>{if(revision!==renderRevision)return;refreshDirtyState();persistDraftNow();},autoSaveDelay);
     }
@@ -1574,19 +1614,20 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       return blob;
     }
     async function saveLayoutExplicit(){
-      if(!imageLoaded||!imageHash){setSaveState("背景画像を読み込んでください","error");return false;}
+      if(!imageLoaded||!documentId){setSaveState("背景画像を読み込んでください","error");return false;}
       const button=document.getElementById("saveLayout"),original=button.textContent,layout=currentLayoutJson();
       button.disabled=true;button.textContent="Saving…";setSaveState("レイアウト保存中…","info");
       try{
-        const response=await fetch(`${forgeApiBase}/layout/${encodeURIComponent(imageHash)}`,{
+        const response=await fetch(`${forgeApiBase}/layout/${encodeURIComponent(documentId)}`,{
           method:"PUT",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({layout_json:layout,source_name:sourceName||"speech_bubble"}),
         });
         const payload=await response.json().catch(()=>({}));
         if(!response.ok||!payload.ok)throw new Error(payload.detail||`Layout save failed (${response.status})`);
         try{localStorage.setItem(jsonKey,layout);localStorage.setItem(savedLayoutKey(),layout);localStorage.removeItem(draftLayoutKey());}catch{}
+        if(documentMode==="standalone")try{localStorage.setItem(LAST_STANDALONE_ID_KEY,documentId);}catch{}
         lastSavedLayout=layout;hasExplicitSavedLayout=true;layoutDirty=false;updateActionState();
-        postHost("speech_bubble:layout_saved",{image_hash:imageHash,layout_json:layout});
+        postHost("speech_bubble:layout_saved",{image_hash:imageHash,document_id:documentId,layout_json:layout});
         return true;
       }catch(error){
         console.error("Speech Bubble layout save failed",error);setSaveState(error?.message||"レイアウト保存に失敗しました","error");return false;
@@ -1598,18 +1639,18 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       clearTimeout(autoSaveTimer);autoSaveTimer=null;
       try{localStorage.removeItem(draftLayoutKey());localStorage.setItem(jsonKey,lastSavedLayout);}catch{}
       applyLayoutForCurrentImage(lastSavedLayout,{dirty:false});
-      postHost("speech_bubble:layout_discarded",{image_hash:imageHash});
+      postHost("speech_bubble:layout_discarded",{image_hash:imageHash,document_id:documentId});
     }
     async function exportImage(){
       if(!imageLoaded){setSaveState("背景画像を読み込んでください","error");return;}
       const button=document.getElementById("exportImage"),original=button.textContent;let exportSucceeded=false;
       button.disabled=true;button.textContent="Exporting…";setSaveState("画像を書き出しています…","info");
-      postHost("speech_bubble:export_started",{image_hash:imageHash});
+      postHost("speech_bubble:export_started",{image_hash:imageHash,document_id:documentId});
       try{
         const imageDataUrl=await blobToDataUrl(await sourceImageBlob()),layout=currentLayoutJson();
         const response=await fetch(`${forgeApiBase}/export`,{
           method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({image_data_url:imageDataUrl,layout_json:layout,name:sourceName||"speech_bubble",image_hash:imageHash}),
+          body:JSON.stringify({image_data_url:imageDataUrl,layout_json:layout,name:sourceName||"speech_bubble",image_hash:imageHash,document_id:documentId}),
         });
         const payload=await response.json().catch(()=>({}));
         if(!response.ok||!payload.ok)throw new Error(payload.detail||`Export failed (${response.status})`);
@@ -1620,7 +1661,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
           filename:payload.filename,composite_url:view,download_url:download,
           overlay_url:resolveForgeUrl(payload.overlay_url),overlay_download_url:resolveForgeUrl(payload.overlay_download_url),
           layout_url:resolveForgeUrl(payload.layout_url),layout_download_url:resolveForgeUrl(payload.layout_download_url),
-          width:payload.width,height:payload.height,supersample:payload.supersample,image_hash:imageHash,
+          width:payload.width,height:payload.height,supersample:payload.supersample,image_hash:imageHash,document_id:documentId,
         });
         window.opener?.focus();
       }catch(error){
@@ -1628,35 +1669,87 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       }finally{button.disabled=false;button.textContent=original;updateActionState();if(exportSucceeded)setSaveState("画像を書き出しました",layoutDirty?"dirty":"saved");}
     }
     function loadImageElement(url){return new Promise((resolve,reject)=>{image.onload=()=>resolve();image.onerror=()=>reject(new Error("画像を表示できませんでした。"));image.src=url;if(image.complete&&image.naturalWidth)resolve();});}
-    async function loadImageBlob(blob,{name="speech_bubble",tab=sourceTab}={}){
+    function showImageRestoreChoice(){return new Promise(resolve=>{const dialog=document.getElementById("imageLayoutRestoreDialog");imageRestoreResolver=resolve;if(typeof dialog.showModal==="function")dialog.showModal();else{imageRestoreResolver=null;resolve(confirm("この画像の保存済みレイアウトを単体編集へコピーしますか？")?"restore":"new");}});}
+    function showStandaloneResumeChoice(){return new Promise(resolve=>{const dialog=document.getElementById("resumeStandaloneDialog");standaloneResumeResolver=resolve;if(typeof dialog.showModal==="function")dialog.showModal();else{standaloneResumeResolver=null;resolve(confirm("前回の単体編集を再開しますか？")?"resume":"new");}});}
+    function finishDialogChoice(dialogId,resolverName,value){document.getElementById(dialogId).close();if(resolverName==="image"){const resolve=imageRestoreResolver;imageRestoreResolver=null;resolve?.(value);}else{const resolve=standaloneResumeResolver;standaloneResumeResolver=null;resolve?.(value);}}
+    function setStandaloneContext(id){
+      const match=String(id||"").toLowerCase().match(/^standalone:([a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/);
+      standaloneId=match?.[1]||createUuid();documentMode="standalone";documentId=`standalone:${standaloneId}`;
+    }
+    function clearDocumentCanvas(){
+      clearTimeout(autoSaveTimer);autoSaveTimer=null;dirtyTrackingEnabled=false;
+      if(sourceObjectUrl)URL.revokeObjectURL(sourceObjectUrl);
+      sourceObjectUrl=null;sourceBlob=null;imageUrl="";imageHash="";imageLoaded=false;
+      image.onload=null;image.onerror=null;image.removeAttribute("src");
+      sourceName="speech_bubble";loadState("{}");lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=false;layoutDirty=false;
+      state.undo=[];state.redo=[];syncProperties();fitView(false);requestRender({canvas:true,layers:true,preview:false});dirtyTrackingEnabled=true;updateActionState();
+    }
+    async function displayImageBlob(blob,{name="speech_bubble",tab=sourceTab,hash=""}={}){
+      imageHash=hash||await hashImageBlob(blob);sourceTab=tab||sourceTab;sourceName=String(name||"speech_bubble").replace(/\.[^.]+$/,"").trim()||"speech_bubble";
+      sourceBlob=blob;if(sourceObjectUrl)URL.revokeObjectURL(sourceObjectUrl);
+      sourceObjectUrl=URL.createObjectURL(blob);imageUrl=sourceObjectUrl;await loadImageElement(sourceObjectUrl);imageLoaded=true;
+    }
+    async function restoreStandaloneDocument(id,background){
+      setStandaloneContext(id);clearDocumentCanvas();
+      await displayImageBlob(background.blob,{name:background.sourceName||"speech_bubble"});
+      const layouts=await selectPersistentLayout(documentId);hasExplicitSavedLayout=layouts.hasSaved;
+      applyLayoutForCurrentImage(layouts.saved||"{}",{dirty:false});lastSavedLayout=currentLayoutJson();
+      if(layouts.hasDraft)applyLayoutForCurrentImage(layouts.draft,{dirty:true});
+      try{localStorage.setItem(jsonKey,currentLayoutJson());localStorage.setItem(LAST_STANDALONE_ID_KEY,documentId);}catch{}
+      postHost("speech_bubble:source_loaded",{image_hash:imageHash,document_id:documentId,source_name:sourceName,width:image.naturalWidth,height:image.naturalHeight,restored:layouts.hasDraft?"自動保存下書き":layouts.hasSaved?"保存済みレイアウト":"新規レイアウト"});
+      startDeferredResources();
+    }
+    async function startStandaloneDocument(id,{offerResume=true}={}){
+      if(layoutDirty&&autoSaveEnabled)persistDraftNow();
+      const requested=`standalone:${String(id||createUuid()).replace(/^standalone:/,"")}`;
+      let selected=requested,background=null;
+      if(offerResume){
+        let previous="";try{previous=localStorage.getItem(LAST_STANDALONE_ID_KEY)||"";}catch{}
+        if(previous&&previous!==requested)background=await documentBackground(previous);
+        if(background&&(await showStandaloneResumeChoice())==="resume")selected=previous;else background=null;
+      }
+      setStandaloneContext(selected);
+      if(!background)background=await documentBackground(documentId);
+      if(background&&selected!==requested)return restoreStandaloneDocument(documentId,background);
+      clearDocumentCanvas();
+      postHost("speech_bubble:document_changed",{document_id:documentId,mode:documentMode});
+    }
+    async function loadImageBlob(blob,{name="speech_bubble",tab=sourceTab,mode=documentMode,resume=false}={}){
       if(!blob||!String(blob.type||"").startsWith("image/")){setSaveState("PNG / JPEG / WebPを選択してください","error");return;}
       clearTimeout(autoSaveTimer);autoSaveTimer=null;dirtyTrackingEnabled=false;setSaveState("画像を読み込んでいます…","info");
       const hash=await hashImageBlob(blob);
-      imageHash=hash;sourceTab=tab||sourceTab;sourceName=String(name||"speech_bubble").replace(/\.[^.]+$/,"").trim()||"speech_bubble";
-      sourceBlob=blob;
-      if(sourceObjectUrl)URL.revokeObjectURL(sourceObjectUrl);
-      sourceObjectUrl=URL.createObjectURL(blob);imageUrl=sourceObjectUrl;
-      await loadImageElement(sourceObjectUrl);
-      imageLoaded=true;
-      const layouts=await selectPersistentLayout(hash);
+      const standalone=mode==="standalone";
+      let copiedLayout=null,choice="new";
+      if(standalone&&!resume){
+        const imageLayout=await fetchSavedLayout(`image:${hash}`);
+        if(imageLayout.hasSaved){choice=await showImageRestoreChoice();if(choice==="cancel"){dirtyTrackingEnabled=true;updateActionState();return false;}if(choice==="restore")copiedLayout=imageLayout.saved;}
+      }
+      if(!standalone){documentMode="image";documentId=`image:${hash}`;}
+      await displayImageBlob(blob,{name,tab,hash});
+      const layouts=await selectPersistentLayout(documentId);
       hasExplicitSavedLayout=layouts.hasSaved;
       applyLayoutForCurrentImage(layouts.saved||"{}",{dirty:false});
       lastSavedLayout=currentLayoutJson();
       let restored=layouts.hasSaved?"保存済みレイアウト":"新規レイアウト";
-      if(layouts.hasDraft){applyLayoutForCurrentImage(layouts.draft,{dirty:true});restored="自動保存下書き";}
+      if(standalone&&!resume){
+        const next=copiedLayout||"{}";applyLayoutForCurrentImage(next,{dirty:next!==lastSavedLayout});
+        restored=copiedLayout?"画像側レイアウトをコピー":"新規レイアウト";
+        await storeDocumentBackground(documentId,blob,sourceName);
+      }else if(layouts.hasDraft){applyLayoutForCurrentImage(layouts.draft,{dirty:true});restored="自動保存下書き";}
       else{layoutDirty=false;updateActionState();}
       try{localStorage.setItem(jsonKey,currentLayoutJson());}catch{}
-      postHost("speech_bubble:source_loaded",{image_hash:imageHash,source_name:sourceName,width:image.naturalWidth,height:image.naturalHeight,restored});
+      postHost("speech_bubble:source_loaded",{image_hash:imageHash,document_id:documentId,source_name:sourceName,width:image.naturalWidth,height:image.naturalHeight,restored});
       startDeferredResources();
+      return true;
     }
-    async function loadLocalImageFile(file){await loadImageBlob(file,{name:file?.name||"speech_bubble",tab:sourceTab});}
+    async function loadLocalImageFile(file){await loadImageBlob(file,{name:file?.name||"speech_bubble",tab:sourceTab,mode:documentMode});}
     async function loadRemoteImage(url,{name=sourceName,tab=sourceTab}={}){
       if(!url)return;
       setSaveState("生成画像を読み込んでいます…","info");
       const response=await fetch(url,{cache:"no-store"});
       if(!response.ok)throw new Error(`背景画像を取得できませんでした (${response.status})`);
       const blob=await response.blob();
-      await loadImageBlob(blob,{name,tab});
+      await loadImageBlob(blob,{name,tab,mode:"image"});
     }
     async function performPendingReplacement(){
       const pending=pendingReplacementSource;pendingReplacementSource=null;
@@ -1847,7 +1940,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("plus").onclick=()=>{state.zoom=Math.min(4,state.zoom*1.2);requestRender({canvas:true});}; document.getElementById("minus").onclick=()=>{state.zoom=Math.max(.25,state.zoom/1.2);requestRender({canvas:true});}; document.getElementById("fit").onclick=fitView;
     document.getElementById("undo").onclick=undoAction; document.getElementById("redo").onclick=redoAction;
     function cleanupTransientState(){clearTimeout(livePreviewTimer);livePreviewTimer=null;clearTimeout(autoSaveTimer);autoSaveTimer=null;try{localStorage.removeItem(jsonKey);}catch{}if(sourceObjectUrl){URL.revokeObjectURL(sourceObjectUrl);sourceObjectUrl=null;}}
-    function closeEditor(){if(editorClosed)return;if(layoutDirty&&!autoSaveEnabled&&!confirm("未保存の変更があります。保存せずに閉じますか？"))return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash});window.close();}
+    function closeEditor(){if(editorClosed)return;if(layoutDirty&&!autoSaveEnabled&&!confirm("未保存の変更があります。保存せずに閉じますか？"))return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});window.close();}
     document.getElementById("closeEditor").onclick=closeEditor;
     document.getElementById("discardChanges").onclick=discardChanges;
     document.getElementById("saveLayout").onclick=saveLayoutExplicit;
@@ -1858,8 +1951,15 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("chooseBackgroundImage").onclick=chooseBackground;
     backgroundInput.addEventListener("change",()=>{const file=backgroundInput.files?.[0];if(file)requestBackgroundFile(file);backgroundInput.value="";});
     document.getElementById("replaceCancel").onclick=()=>{pendingReplacementSource=null;document.getElementById("replaceImageDialog").close();};
-    document.getElementById("replaceDiscard").onclick=async()=>{try{if(imageHash)localStorage.removeItem(draftLayoutKey());}catch{}document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
+    document.getElementById("replaceDiscard").onclick=async()=>{try{if(documentId)localStorage.removeItem(draftLayoutKey());}catch{}document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
     document.getElementById("replaceSave").onclick=async()=>{if(!(await saveLayoutExplicit()))return;document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
+    document.getElementById("imageRestoreCancel").onclick=()=>finishDialogChoice("imageLayoutRestoreDialog","image","cancel");
+    document.getElementById("imageRestoreNew").onclick=()=>finishDialogChoice("imageLayoutRestoreDialog","image","new");
+    document.getElementById("imageRestoreCopy").onclick=()=>finishDialogChoice("imageLayoutRestoreDialog","image","restore");
+    document.getElementById("standaloneStartNew").onclick=()=>finishDialogChoice("resumeStandaloneDialog","standalone","new");
+    document.getElementById("standaloneResumePrevious").onclick=()=>finishDialogChoice("resumeStandaloneDialog","standalone","resume");
+    document.getElementById("imageLayoutRestoreDialog").addEventListener("cancel",event=>{event.preventDefault();finishDialogChoice("imageLayoutRestoreDialog","image","cancel");});
+    document.getElementById("resumeStandaloneDialog").addEventListener("cancel",event=>{event.preventDefault();finishDialogChoice("resumeStandaloneDialog","standalone","new");});
     window.addEventListener("message",event=>{
       if(event.origin!==location.origin||event.source!==window.opener)return;
       const data=event.data;
@@ -1869,6 +1969,11 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         window.focus();
       }else if(data?.type==="speech_bubble:set_theme"){
         document.documentElement.dataset.theme=data.theme==="light"?"light":"dark";
+      }else if(data?.type==="speech_bubble:switch_context"&&data.mode==="standalone"){
+        sourceTab=data.source_tab||sourceTab;sourceName=data.source_name||"speech_bubble";
+        startStandaloneDocument(data.documentId,{offerResume:true}).then(()=>{
+          postHost("speech_bubble:context_applied",{requestId:data.requestId,...editorConnectionState()});
+        }).catch(error=>{console.error(error);setSaveState(error?.message||"単体編集を開始できませんでした","error");});
       }else if(data?.type==="speech_bubble:load_source"&&data.image_url){
         requestRemoteImage(data.image_url,{name:data.source_name||"speech_bubble",tab:data.source_tab||sourceTab}).then(()=>{
           postHost("speech_bubble:source_applied",{requestId:data.requestId,...editorConnectionState()});
@@ -1876,7 +1981,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       }
     });
     window.addEventListener("beforeunload",event=>{if(editorClosed||autoSaveEnabled||!layoutDirty)return;event.preventDefault();event.returnValue="";});
-    window.addEventListener("pagehide",()=>{if(editorClosed)return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash});});
+    window.addEventListener("pagehide",()=>{if(editorClosed)return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});});
     const properties=document.getElementById("properties");
     const shapePropertyKeys=new Set(["shape_intensity","shape_asymmetry","shape_roundness","spike_count","valley_style","valley_concavity","lobe_count","lobe_depth","shape_softness"]);
     const textFitPropertyKeys=new Set(["text","writing","font_id","font_path","font_size","tracking","font_scale_x","font_scale_y","bold","italic","stroke_width","stroke_color","shadow_enabled","shadow_x","shadow_y","shadow_blur","auto_fit"]);
@@ -1915,7 +2020,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function deferEditorTask(task){if("requestIdleCallback" in window)requestIdleCallback(()=>task(),{timeout:1000});else setTimeout(task,0);}
     let firstPaintDone=false,deferredResourcesStarted=false;
     function startDeferredResources(){if(deferredResourcesStarted)return;deferredResourcesStarted=true;deferEditorTask(loadDeferredEditorResources);}
-    function firstPaint(){if(firstPaintDone)return;firstPaintDone=true;fitView(false);syncProperties();requestRender({canvas:true,layers:true,preview:false});dirtyTrackingEnabled=true;updateActionState();postHost("speech_bubble:editor_ready",{has_image:imageLoaded});requestAnimationFrame(()=>{if(imageLoaded)deferEditorTask(()=>scheduleLivePreview(renderRevision));startDeferredResources();});}
+    function firstPaint(){if(firstPaintDone)return;firstPaintDone=true;fitView(false);syncProperties();requestRender({canvas:true,layers:true,preview:false});dirtyTrackingEnabled=true;updateActionState();postHost("speech_bubble:editor_ready",{has_image:imageLoaded,document_id:documentId,mode:documentMode});requestAnimationFrame(()=>{if(imageLoaded)deferEditorTask(()=>scheduleLivePreview(renderRevision));startDeferredResources();});}
     async function loadDeferredEditorResources(){await Promise.all([loadFrameManifest(),loadBubbleShapeManifest(),loadSfxAssetCatalog()]);initializePresetUI();refreshQuickSfx();refreshQuickFrames();await loadSystemFonts();requestRender({canvas:true,layers:true,preview:false});}
     async function initializeEditor(){
       const initialTheme=params.get("theme");
@@ -1925,7 +2030,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       if(imageUrl){
         try{await loadRemoteImage(imageUrl,{name:sourceName,tab:sourceTab});}
         catch(error){console.error("Speech Bubble initial image load failed",error);imageLoaded=false;updateActionState();setSaveState(error?.message||"背景画像を読み込めませんでした","error");}
-      }
+      }else if(documentMode==="standalone")await startStandaloneDocument(standaloneId,{offerResume:true});
     }
     initializeEditor();
   </script>

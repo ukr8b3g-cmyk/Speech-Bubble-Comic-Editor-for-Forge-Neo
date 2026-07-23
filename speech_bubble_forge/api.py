@@ -34,6 +34,9 @@ _MAX_LAYOUT_CHARS = 8 * 1024 * 1024
 _SAVE_LOCK = threading.RLock()
 _LAYOUT_LOCK = threading.RLock()
 _FINGERPRINT_RE = re.compile(r"^[a-f0-9]{64}$")
+_DOCUMENT_ID_RE = re.compile(
+    r"^(image:[a-f0-9]{64}|standalone:[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$"
+)
 
 
 def preset_path() -> Path:
@@ -72,11 +75,13 @@ def _safe_name(value):
     return value[:80] or "speech_bubble"
 
 
-def _safe_fingerprint(value: str) -> str:
-    fingerprint = str(value or "").strip().lower()
-    if not _FINGERPRINT_RE.fullmatch(fingerprint):
-        raise ValueError("Invalid image fingerprint")
-    return fingerprint
+def _safe_document_id(value: str) -> str:
+    document_id = str(value or "").strip().lower()
+    if _FINGERPRINT_RE.fullmatch(document_id):
+        return f"image:{document_id}"
+    if not _DOCUMENT_ID_RE.fullmatch(document_id):
+        raise ValueError("Invalid document ID")
+    return document_id
 
 
 def _validate_layout(raw_layout) -> tuple[str, dict]:
@@ -137,8 +142,13 @@ def _safe_output_file(filename: str) -> Path:
     return candidate
 
 
-def _layout_file(fingerprint: str) -> Path:
-    return layout_root() / f"{_safe_fingerprint(fingerprint)}.json"
+def _layout_file(document_id: str) -> Path:
+    document_id = _safe_document_id(document_id)
+    if document_id.startswith("image:"):
+        storage_key = document_id.removeprefix("image:")
+    else:
+        storage_key = f"standalone_{document_id.removeprefix('standalone:')}"
+    return layout_root() / f"{storage_key}.json"
 
 
 def register_routes(app):
@@ -211,10 +221,16 @@ def register_routes(app):
 
     async def get_layout(fingerprint: str):
         try:
-            fingerprint = _safe_fingerprint(fingerprint)
-            path = _layout_file(fingerprint)
+            document_id = _safe_document_id(fingerprint)
+            path = _layout_file(document_id)
             if not path.is_file():
-                return {"ok": True, "exists": False, "fingerprint": fingerprint, "layout_json": "{}"}
+                return {
+                    "ok": True,
+                    "exists": False,
+                    "document_id": document_id,
+                    "fingerprint": document_id.removeprefix("image:") if document_id.startswith("image:") else "",
+                    "layout_json": "{}",
+                }
             with _LAYOUT_LOCK:
                 wrapper = json.loads(path.read_text(encoding="utf-8"))
             layout = wrapper.get("layout", wrapper)
@@ -222,7 +238,8 @@ def register_routes(app):
             return {
                 "ok": True,
                 "exists": True,
-                "fingerprint": fingerprint,
+                "document_id": document_id,
+                "fingerprint": document_id.removeprefix("image:") if document_id.startswith("image:") else "",
                 "layout_json": normalized,
                 "saved_at": wrapper.get("saved_at") if isinstance(wrapper, dict) else None,
                 "source_name": wrapper.get("source_name", "") if isinstance(wrapper, dict) else "",
@@ -232,24 +249,26 @@ def register_routes(app):
 
     async def put_layout(fingerprint: str, request: Request):
         try:
-            fingerprint = _safe_fingerprint(fingerprint)
+            document_id = _safe_document_id(fingerprint)
             payload = await request.json()
             normalized, parsed = _validate_layout(payload.get("layout_json", "{}"))
             wrapper = {
                 "version": 1,
-                "fingerprint": fingerprint,
+                "document_id": document_id,
+                "fingerprint": document_id.removeprefix("image:") if document_id.startswith("image:") else "",
                 "source_name": _safe_name(payload.get("source_name") or "speech_bubble"),
                 "saved_at": datetime.now(timezone.utc).isoformat(),
                 "layout": parsed,
             }
             with _LAYOUT_LOCK:
                 _write_text_atomic(
-                    _layout_file(fingerprint),
+                    _layout_file(document_id),
                     json.dumps(wrapper, ensure_ascii=False, indent=2),
                 )
             return {
                 "ok": True,
-                "fingerprint": fingerprint,
+                "document_id": document_id,
+                "fingerprint": wrapper["fingerprint"],
                 "layout_json": normalized,
                 "saved_at": wrapper["saved_at"],
             }
@@ -258,7 +277,7 @@ def register_routes(app):
 
     async def delete_layout(fingerprint: str):
         try:
-            path = _layout_file(_safe_fingerprint(fingerprint))
+            path = _layout_file(_safe_document_id(fingerprint))
             with _LAYOUT_LOCK:
                 existed = path.is_file()
                 path.unlink(missing_ok=True)

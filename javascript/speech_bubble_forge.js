@@ -39,6 +39,19 @@
         return globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     }
 
+    function randomUuid() {
+        if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+        const bytes = new Uint8Array(16);
+        globalThis.crypto?.getRandomValues?.(bytes);
+        if (!bytes.some(Boolean)) {
+            for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+        }
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+
     function toast(message, kind = "info", link = null) {
         const root = appRoot();
         let host = root.querySelector("#speech-bubble-forge-toast-host");
@@ -207,8 +220,10 @@
         editor.searchParams.set("assetVersion", runtimeSettings.asset_cache_version);
         editor.searchParams.set("sourceTab", session.tabName || "");
         editor.searchParams.set("sourceName", session.sourceName || "speech_bubble");
+        editor.searchParams.set("mode", session.mode || (session.imageUrl ? "image" : "standalone"));
+        if (session.standaloneId) editor.searchParams.set("standaloneId", session.standaloneId);
         if (session.imageUrl) editor.searchParams.set("imageUrl", session.imageUrl);
-        editor.searchParams.set("v", "20260723-04");
+        editor.searchParams.set("v", "20260723-05");
         return editor.toString();
     }
 
@@ -288,6 +303,23 @@
                 image_url: session.imageUrl,
                 source_name: session.sourceName,
                 source_tab: session.tabName,
+                mode: session.mode || "image",
+            },
+            location.origin,
+        );
+    }
+
+    function sendContextToExisting(session, requestId) {
+        if (!editorWindow || editorWindow.closed) return;
+        editorWindow.postMessage(
+            {
+                type: "speech_bubble:switch_context",
+                requestId,
+                mode: session.mode,
+                documentId: session.documentId,
+                imageUrl: session.imageUrl || "",
+                source_name: session.sourceName,
+                source_tab: session.tabName,
             },
             location.origin,
         );
@@ -301,6 +333,9 @@
             imageUrl: options.imageUrl || "",
             sourceName: options.sourceName || "speech_bubble",
             tabName,
+            mode: options.mode || (options.imageUrl ? "image" : "standalone"),
+            standaloneId: options.standaloneId || "",
+            documentId: options.standaloneId ? `standalone:${options.standaloneId}` : "",
         };
 
         const candidate = window.open("", EDITOR_WINDOW_NAME, popupFeatures());
@@ -359,6 +394,7 @@
             imageUrl: info.url,
             sourceName: info.name,
             tabName,
+            mode: "image",
         });
     }
 
@@ -367,7 +403,7 @@
     }
 
     function openBlank(tabName = currentTabName()) {
-        openEditor({ sourceName: "speech_bubble", tabName });
+        openEditor({ sourceName: "speech_bubble", tabName, mode: "standalone", standaloneId: randomUuid() });
     }
 
     function bestEffortGalleryInsert(tabName, imageUrl, filename) {
@@ -432,8 +468,13 @@
             installEditorCloseMonitor();
             editorWindow.postMessage({ type: "speech_bubble:request_focus", requestId }, location.origin);
             editorWindow.focus();
-            if (requested.imageUrl) {
+            if (requested.mode === "image" && requested.imageUrl) {
                 sendSourceToExisting(requested, requestId);
+            } else if (
+                requested.mode === "standalone" &&
+                (data.mode !== requested.mode || data.documentId !== requested.documentId)
+            ) {
+                sendContextToExisting(requested, requestId);
             } else {
                 pendingOpenRequest = null;
             }
@@ -444,7 +485,7 @@
             );
             return;
         }
-        if (data.type === "speech_bubble:source_applied") {
+        if (data.type === "speech_bubble:source_applied" || data.type === "speech_bubble:context_applied") {
             if (
                 data.requestId !== latestOpenRequestId ||
                 !pendingOpenRequest ||
@@ -453,11 +494,11 @@
             const requested = pendingOpenRequest.requested;
             activeSession = {
                 key: data.jsonKey || activeSession?.key || requested.key,
-                imageUrl: requested.imageUrl,
+                imageUrl: data.mode === "image" ? requested.imageUrl : "",
                 sourceName: data.sourceName || requested.sourceName,
                 tabName: data.sourceTab || requested.tabName,
                 documentId: data.documentId || "",
-                mode: data.mode || "image",
+                mode: data.mode || requested.mode,
             };
             pendingOpenRequest = null;
             return;
@@ -474,12 +515,20 @@
                 if (activeSession && !pendingOpenRequest) {
                     activeSession.tabName = tabName;
                     activeSession.sourceName = data.source_name || activeSession.sourceName;
+                    activeSession.documentId = data.document_id || activeSession.documentId;
+                    activeSession.mode = data.document_id?.startsWith("standalone:") ? "standalone" : data.document_id?.startsWith("image:") ? "image" : activeSession.mode;
                 }
                 setPanelStatus(
                     tabName,
                     `画像読込: ${data.width || "?"}×${data.height || "?"} · ${data.restored || "新規レイアウト"}`,
                     "success",
                 );
+                break;
+            case "speech_bubble:document_changed":
+                if (activeSession && !pendingOpenRequest) {
+                    activeSession.documentId = data.document_id || activeSession.documentId;
+                    activeSession.mode = data.mode || activeSession.mode;
+                }
                 break;
             case "speech_bubble:autosave_layout":
                 setPanelStatus(
