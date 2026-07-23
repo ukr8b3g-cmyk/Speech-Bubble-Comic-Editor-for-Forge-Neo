@@ -15,6 +15,7 @@ const context = {};
 vm.runInNewContext(
   `${coreMatch[1]}
 globalThis.EmphasisLinesCore = {
+  EMPHASIS_EDGE_OVERSHOOT,
   EMPHASIS_PRESETS,
   EMPHASIS_GEOMETRY_KEYS,
   normalizeEmphasisParams,
@@ -26,13 +27,15 @@ globalThis.EmphasisLinesCore = {
 const Core = context.EmphasisLinesCore;
 
 assert.strictEqual(Core.EMPHASIS_PRESETS.length, 4);
+assert.strictEqual(Core.EMPHASIS_EDGE_OVERSHOOT, 0.035);
 for (const key of ["inner_random", "seed", "w", "h"]) {
   assert(Core.EMPHASIS_GEOMETRY_KEYS.has(key));
 }
-for (const key of ["color", "opacity", "visible"]) {
+for (const key of ["color", "opacity", "overshoot", "visible"]) {
   assert(!Core.EMPHASIS_GEOMETRY_KEYS.has(key));
 }
 for (const preset of Core.EMPHASIS_PRESETS) {
+  assert(!Object.hasOwn(preset, "overshoot"));
   assert.strictEqual(preset.line_length, 1);
   assert.strictEqual(preset.length_random, 0);
   assert.strictEqual(preset.inner_random, 0.5);
@@ -101,6 +104,14 @@ for (let index = 0; index < flatRays.length; index += 1) {
   }
 }
 assert(innerChanged, "Center Random must change an inner endpoint");
+assert.strictEqual(
+  Core.normalizeEmphasisParams({
+    ...Core.EMPHASIS_PRESETS[0],
+    preset: "center",
+    overshoot: 0.12,
+  }).overshoot,
+  Core.EMPHASIS_EDGE_OVERSHOOT,
+);
 
 const framesIndex = html.indexOf('data-left-section="frames"');
 const emphasisIndex = html.indexOf('data-left-section="emphasis"');
@@ -110,9 +121,22 @@ for (const requiredId of [
   "quickEmphasisLines",
   "emphasisProps",
   "emphasisColorSwatches",
-  "regenerateEmphasisLines",
+  "emphasisRandomDetails",
+  "emphasisCenterDetails",
+  "newEmphasisSeed",
+  "resetEmphasisCenter",
 ]) {
   assert(html.includes(`id="${requiredId}"`), `${requiredId} must exist`);
 }
+assert(!html.includes('data-key="overshoot"'));
+assert(!html.includes('id="regenerateEmphasisLines"'));
+assert(!/<details id="emphasis(?:Random|Center)Details"[^>]*\sopen(?:\s|>)/.test(html));
+const emphasisProps = html.match(
+  /<div id="emphasisProps" hidden>([\s\S]*?)\n        <\/div>\n        <details id="transformDetails"/,
+)?.[1] || "";
+assert.strictEqual(
+  (emphasisProps.match(/class="emphasis-control-row"/g) || []).length,
+  13,
+);
 
 console.log("emphasis_lines_core_test: OK");

@@ -2715,32 +2715,34 @@ def _draw_frame(layer, element, scale, canvas_width, canvas_height):
         int(round(center_y - local.height / 2)),
     )
 
+_EMPHASIS_EDGE_OVERSHOOT = 0.035
+
 _EMPHASIS_PRESETS = {
     "center": {
         "line_count": 180, "inner_x": 0.15, "inner_y": 0.20,
         "line_width": 0.006, "line_length": 1.0, "taper": 1.0,
-        "overshoot": 0.035, "center_x": 0.5, "center_y": 0.5,
+        "center_x": 0.5, "center_y": 0.5,
         "length_random": 0.0, "inner_random": 0.5,
         "width_random": 0.48, "spacing_random": 0.38,
     },
     "wide": {
         "line_count": 210, "inner_x": 0.27, "inner_y": 0.16,
         "line_width": 0.005, "line_length": 1.0, "taper": 1.0,
-        "overshoot": 0.035, "center_x": 0.5, "center_y": 0.5,
+        "center_x": 0.5, "center_y": 0.5,
         "length_random": 0.0, "inner_random": 0.5,
         "width_random": 0.55, "spacing_random": 0.42,
     },
     "tall": {
         "line_count": 190, "inner_x": 0.13, "inner_y": 0.29,
         "line_width": 0.0055, "line_length": 1.0, "taper": 1.0,
-        "overshoot": 0.035, "center_x": 0.5, "center_y": 0.5,
+        "center_x": 0.5, "center_y": 0.5,
         "length_random": 0.0, "inner_random": 0.5,
         "width_random": 0.50, "spacing_random": 0.42,
     },
     "side": {
         "line_count": 130, "inner_x": 0.15, "inner_y": 0.20,
         "line_width": 0.008, "line_length": 1.0, "taper": 1.0,
-        "overshoot": 0.035, "center_x": -0.12, "center_y": 0.5,
+        "center_x": -0.12, "center_y": 0.5,
         "length_random": 0.0, "inner_random": 0.5,
         "width_random": 0.50, "spacing_random": 0.34,
     },
@@ -2803,9 +2805,7 @@ def _normalize_emphasis_params(source):
         "taper": _emphasis_clamp(
             source.get("taper"), 0.0, 1.0, base["taper"]
         ),
-        "overshoot": _emphasis_clamp(
-            source.get("overshoot"), 0.0, 0.15, base["overshoot"]
-        ),
+        "overshoot": _EMPHASIS_EDGE_OVERSHOOT,
         "center_x": _emphasis_clamp(
             source.get("center_x"), -0.5, 1.5, base["center_x"]
         ),

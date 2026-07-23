@@ -14,6 +14,7 @@ SPEC.loader.exec_module(renderer)
 
 
 def test_presets_and_determinism():
+    assert renderer._EMPHASIS_EDGE_OVERSHOOT == 0.035
     for preset_id, preset in renderer._EMPHASIS_PRESETS.items():
         assert preset["line_length"] == 1
         assert preset["length_random"] == 0
@@ -25,6 +26,13 @@ def test_presets_and_determinism():
         assert first == second
         assert first
         assert renderer._validated_emphasis_rays(first)
+
+    normalized = renderer._normalize_emphasis_params({
+        **renderer._EMPHASIS_PRESETS["center"],
+        "preset": "center",
+        "overshoot": 0.12,
+    })
+    assert normalized["overshoot"] == renderer._EMPHASIS_EDGE_OVERSHOOT
 
 
 def test_center_random_preserves_outer_endpoints():

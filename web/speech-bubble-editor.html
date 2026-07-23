@@ -91,6 +91,19 @@
     .compact-color-swatch::before { content:none; }
     .compact-color-swatch:hover { transform:scale(1.12); z-index:1; }
     .compact-color-swatch.active { outline:2px solid #67aaf9; outline-offset:1px; }
+    #emphasisProps .emphasis-top-fields { display:grid; grid-template-columns:minmax(0,1fr) 92px; gap:6px; align-items:end; margin-bottom:4px; }
+    #emphasisProps .emphasis-control-row { display:grid; grid-template-columns:92px minmax(72px,1fr) 58px; align-items:center; gap:6px; min-height:26px; margin:2px 0; }
+    #emphasisProps .emphasis-control-row > label { display:block; min-width:0; margin:0; color:var(--muted); font-size:11px; line-height:1.15; }
+    #emphasisProps .emphasis-control-row input[type="range"] { width:100%; min-width:0; margin:0; }
+    #emphasisProps .emphasis-control-row input[type="number"] { width:58px; min-width:0; min-height:24px; height:24px; padding:2px 5px; }
+    #emphasisProps .emphasis-compact-group { margin-top:5px; padding-top:3px; border-top:1px solid var(--line); }
+    #emphasisProps .emphasis-compact-group > summary { display:flex; align-items:center; min-height:25px; color:var(--muted); font-weight:600; cursor:pointer; user-select:none; }
+    #emphasisProps .emphasis-compact-group-body { padding:2px 0 3px; }
+    #emphasisProps .emphasis-seed-row { display:grid; grid-template-columns:92px minmax(80px,1fr) auto; align-items:center; gap:6px; margin:3px 0; }
+    #emphasisProps .emphasis-seed-row > label { display:block; margin:0; }
+    #emphasisProps .emphasis-seed-row input { min-width:0; min-height:24px; height:24px; padding:2px 5px; }
+    #emphasisProps .emphasis-seed-row button,#emphasisProps #resetEmphasisCenter { min-height:24px; padding:2px 7px; white-space:nowrap; }
+    #emphasisProps #resetEmphasisCenter { width:100%; }
     .shape-icon { position:relative; display:block; width:48px; height:29px; border:2px solid #111; background:#fff; border-radius:50%; }
     .shape-icon.rounded_rect { border-radius:7px; }
     .shape-icon.sharp_rect { border-radius:1px; }
@@ -452,19 +465,38 @@
           </details>
         </div>
         <div id="emphasisProps" hidden>
-          <label>Preset<select data-key="preset"><option value="center">Center</option><option value="wide">Wide</option><option value="tall">Tall</option><option value="side">One Side</option></select></label>
-          <label>Line Color<input data-key="color" type="color"></label>
+          <div class="emphasis-top-fields">
+            <label>Preset<select data-key="preset"><option value="center">Center</option><option value="wide">Wide</option><option value="tall">Tall</option><option value="side">One Side</option></select></label>
+            <label>Line Color<input data-key="color" type="color"></label>
+          </div>
           <div class="compact-swatch-controls" data-swatch-targets="emphasis"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="color">Line</button></div></div>
           <div id="emphasisColorSwatches" class="compact-color-swatches" role="group" aria-label="Emphasis line color swatches"></div>
-          <div class="field"><label>Opacity<input data-key="opacity" type="number"></label><label>Line Count<input data-key="line_count" type="number"></label></div>
-          <div class="field"><label>Center Gap X<input data-key="inner_x" type="number"></label><label>Center Gap Y<input data-key="inner_y" type="number"></label></div>
-          <div class="field"><label>Base Line Width<input data-key="line_width" type="number"></label><label>Line Length<input data-key="line_length" type="number"></label></div>
-          <div class="field"><label>Taper<input data-key="taper" type="number"></label><label>Edge Overshoot<input data-key="overshoot" type="number"></label></div>
-          <div class="field"><label>Center X<input data-key="center_x" type="number"></label><label>Center Y<input data-key="center_y" type="number"></label></div>
-          <div class="field"><label>Length Random<input data-key="length_random" type="number"></label><label>Center Random<input data-key="inner_random" type="number"></label></div>
-          <div class="field"><label>Width Random<input data-key="width_random" type="number"></label><label>Spacing Random<input data-key="spacing_random" type="number"></label></div>
-          <label>Seed<input data-key="seed" type="number"></label>
-          <button id="regenerateEmphasisLines" type="button" style="width:100%;margin:6px 0;">Regenerate</button>
+          <div class="emphasis-control-row"><label for="emphasisOpacity">Opacity</label><input id="emphasisOpacity" data-key="opacity" type="number" aria-label="Opacity value"></div>
+          <div class="emphasis-control-row"><label for="emphasisLineCount">Line Count</label><input id="emphasisLineCount" data-key="line_count" type="number" aria-label="Line Count value"></div>
+          <div class="emphasis-control-row"><label for="emphasisInnerX">Center Gap X</label><input id="emphasisInnerX" data-key="inner_x" type="number" aria-label="Center Gap X value"></div>
+          <div class="emphasis-control-row"><label for="emphasisInnerY">Center Gap Y</label><input id="emphasisInnerY" data-key="inner_y" type="number" aria-label="Center Gap Y value"></div>
+          <div class="emphasis-control-row"><label for="emphasisLineWidth">Base Line Width</label><input id="emphasisLineWidth" data-key="line_width" type="number" aria-label="Base Line Width value"></div>
+          <div class="emphasis-control-row"><label for="emphasisLineLength">Line Length</label><input id="emphasisLineLength" data-key="line_length" type="number" aria-label="Line Length value"></div>
+          <div class="emphasis-control-row"><label for="emphasisTaper">Taper</label><input id="emphasisTaper" data-key="taper" type="number" aria-label="Taper value"></div>
+          <details id="emphasisRandomDetails" class="emphasis-compact-group">
+            <summary>Random</summary>
+            <div class="emphasis-compact-group-body">
+              <div class="emphasis-control-row"><label for="emphasisLengthRandom">Length Random</label><input id="emphasisLengthRandom" data-key="length_random" type="number" aria-label="Length Random value"></div>
+              <div class="emphasis-control-row"><label for="emphasisInnerRandom">Center Random</label><input id="emphasisInnerRandom" data-key="inner_random" type="number" aria-label="Center Random value"></div>
+              <div class="emphasis-control-row"><label for="emphasisWidthRandom">Width Random</label><input id="emphasisWidthRandom" data-key="width_random" type="number" aria-label="Width Random value"></div>
+              <div class="emphasis-control-row"><label for="emphasisSpacingRandom">Spacing Random</label><input id="emphasisSpacingRandom" data-key="spacing_random" type="number" aria-label="Spacing Random value"></div>
+              <div class="emphasis-seed-row"><label for="emphasisSeed">Seed</label><input id="emphasisSeed" data-key="seed" data-no-range type="number" min="0" max="4294967295" step="1"><button id="newEmphasisSeed" type="button">New Seed</button></div>
+            </div>
+          </details>
+          <details id="emphasisCenterDetails" class="emphasis-compact-group">
+            <summary>Precise Center Position</summary>
+            <div class="emphasis-compact-group-body">
+              <div class="hint">Drag the yellow center handle for normal positioning.</div>
+              <div class="emphasis-control-row"><label for="emphasisCenterX">Center X</label><input id="emphasisCenterX" data-key="center_x" type="number" aria-label="Center X value"></div>
+              <div class="emphasis-control-row"><label for="emphasisCenterY">Center Y</label><input id="emphasisCenterY" data-key="center_y" type="number" aria-label="Center Y value"></div>
+              <button id="resetEmphasisCenter" type="button">Reset Center</button>
+            </div>
+          </details>
         </div>
         <details id="transformDetails"><summary>Transform</summary>
           <div class="hint">Precise values · Wheel: adjust · Shift: 10×</div>
@@ -623,14 +655,15 @@
     const SFX_SORT_KEY = "speech_bubble:sfx_sort:v1";
     const COMIC_SWATCHES = ["#111111","#ffffff","#808080","#e53935","#fb8c00",COMIC_YELLOW,"#aeea00","#43a047","#26c6da","#6ec6ff","#1e88e5","#3949ab","#8e24aa","#ec407a","#8d6e63","#f1c39b","#d9d9d9","#4a4a4a","#7a1f2b","#ff6b6b","#ffc857","#f6e58d","#6b8e23","#1b5e20","#00897b","#0d3b66","#6c4ab6","#f4a6c1"];
     // Emphasis Lines core start
+    const EMPHASIS_EDGE_OVERSHOOT = .035;
     const EMPHASIS_PRESETS = Object.freeze([
-      Object.freeze({id:"center",label:"Center",line_count:180,inner_x:.15,inner_y:.20,line_width:.006,line_length:1,taper:1,overshoot:.035,center_x:.5,center_y:.5,length_random:0,inner_random:.5,width_random:.48,spacing_random:.38}),
-      Object.freeze({id:"wide",label:"Wide",line_count:210,inner_x:.27,inner_y:.16,line_width:.005,line_length:1,taper:1,overshoot:.035,center_x:.5,center_y:.5,length_random:0,inner_random:.5,width_random:.55,spacing_random:.42}),
-      Object.freeze({id:"tall",label:"Tall",line_count:190,inner_x:.13,inner_y:.29,line_width:.0055,line_length:1,taper:1,overshoot:.035,center_x:.5,center_y:.5,length_random:0,inner_random:.5,width_random:.50,spacing_random:.42}),
-      Object.freeze({id:"side",label:"One Side",line_count:130,inner_x:.15,inner_y:.20,line_width:.008,line_length:1,taper:1,overshoot:.035,center_x:-.12,center_y:.5,length_random:0,inner_random:.5,width_random:.50,spacing_random:.34}),
+      Object.freeze({id:"center",label:"Center",line_count:180,inner_x:.15,inner_y:.20,line_width:.006,line_length:1,taper:1,center_x:.5,center_y:.5,length_random:0,inner_random:.5,width_random:.48,spacing_random:.38}),
+      Object.freeze({id:"wide",label:"Wide",line_count:210,inner_x:.27,inner_y:.16,line_width:.005,line_length:1,taper:1,center_x:.5,center_y:.5,length_random:0,inner_random:.5,width_random:.55,spacing_random:.42}),
+      Object.freeze({id:"tall",label:"Tall",line_count:190,inner_x:.13,inner_y:.29,line_width:.0055,line_length:1,taper:1,center_x:.5,center_y:.5,length_random:0,inner_random:.5,width_random:.50,spacing_random:.42}),
+      Object.freeze({id:"side",label:"One Side",line_count:130,inner_x:.15,inner_y:.20,line_width:.008,line_length:1,taper:1,center_x:-.12,center_y:.5,length_random:0,inner_random:.5,width_random:.50,spacing_random:.34}),
     ]);
     const EMPHASIS_BY_ID = new Map(EMPHASIS_PRESETS.map(preset=>[preset.id,preset]));
-    const EMPHASIS_GEOMETRY_KEYS = new Set(["preset","line_count","inner_x","inner_y","line_width","line_length","taper","overshoot","center_x","center_y","length_random","inner_random","width_random","spacing_random","seed","w","h"]);
+    const EMPHASIS_GEOMETRY_KEYS = new Set(["preset","line_count","inner_x","inner_y","line_width","line_length","taper","center_x","center_y","length_random","inner_random","width_random","spacing_random","seed","w","h"]);
     function emphasisClamp(value,minimum,maximum,fallback){const number=Number(value);return Math.max(minimum,Math.min(maximum,Number.isFinite(number)?number:fallback));}
     function emphasisMulberry32(seed){let value=Number(seed)>>>0;return()=>{value|=0;value=value+0x6D2B79F5|0;let result=Math.imul(value^value>>>15,1|value);result=result+Math.imul(result^result>>>7,61|result)^result;return((result^result>>>14)>>>0)/4294967296;};}
     function normalizeEmphasisParams(source={}){
@@ -643,7 +676,7 @@
         line_width:emphasisClamp(source.line_width,.0005,.035,preset.line_width),
         line_length:emphasisClamp(source.line_length,.15,1,preset.line_length),
         taper:emphasisClamp(source.taper,0,1,preset.taper),
-        overshoot:emphasisClamp(source.overshoot,0,.15,preset.overshoot),
+        overshoot:EMPHASIS_EDGE_OVERSHOOT,
         center_x:emphasisClamp(source.center_x,-.5,1.5,preset.center_x),
         center_y:emphasisClamp(source.center_y,-.5,1.5,preset.center_y),
         length_random:emphasisClamp(source.length_random,0,1,preset.length_random),
@@ -1219,7 +1252,7 @@
     function normalizeBasicSymbolSettings(item){const kind=basicSymbolKindFor(item);if(kind==="trapezoid")item.symbol_top_width=normalizeNumericValue("symbol_top_width",item.symbol_top_width,100);if(kind==="square")item.symbol_skew=normalizeNumericValue("symbol_skew",item.symbol_skew,0);return kind;}
     function defaultSfx(presetId="don-exclamation-mask") { const preset=SFX_BY_ID.get(presetId)||SFX_PRESETS[0],mask=!!preset.mask,presetOutline=Number.isFinite(Number(preset.outlineWidth))?Number(preset.outlineWidth):(mask?sfxDefaultOutlineWidth(preset):0),item={id:id(),type:"sfx",asset_id:preset.id,asset_label:preset.label,asset_format:preset.format,asset_src:preset.src,mask_mode:mask,fill:sfxPresetFill(preset),stroke:preset.stroke||"#111111",stroke_width:presetOutline,x:0,y:0,w:preset.w,h:preset.h,rotation:0,opacity:1,shadow_enabled:false,shadow_color:"#000000",shadow_x:6,shadow_y:6,shadow_blur:4,visible:true};if(preset.symbolKind==="trapezoid")item.symbol_top_width=100;if(preset.symbolKind==="square")item.symbol_skew=0;return item; }
     function randomEmphasisSeed(){if(globalThis.crypto?.getRandomValues){const value=new Uint32Array(1);globalThis.crypto.getRandomValues(value);return value[0];}return Math.floor(Math.random()*4294967296)>>>0;}
-    function regenerateEmphasisRays(item){if(!item||item.type!=="emphasis_lines")return[];item.rays=generateNormalizedEmphasisRays(item,item.w,item.h);return item.rays;}
+    function regenerateEmphasisRays(item){if(!item||item.type!=="emphasis_lines")return[];item.overshoot=EMPHASIS_EDGE_OVERSHOOT;item.rays=generateNormalizedEmphasisRays(item,item.w,item.h);return item.rays;}
     const pendingEmphasisRegeneration=new Set();
     let emphasisRegenerationFrame=0;
     function flushPendingEmphasisRegeneration(){if(emphasisRegenerationFrame){cancelAnimationFrame(emphasisRegenerationFrame);emphasisRegenerationFrame=0;}for(const item of pendingEmphasisRegeneration)regenerateEmphasisRays(item);pendingEmphasisRegeneration.clear();}
@@ -1232,7 +1265,7 @@
       return item;
     }
     function defaultEmphasisLines(presetId="center"){const preset=EMPHASIS_BY_ID.get(presetId)||EMPHASIS_PRESETS[0],{id:presetKey,label,...geometry}=preset,item={...geometry,id:id(),type:"emphasis_lines",preset:presetKey,x:0,y:0,w:state.width,h:state.height,rotation:0,fit_to_canvas:true,color:"#000000",opacity:1,seed:randomEmphasisSeed(),rays:[],locked:false,visible:true};return normalizeEmphasisLines(item);}
-    function applyEmphasisPresetToItem(item,presetId){const preset=EMPHASIS_BY_ID.get(presetId)||EMPHASIS_PRESETS[0];item.preset=preset.id;for(const key of ["line_count","inner_x","inner_y","line_width","line_length","taper","overshoot","center_x","center_y","length_random","inner_random","width_random","spacing_random"])item[key]=preset[key];scheduleEmphasisRegeneration(item);}
+    function applyEmphasisPresetToItem(item,presetId){const preset=EMPHASIS_BY_ID.get(presetId)||EMPHASIS_PRESETS[0];item.preset=preset.id;item.overshoot=EMPHASIS_EDGE_OVERSHOOT;for(const key of ["line_count","inner_x","inner_y","line_width","line_length","taper","center_x","center_y","length_random","inner_random","width_random","spacing_random"])item[key]=preset[key];scheduleEmphasisRegeneration(item);}
     function syncEmphasisToCanvas(item){if(!item||item.type!=="emphasis_lines"||!item.fit_to_canvas)return;const changed=item.x!==0||item.y!==0||item.w!==state.width||item.h!==state.height||item.rotation!==0;item.x=0;item.y=0;item.w=state.width;item.h=state.height;item.rotation=0;if(changed)regenerateEmphasisRays(item);}
     function syncFrameToCanvas(item){if(!item||item.type!=="frame"||!item.fit_to_canvas)return;const maximum=Math.max(0,Math.min(state.width,state.height)/2-.5),inset=Math.max(-maximum,Math.min(maximum,finiteOr(item.frame_inset,0)));item.frame_inset=inset;item.x=inset;item.y=inset;item.w=Math.max(1,state.width-inset*2);item.h=Math.max(1,state.height-inset*2);item.rotation=0;item.flip_x=false;item.flip_y=false;}
     function defaultFrame(presetId="frame-border") { const preset=FRAME_BY_ID.get(presetId)||FRAME_PRESETS[0],border=Math.max(0,finiteOr(preset.border_width,36)),item={id:id(),type:"frame",frame_preset_id:preset.id,frame_label:preset.label,frame_kind:preset.frame_kind||"border",x:0,y:0,w:state.width,h:state.height,rotation:0,opacity:1,fit_to_canvas:true,pin_to_top:preset.pin_to_top!==false,frame_scale:finiteOr(preset.default_scale,100),frame_inset:finiteOr(preset.default_inset,0),border_color:preset.border_color||"#ffffff",border_width_x:border,border_width_y:border,inner_stroke_color:preset.inner_stroke_color||"#111111",inner_stroke_width:preset.inner_stroke_width||0,asset_src:preset.asset_src||"",asset_src_2x:preset.asset_src_2x||"",frame_mode:preset.frame_mode||"border",frame_slice:preset.frame_slice?{...preset.frame_slice}:null,attached_decorations:(preset.attached_decorations||[]).map(decoration=>decoration.id),fit_mode:preset.fit_mode||"cover",shadow_enabled:false,shadow_color:"#000000",shadow_opacity:.55,shadow_x:8,shadow_y:8,shadow_blur:12,glow_enabled:false,glow_color:"#ffffff",glow_opacity:.75,glow_blur:16,glow_spread:0,locked:false,visible:true};syncFrameToCanvas(item);return item;}
@@ -1944,13 +1977,13 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         const fallback=catalog.find(font=>font.recommended)||catalog[0],loaders=[];state.elements.filter(item=>item.type==="text").forEach(item=>{let font=catalog.find(candidate=>candidate.id===item.font_id)||catalog.find(candidate=>candidate.path&&candidate.path===item.font_path)||catalog.find(candidate=>fontFamilyKey(candidate.family)===fontFamilyKey(item.font_family));if(!font)font=fallback;if(font){item.font_id=font.id;item.font_family=font.family;item.font_css_family=fontCssFamily(font);item.font_path="";loaders.push(ensureFontLoaded(font));}});syncProperties();render();Promise.all(loaders).then(()=>{syncProperties();render();});
       }catch(error){console.warn("Speech Bubble font list unavailable",error);}
     }
-    const rangeSpecs={x:[-8192,8192,1],y:[-8192,8192,1],w:[1,8192,1],h:[1,8192,1],sfx_scale:[10,400,1],symbol_top_width:[20,180,1],symbol_skew:[-50,50,1],opacity:[0,1,.05],font_size:[1,500,1],tracking:[-200,500,5],font_scale_x:[10,500,1],font_scale_y:[10,500,1],rotation:[-180,180,1],stroke_width:[0,100,.5],border_width:[0,1000,1],border_width_x:[0,1000,1],border_width_y:[0,1000,1],inner_stroke_width:[0,200,1],frame_scale:[10,400,1],frame_inset:[-2048,2048,1],shadow_opacity:[0,1,.05],shadow_x:[-500,500,1],shadow_y:[-500,500,1],shadow_blur:[0,200,1],glow_opacity:[0,1,.05],glow_blur:[0,200,1],glow_spread:[0,100,1],shape_intensity:[0,100,1],shape_asymmetry:[0,100,1],shape_roundness:[0,100,1],spike_count:[5,32,1],valley_concavity:[0,100,1],lobe_count:[5,20,1],lobe_depth:[0,100,1],shape_softness:[0,100,1],line_count:[20,500,1],inner_x:[.03,.48,.005],inner_y:[.03,.48,.005],line_width:[.0005,.035,.0005],line_length:[.15,1,.01],taper:[0,1,.01],overshoot:[0,.15,.005],center_x:[-.5,1.5,.005],center_y:[-.5,1.5,.005],length_random:[0,1,.01],inner_random:[0,1,.01],width_random:[0,1,.01],spacing_random:[0,1,.01],seed:[0,4294967295,1]};
+    const rangeSpecs={x:[-8192,8192,1],y:[-8192,8192,1],w:[1,8192,1],h:[1,8192,1],sfx_scale:[10,400,1],symbol_top_width:[20,180,1],symbol_skew:[-50,50,1],opacity:[0,1,.05],font_size:[1,500,1],tracking:[-200,500,5],font_scale_x:[10,500,1],font_scale_y:[10,500,1],rotation:[-180,180,1],stroke_width:[0,100,.5],border_width:[0,1000,1],border_width_x:[0,1000,1],border_width_y:[0,1000,1],inner_stroke_width:[0,200,1],frame_scale:[10,400,1],frame_inset:[-2048,2048,1],shadow_opacity:[0,1,.05],shadow_x:[-500,500,1],shadow_y:[-500,500,1],shadow_blur:[0,200,1],glow_opacity:[0,1,.05],glow_blur:[0,200,1],glow_spread:[0,100,1],shape_intensity:[0,100,1],shape_asymmetry:[0,100,1],shape_roundness:[0,100,1],spike_count:[5,32,1],valley_concavity:[0,100,1],lobe_count:[5,20,1],lobe_depth:[0,100,1],shape_softness:[0,100,1],line_count:[20,500,1],inner_x:[.03,.48,.005],inner_y:[.03,.48,.005],line_width:[.0005,.035,.0005],line_length:[.15,1,.01],taper:[0,1,.01],center_x:[-.5,1.5,.005],center_y:[-.5,1.5,.005],length_random:[0,1,.01],inner_random:[0,1,.01],width_random:[0,1,.01],spacing_random:[0,1,.01],seed:[0,4294967295,1]};
     function numericStepDecimals(step){const text=String(step),decimal=text.indexOf(".");return decimal<0?0:Math.min(4,text.length-decimal-1);}
     function normalizeNumericValue(key,value,fallback=0){const spec=rangeSpecs[key];let number=Number(value);if(!Number.isFinite(number)){number=Number(fallback);if(!Number.isFinite(number))number=0;}if(key==="tracking")return trackingValue(number,fallback);if(!spec)return Object.is(number,-0)?0:number;const [minimum,maximum,step]=spec;number=Math.max(minimum,Math.min(maximum,number));if(step>0)number=Math.round(number/step)*step;number=Number(number.toFixed(numericStepDecimals(step)));return Object.is(number,-0)?0:number;}
     function numericDisplayValue(key,value,fallback=0){return String(normalizeNumericValue(key,value,fallback));}
     function numericPropertyValue(key,value,current,commit=false){if(String(value).trim()===""||!Number.isFinite(Number(value)))return null;return commit?normalizeNumericValue(key,value,current):Number(value);}
     function normalizeItemNumericValues(item){const fallbacks={w:1,h:1,opacity:1,font_size:48,font_scale_x:100,font_scale_y:100};for(const key of Object.keys(rangeSpecs)){if(key in item||key==="opacity")item[key]=normalizeNumericValue(key,item[key],fallbacks[key]??0);}return item;}
-    function enhanceNumericInputs(){document.querySelectorAll('#properties input[type="number"][data-key]').forEach(input=>{const key=input.dataset.key,spec=rangeSpecs[key];if(!spec)return;input.min=String(spec[0]);input.max=String(spec[1]);input.step=String(spec[2]);const range=document.createElement("input");range.type="range";range.min=String(spec[0]);range.max=String(spec[1]);range.step=String(spec[2]);range.value=numericDisplayValue(key,input.value,spec[0]);range.dataset.rangeKey=key;input.insertAdjacentElement("afterend",range);range.addEventListener("input",()=>{input.value=numericDisplayValue(key,range.value,input.value);input.dispatchEvent(new Event("input",{bubbles:true}));});input.addEventListener("input",()=>{const value=Number(input.value);if(Number.isFinite(value))range.value=String(value);});input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();input.blur();}});input.addEventListener("wheel",event=>{event.preventDefault();beginPropertyEdit();const step=Number(input.step||1)*(event.shiftKey?10:1),current=normalizeNumericValue(key,input.value,0),next=current+(event.deltaY<0?step:-step);input.value=numericDisplayValue(key,next,current);input.dispatchEvent(new Event("input",{bubbles:true}));input.dispatchEvent(new Event("change",{bubbles:true}));},{passive:false});});}
+    function enhanceNumericInputs(){document.querySelectorAll('#properties input[type="number"][data-key]').forEach(input=>{const key=input.dataset.key,spec=rangeSpecs[key];if(!spec)return;input.min=String(spec[0]);input.max=String(spec[1]);input.step=String(spec[2]);if(!input.hasAttribute("data-no-range")){const range=document.createElement("input");range.type="range";range.min=String(spec[0]);range.max=String(spec[1]);range.step=String(spec[2]);range.value=numericDisplayValue(key,input.value,spec[0]);range.dataset.rangeKey=key;range.setAttribute("aria-label",`${input.getAttribute("aria-label")||key} slider`);input.insertAdjacentElement(input.closest(".emphasis-control-row")?"beforebegin":"afterend",range);range.addEventListener("input",()=>{input.value=numericDisplayValue(key,range.value,input.value);input.dispatchEvent(new Event("input",{bubbles:true}));});input.addEventListener("input",()=>{const value=Number(input.value);if(Number.isFinite(value))range.value=String(value);});}input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();input.blur();}});input.addEventListener("wheel",event=>{event.preventDefault();beginPropertyEdit();const step=Number(input.step||1)*(event.shiftKey?10:1),current=normalizeNumericValue(key,input.value,0),next=current+(event.deltaY<0?step:-step);input.value=numericDisplayValue(key,next,current);input.dispatchEvent(new Event("input",{bubbles:true}));input.dispatchEvent(new Event("change",{bubbles:true}));},{passive:false});});}
     const PANEL_STATE_KEY="speech_bubble:panel_state:v1";
     function initializeAccordionState(){let saved={};try{saved=JSON.parse(localStorage.getItem(PANEL_STATE_KEY)||"{}")||{};}catch{}for(const details of [document.getElementById("textLayoutDetails"),document.getElementById("transformDetails"),document.getElementById("shadowEffects"),document.getElementById("frameEffects")]){details.open=saved[details.id]===true;details.addEventListener("toggle",()=>{let current={};try{current=JSON.parse(localStorage.getItem(PANEL_STATE_KEY)||"{}")||{};}catch{}current[details.id]=details.open;try{localStorage.setItem(PANEL_STATE_KEY,JSON.stringify(current));}catch{}});}}
     const LEFT_SECTION_STATE_KEY="speech_bubble:left_sections:v1";
@@ -2027,7 +2060,8 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.addEventListener("paste",event=>{const editing=["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName);if(editing)return;const item=Array.from(event.clipboardData?.items||[]).find(entry=>entry.kind==="file"&&String(entry.type||"").startsWith("image/"));const file=item?.getAsFile?.();if(file){event.preventDefault();requestBackgroundFile(file);return;}if(layerClipboard?.length){event.preventDefault();pasteLayers();}});
     function addTextLayer(){pushUndo();const item=defaultText();item.x=Math.max(0,state.width/2-item.w/2);item.y=Math.max(0,state.height/2-item.h/2);state.elements.push(item);setSelection([item.id],item.id);syncProperties();render();}
     document.getElementById("addText").onclick=addTextLayer;
-    document.getElementById("regenerateEmphasisLines").onclick=()=>{const item=state.elements.find(element=>element.id===state.selected);if(!item||item.type!=="emphasis_lines"||item.locked)return;pushUndo();item.seed=randomEmphasisSeed();regenerateEmphasisRays(item);syncProperties();render();};
+    document.getElementById("newEmphasisSeed").onclick=()=>{const item=state.elements.find(element=>element.id===state.selected);if(!item||item.type!=="emphasis_lines"||item.locked)return;pushUndo();item.seed=randomEmphasisSeed();regenerateEmphasisRays(item);syncProperties();render();};
+    document.getElementById("resetEmphasisCenter").onclick=()=>{const item=state.elements.find(element=>element.id===state.selected);if(!item||item.type!=="emphasis_lines"||item.locked||(item.center_x===.5&&item.center_y===.5))return;pushUndo();item.center_x=.5;item.center_y=.5;regenerateEmphasisRays(item);syncProperties();render();};
     document.getElementById("fontPickerButton").onclick=openFontBrowser;document.getElementById("closeFontBrowser").onclick=closeFontBrowser;
     document.getElementById("fontSearch").addEventListener("input",renderFontBrowser);
     document.querySelectorAll("[data-font-filter]").forEach(button=>button.onclick=()=>{fontFilter=button.dataset.fontFilter;document.querySelectorAll("[data-font-filter]").forEach(candidate=>candidate.classList.toggle("active",candidate===button));document.getElementById("fontSearch").value="";renderFontBrowser();});
