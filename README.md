@@ -78,6 +78,15 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 - 変更した高さはブラウザーに記憶され、次回も復元されます。
 - 未設定時は1920×1200表示を基準に、Layers領域を広めに確保します。
 
+## Emphasis Lines（集中線）
+
+- `Frames` の下、`+ Text` の上に4プリセット（Center / Wide / Tall / One Side）を表示します。
+- PNG素材ではなく、最大500本の四角形ポリゴンを動的生成します。
+- Line Color、Opacity、線数、中央空白、線幅、長さ、中心位置、各Random値、Seedを編集できます。
+- 集中線本体はキャンバス上のクリックを遮らず、Layers一覧から選択します。
+- 選択時の黄色ハンドルをドラッグして集中点を移動できます。
+- 生成済みraysをレイアウトJSONへ保存し、Canvas表示とPillow書き出しで同じ座標を使用します。
+
 ## Settings > Speech Bubble Editor
 
 - 保存先

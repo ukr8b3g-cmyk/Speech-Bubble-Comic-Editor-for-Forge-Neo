@@ -13,6 +13,8 @@ speech_bubble_forge/presets.py
 speech_bubble_forge/renderer.py
 speech_bubble_forge/settings.py
 style.css
+tests/emphasis_lines_core_test.cjs
+tests/test_emphasis_lines_renderer.py
 web/assets/frames/README.md
 web/assets/frames/manifest.json
 web/assets/sfx/a-small-tsu-mask.webp

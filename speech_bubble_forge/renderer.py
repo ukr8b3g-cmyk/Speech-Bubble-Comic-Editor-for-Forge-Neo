@@ -2715,6 +2715,331 @@ def _draw_frame(layer, element, scale, canvas_width, canvas_height):
         int(round(center_y - local.height / 2)),
     )
 
+_EMPHASIS_PRESETS = {
+    "center": {
+        "line_count": 180, "inner_x": 0.15, "inner_y": 0.20,
+        "line_width": 0.006, "line_length": 1.0, "taper": 1.0,
+        "overshoot": 0.035, "center_x": 0.5, "center_y": 0.5,
+        "length_random": 0.0, "inner_random": 0.5,
+        "width_random": 0.48, "spacing_random": 0.38,
+    },
+    "wide": {
+        "line_count": 210, "inner_x": 0.27, "inner_y": 0.16,
+        "line_width": 0.005, "line_length": 1.0, "taper": 1.0,
+        "overshoot": 0.035, "center_x": 0.5, "center_y": 0.5,
+        "length_random": 0.0, "inner_random": 0.5,
+        "width_random": 0.55, "spacing_random": 0.42,
+    },
+    "tall": {
+        "line_count": 190, "inner_x": 0.13, "inner_y": 0.29,
+        "line_width": 0.0055, "line_length": 1.0, "taper": 1.0,
+        "overshoot": 0.035, "center_x": 0.5, "center_y": 0.5,
+        "length_random": 0.0, "inner_random": 0.5,
+        "width_random": 0.50, "spacing_random": 0.42,
+    },
+    "side": {
+        "line_count": 130, "inner_x": 0.15, "inner_y": 0.20,
+        "line_width": 0.008, "line_length": 1.0, "taper": 1.0,
+        "overshoot": 0.035, "center_x": -0.12, "center_y": 0.5,
+        "length_random": 0.0, "inner_random": 0.5,
+        "width_random": 0.50, "spacing_random": 0.34,
+    },
+}
+
+
+def _emphasis_clamp(value, minimum, maximum, fallback):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = fallback
+    if not math.isfinite(number):
+        number = fallback
+    return max(minimum, min(maximum, number))
+
+
+class _EmphasisMulberry32:
+    def __init__(self, seed):
+        self.value = int(seed) & 0xFFFFFFFF
+
+    def random(self):
+        self.value = (self.value + 0x6D2B79F5) & 0xFFFFFFFF
+        value = self.value
+        result = ((value ^ (value >> 15)) * (1 | value)) & 0xFFFFFFFF
+        mixed = (
+            result
+            + (((result ^ (result >> 7)) * (61 | result)) & 0xFFFFFFFF)
+        ) & 0xFFFFFFFF
+        result = (result ^ mixed) & 0xFFFFFFFF
+        result ^= result >> 14
+        return (result & 0xFFFFFFFF) / 4294967296.0
+
+
+def _normalize_emphasis_params(source):
+    preset_id = source.get("preset", "center")
+    if preset_id not in _EMPHASIS_PRESETS:
+        preset_id = "center"
+    base = _EMPHASIS_PRESETS[preset_id]
+    try:
+        seed = int(float(source.get("seed", 0) or 0)) & 0xFFFFFFFF
+    except (TypeError, ValueError, OverflowError):
+        seed = 0
+    return {
+        "preset": preset_id,
+        "line_count": round(_emphasis_clamp(
+            source.get("line_count"), 20, 500, base["line_count"]
+        )),
+        "inner_x": _emphasis_clamp(
+            source.get("inner_x"), 0.03, 0.48, base["inner_x"]
+        ),
+        "inner_y": _emphasis_clamp(
+            source.get("inner_y"), 0.03, 0.48, base["inner_y"]
+        ),
+        "line_width": _emphasis_clamp(
+            source.get("line_width"), 0.0005, 0.035, base["line_width"]
+        ),
+        "line_length": _emphasis_clamp(
+            source.get("line_length"), 0.15, 1.0, base["line_length"]
+        ),
+        "taper": _emphasis_clamp(
+            source.get("taper"), 0.0, 1.0, base["taper"]
+        ),
+        "overshoot": _emphasis_clamp(
+            source.get("overshoot"), 0.0, 0.15, base["overshoot"]
+        ),
+        "center_x": _emphasis_clamp(
+            source.get("center_x"), -0.5, 1.5, base["center_x"]
+        ),
+        "center_y": _emphasis_clamp(
+            source.get("center_y"), -0.5, 1.5, base["center_y"]
+        ),
+        "length_random": _emphasis_clamp(
+            source.get("length_random"), 0.0, 1.0, base["length_random"]
+        ),
+        "inner_random": _emphasis_clamp(
+            source.get("inner_random"), 0.0, 1.0, base["inner_random"]
+        ),
+        "width_random": _emphasis_clamp(
+            source.get("width_random"), 0.0, 1.0, base["width_random"]
+        ),
+        "spacing_random": _emphasis_clamp(
+            source.get("spacing_random"), 0.0, 1.0, base["spacing_random"]
+        ),
+        "seed": seed,
+    }
+
+
+def _emphasis_ellipse_radius(radius_x, radius_y, angle):
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return 1.0 / math.sqrt(
+        cosine * cosine / (radius_x * radius_x)
+        + sine * sine / (radius_y * radius_y)
+    )
+
+
+def _emphasis_ray_box_interval(
+    origin_x, origin_y, direction_x, direction_y, width, height
+):
+    enter = -math.inf
+    exit_ = math.inf
+    for origin, direction, minimum, maximum in (
+        (origin_x, direction_x, 0.0, width),
+        (origin_y, direction_y, 0.0, height),
+    ):
+        if abs(direction) < 1e-12:
+            if origin < minimum or origin > maximum:
+                return None
+            continue
+        near = (minimum - origin) / direction
+        far = (maximum - origin) / direction
+        if near > far:
+            near, far = far, near
+        enter = max(enter, near)
+        exit_ = min(exit_, far)
+        if enter > exit_:
+            return None
+    if not math.isfinite(exit_) or exit_ <= 0:
+        return None
+    return max(0.0, enter), exit_
+
+
+def _generate_emphasis_rays(source, width, height):
+    params = _normalize_emphasis_params(source)
+    width = max(1.0, float(width))
+    height = max(1.0, float(height))
+    random = _EmphasisMulberry32(params["seed"])
+    center_x = params["center_x"] * width
+    center_y = params["center_y"] * height
+    base_size = min(width, height)
+    radius_x = max(2.0, params["inner_x"] * width)
+    radius_y = max(2.0, params["inner_y"] * height)
+    overshoot = base_size * params["overshoot"]
+    rays = []
+    for index in range(params["line_count"]):
+        regular = index / params["line_count"] * math.tau
+        jitter = (
+            (random.random() - 0.5)
+            * (math.tau / params["line_count"])
+            * params["spacing_random"]
+            * 1.9
+        )
+        angle = regular + jitter
+        direction_x = math.cos(angle)
+        direction_y = math.sin(angle)
+        interval = _emphasis_ray_box_interval(
+            center_x, center_y, direction_x, direction_y, width, height
+        )
+        if interval is None:
+            continue
+        entry, exit_ = interval
+        inner = _emphasis_ellipse_radius(radius_x, radius_y, angle)
+        inner_random_sample = random.random()
+        length_random_sample = random.random()
+        width_random_sample = random.random()
+        inner_jitter = (
+            inner
+            * params["inner_random"]
+            * (inner_random_sample - 0.5)
+            * 0.8
+        )
+        minimum_start = entry - overshoot
+        nominal_start = max(minimum_start, inner)
+        start_base = max(minimum_start, inner + inner_jitter)
+        outer = exit_ + overshoot
+        nominal_usable = max(0.0, outer - nominal_start)
+        if nominal_usable <= 1e-6:
+            continue
+        start = max(0.0, start_base)
+        length_factor = 1.0 - params["length_random"] * length_random_sample
+        end = outer - nominal_usable * (
+            1.0 - params["line_length"] * length_factor
+        )
+        if end <= start + 1e-6:
+            continue
+        width_factor = (
+            1.0
+            + (width_random_sample - 0.5)
+            * 2.0
+            * params["width_random"]
+        )
+        outer_width = max(
+            0.3, base_size * params["line_width"] * width_factor
+        )
+        inner_width = max(0.05, outer_width * (1.0 - params["taper"]))
+        perpendicular_x = -direction_y
+        perpendicular_y = direction_x
+        start_x = center_x + direction_x * start
+        start_y = center_y + direction_y * start
+        end_x = center_x + direction_x * end
+        end_y = center_y + direction_y * end
+        rays.append([
+            [
+                (start_x + perpendicular_x * inner_width / 2.0) / width,
+                (start_y + perpendicular_y * inner_width / 2.0) / height,
+            ],
+            [
+                (end_x + perpendicular_x * outer_width / 2.0) / width,
+                (end_y + perpendicular_y * outer_width / 2.0) / height,
+            ],
+            [
+                (end_x - perpendicular_x * outer_width / 2.0) / width,
+                (end_y - perpendicular_y * outer_width / 2.0) / height,
+            ],
+            [
+                (start_x - perpendicular_x * inner_width / 2.0) / width,
+                (start_y - perpendicular_y * inner_width / 2.0) / height,
+            ],
+        ])
+    return rays
+
+
+def _validated_emphasis_rays(value):
+    if not isinstance(value, list) or not value or len(value) > 500:
+        return None
+    output = []
+    for polygon in value:
+        if not isinstance(polygon, list) or len(polygon) != 4:
+            return None
+        clean_polygon = []
+        for point in polygon:
+            if not isinstance(point, list) or len(point) != 2:
+                return None
+            try:
+                x = float(point[0])
+                y = float(point[1])
+            except (TypeError, ValueError):
+                return None
+            if (
+                not math.isfinite(x)
+                or not math.isfinite(y)
+                or abs(x) > 4
+                or abs(y) > 4
+            ):
+                return None
+            clean_polygon.append([x, y])
+        output.append(clean_polygon)
+    return output
+
+
+def _draw_emphasis_lines(layer, element, scale):
+    x = _emphasis_clamp(element.get("x"), -8192, 8192, 0)
+    y = _emphasis_clamp(element.get("y"), -8192, 8192, 0)
+    width = _emphasis_clamp(
+        element.get("w"), 1, 8192, layer.width / scale
+    )
+    height = _emphasis_clamp(
+        element.get("h"), 1, 8192, layer.height / scale
+    )
+    rays = _validated_emphasis_rays(element.get("rays"))
+    if rays is None:
+        rays = _generate_emphasis_rays(element, width, height)
+    red, green, blue, color_alpha = _rgba(
+        element.get("color"), "#000000"
+    )
+    alpha = round(
+        color_alpha
+        * _emphasis_clamp(element.get("opacity"), 0.0, 1.0, 1.0)
+    )
+    local_width = max(1, round(width * scale))
+    local_height = max(1, round(height * scale))
+    local = Image.new(
+        "RGBA", (local_width, local_height), (0, 0, 0, 0)
+    )
+    draw = ImageDraw.Draw(local)
+    for polygon in rays:
+        draw.polygon(
+            [
+                (
+                    point[0] * local_width,
+                    point[1] * local_height,
+                )
+                for point in polygon
+            ],
+            fill=(red, green, blue, alpha),
+        )
+    if element.get("flip_x"):
+        local = local.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    if element.get("flip_y"):
+        local = local.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+    rotation = _emphasis_clamp(
+        element.get("rotation"), -180, 180, 0
+    )
+    if rotation % 360:
+        local = local.rotate(
+            -rotation,
+            resample=Image.Resampling.BICUBIC,
+            expand=True,
+        )
+    center_x = (x + width / 2.0) * scale
+    center_y = (y + height / 2.0) * scale
+    _paste_clipped(
+        layer,
+        local,
+        round(center_x - local.width / 2.0),
+        round(center_y - local.height / 2.0),
+    )
+
+
 def _render_layer(width, height, layout, font_path, supersample):
     scale = max(1, int(supersample))
     layer = Image.new("RGBA", (width * scale, height * scale), (0, 0, 0, 0))
@@ -2734,6 +3059,8 @@ def _render_layer(width, height, layout, font_path, supersample):
             continue
         if element.get("type") == "frame":
             _draw_frame(layer, element, scale, width, height)
+        elif element.get("type") == "emphasis_lines":
+            _draw_emphasis_lines(layer, element, scale)
         elif element.get("type") in ("bubble", "shape"):
             rotation = float(element.get("rotation", 0) or 0)
             if rotation % 360:
