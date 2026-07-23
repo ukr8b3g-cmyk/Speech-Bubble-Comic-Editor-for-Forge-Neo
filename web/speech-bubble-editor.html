@@ -538,6 +538,7 @@
     const savedLayoutKey = () => imageHash ? `${SAVED_LAYOUT_PREFIX}${imageHash}` : "";
     const draftLayoutKey = () => imageHash ? `${DRAFT_LAYOUT_PREFIX}${imageHash}` : "";
     function postHost(type,payload={}){window.opener?.postMessage({type,key:jsonKey,source_tab:sourceTab,...payload},location.origin);}
+    function editorConnectionState(){return{jsonKey,documentId:imageHash?`image:${imageHash}`:"",mode:imageLoaded?"image":"standalone",sourceTab,sourceName};}
     function safeStoredLayout(value){if(typeof value!=="string"||!value.trim())return"{}";try{return JSON.stringify(JSON.parse(value),null,2);}catch{return"{}";}}
     function localLayoutCache(){if(!imageHash)return{saved:"{}",draft:"",hasSaved:false,hasDraft:false};let saved="{}",draft="",hasSaved=false,hasDraft=false;try{const savedRaw=localStorage.getItem(savedLayoutKey());const draftRaw=autoSaveEnabled?localStorage.getItem(draftLayoutKey()):null;hasSaved=typeof savedRaw==="string";hasDraft=typeof draftRaw==="string";saved=safeStoredLayout(savedRaw||"{}");draft=hasDraft?safeStoredLayout(draftRaw):"";}catch{}return{saved,draft,hasSaved,hasDraft};}
     function setSaveState(message,level="info"){const node=document.getElementById("saveState");if(!node)return;node.textContent=message;node.dataset.level=level;}
@@ -1846,7 +1847,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("plus").onclick=()=>{state.zoom=Math.min(4,state.zoom*1.2);requestRender({canvas:true});}; document.getElementById("minus").onclick=()=>{state.zoom=Math.max(.25,state.zoom/1.2);requestRender({canvas:true});}; document.getElementById("fit").onclick=fitView;
     document.getElementById("undo").onclick=undoAction; document.getElementById("redo").onclick=redoAction;
     function cleanupTransientState(){clearTimeout(livePreviewTimer);livePreviewTimer=null;clearTimeout(autoSaveTimer);autoSaveTimer=null;try{localStorage.removeItem(jsonKey);}catch{}if(sourceObjectUrl){URL.revokeObjectURL(sourceObjectUrl);sourceObjectUrl=null;}}
-    function closeEditor(){if(editorClosed)return;if(layoutDirty&&!autoSaveEnabled&&!confirm("未保存の変更があります。保存せずに閉じますか？"))return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash});window.close();}
+    function closeEditor(){if(editorClosed)return;if(layoutDirty&&!autoSaveEnabled&&!confirm("未保存の変更があります。保存せずに閉じますか？"))return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash});window.close();}
     document.getElementById("closeEditor").onclick=closeEditor;
     document.getElementById("discardChanges").onclick=discardChanges;
     document.getElementById("saveLayout").onclick=saveLayoutExplicit;
@@ -1859,9 +1860,23 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("replaceCancel").onclick=()=>{pendingReplacementSource=null;document.getElementById("replaceImageDialog").close();};
     document.getElementById("replaceDiscard").onclick=async()=>{try{if(imageHash)localStorage.removeItem(draftLayoutKey());}catch{}document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
     document.getElementById("replaceSave").onclick=async()=>{if(!(await saveLayoutExplicit()))return;document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
-    window.addEventListener("message",event=>{if(event.origin!==location.origin)return;const data=event.data;if(data?.type==="speech_bubble:set_theme")document.documentElement.dataset.theme=data.theme==="light"?"light":"dark";else if(data?.type==="speech_bubble:load_source"&&data.image_url)requestRemoteImage(data.image_url,{name:data.source_name||"speech_bubble",tab:data.source_tab||sourceTab}).catch(error=>{console.error(error);setSaveState(error?.message||"画像を読み込めませんでした","error");});});
+    window.addEventListener("message",event=>{
+      if(event.origin!==location.origin||event.source!==window.opener)return;
+      const data=event.data;
+      if(data?.type==="speech_bubble:host_ping"){
+        event.source.postMessage({type:"speech_bubble:editor_pong",requestId:data.requestId,...editorConnectionState()},location.origin);
+      }else if(data?.type==="speech_bubble:request_focus"){
+        window.focus();
+      }else if(data?.type==="speech_bubble:set_theme"){
+        document.documentElement.dataset.theme=data.theme==="light"?"light":"dark";
+      }else if(data?.type==="speech_bubble:load_source"&&data.image_url){
+        requestRemoteImage(data.image_url,{name:data.source_name||"speech_bubble",tab:data.source_tab||sourceTab}).then(()=>{
+          postHost("speech_bubble:source_applied",{requestId:data.requestId,...editorConnectionState()});
+        }).catch(error=>{console.error(error);setSaveState(error?.message||"画像を読み込めませんでした","error");});
+      }
+    });
     window.addEventListener("beforeunload",event=>{if(editorClosed||autoSaveEnabled||!layoutDirty)return;event.preventDefault();event.returnValue="";});
-    window.addEventListener("pagehide",()=>{if(editorClosed)return;editorClosed=true;if(layoutDirty&&autoSaveEnabled)persistDraftNow();cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash});});
+    window.addEventListener("pagehide",()=>{if(editorClosed)return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash});});
     const properties=document.getElementById("properties");
     const shapePropertyKeys=new Set(["shape_intensity","shape_asymmetry","shape_roundness","spike_count","valley_style","valley_concavity","lobe_count","lobe_depth","shape_softness"]);
     const textFitPropertyKeys=new Set(["text","writing","font_id","font_path","font_size","tracking","font_scale_x","font_scale_y","bold","italic","stroke_width","stroke_color","shadow_enabled","shadow_x","shadow_y","shadow_blur","auto_fit"]);

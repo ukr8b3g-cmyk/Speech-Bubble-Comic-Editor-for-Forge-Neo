@@ -18,6 +18,10 @@
     let activeSession = null;
     let currentTheme = null;
     let settingsLoadPromise = null;
+    let editorCloseMonitor = null;
+    let latestOpenRequestId = null;
+    let pendingOpenRequest = null;
+    let pingRetryTimers = [];
 
     const appRoot = () => (typeof gradioApp === "function" ? gradioApp() : document);
 
@@ -225,16 +229,61 @@
     }
 
     function cleanupEditor() {
-        if (activeSession?.monitor) clearInterval(activeSession.monitor);
+        clearEditorCloseMonitor();
+        clearPingRetries();
         activeSession = null;
+        pendingOpenRequest = null;
+        latestOpenRequestId = null;
         editorWindow = null;
     }
 
-    function sendSourceToExisting(session) {
+    function clearEditorCloseMonitor() {
+        if (!editorCloseMonitor) return;
+        clearInterval(editorCloseMonitor);
+        editorCloseMonitor = null;
+    }
+
+    function installEditorCloseMonitor() {
+        clearEditorCloseMonitor();
+        editorCloseMonitor = setInterval(() => {
+            if (editorWindow && !editorWindow.closed) return;
+            const tabName = activeSession?.tabName || currentTabName();
+            cleanupEditor();
+            setPanelStatus(tabName, "Editor: Ready", "info");
+        }, 500);
+    }
+
+    function clearPingRetries() {
+        pingRetryTimers.forEach(clearTimeout);
+        pingRetryTimers = [];
+    }
+
+    function sendEditorPing(candidate, requestId) {
+        candidate.postMessage({ type: "speech_bubble:host_ping", requestId }, location.origin);
+    }
+
+    function reconnectExistingEditor(candidate, requested, requestId) {
+        editorWindow = candidate;
+        pendingOpenRequest = { candidate, requested, requestId };
+        latestOpenRequestId = requestId;
+        clearPingRetries();
+        for (const delay of [0, 140, 360]) {
+            pingRetryTimers.push(setTimeout(() => {
+                if (requestId !== latestOpenRequestId || !editorWindow || editorWindow.closed) return;
+                sendEditorPing(candidate, requestId);
+            }, delay));
+        }
+        candidate.focus();
+        installEditorCloseMonitor();
+        setPanelStatus(requested.tabName, "既存Editorへ再接続しています…", "info");
+    }
+
+    function sendSourceToExisting(session, requestId) {
         if (!editorWindow || editorWindow.closed || !session.imageUrl) return;
         editorWindow.postMessage(
             {
                 type: "speech_bubble:load_source",
+                requestId,
                 key: activeSession?.key,
                 image_url: session.imageUrl,
                 source_name: session.sourceName,
@@ -246,44 +295,59 @@
 
     function openEditor(options = {}) {
         const tabName = options.tabName || currentTabName();
+        const requestId = randomKey();
         const requested = {
             key: activeSession?.key || `speech_bubble:forge:session:${randomKey()}`,
             imageUrl: options.imageUrl || "",
             sourceName: options.sourceName || "speech_bubble",
             tabName,
-            monitor: null,
         };
 
-        if (editorWindow && !editorWindow.closed) {
-            if (requested.imageUrl) sendSourceToExisting(requested);
-            editorWindow.focus();
-            setPanelStatus(tabName, requested.imageUrl ? "選択画像をEditorへ送信しました。" : "Editorは既に開いています。", "info");
-            return;
-        }
-
-        activeSession = requested;
-        // window.open runs synchronously inside the click handler, avoiding false popup-block warnings.
-        editorWindow = window.open(buildEditorUrl(requested), EDITOR_WINDOW_NAME, popupFeatures());
-        if (!editorWindow) {
+        const candidate = window.open("", EDITOR_WINDOW_NAME, popupFeatures());
+        if (!candidate) {
             cleanupEditor();
             setPanelStatus(tabName, "ポップアップがブロックされました。", "error");
             toast("ポップアップを許可してください。", "error");
             return;
         }
-        editorWindow.focus();
-        setPanelStatus(
-            tabName,
-            `Editorを別ウィンドウで開きました。自動保存: ${runtimeSettings.auto_save ? "ON" : "OFF"}`,
-            "success",
-        );
-        requested.monitor = setInterval(() => {
-            if (!editorWindow || !editorWindow.closed) return;
-            cleanupEditor();
-            setPanelStatus(tabName, "Editor: Ready", "info");
-        }, 650);
+
+        let candidateUrl;
+        try {
+            candidateUrl = new URL(candidate.location.href || "about:blank", location.href);
+        } catch {
+            setPanelStatus(tabName, "既存ウィンドウの内容を確認できません。Editorは上書きしませんでした。", "error");
+            candidate.focus();
+            return;
+        }
+
+        if (candidateUrl.href === "about:blank") {
+            editorWindow = candidate;
+            activeSession = requested;
+            latestOpenRequestId = requestId;
+            candidate.location.replace(buildEditorUrl(requested));
+            candidate.focus();
+            installEditorCloseMonitor();
+            setPanelStatus(
+                tabName,
+                `Editorを別ウィンドウで開きました。自動保存: ${runtimeSettings.auto_save ? "ON" : "OFF"}`,
+                "success",
+            );
+            return;
+        }
+
+        const editorUrl = new URL(apiPath("speech-bubble-forge/static/speech-bubble-editor.html"));
+        if (candidateUrl.origin !== editorUrl.origin || candidateUrl.pathname !== editorUrl.pathname) {
+            setPanelStatus(tabName, "同名ウィンドウはSpeech Bubble Editorではありません。上書きしませんでした。", "error");
+            candidate.focus();
+            return;
+        }
+
+        reconnectExistingEditor(candidate, requested, requestId);
     }
 
-    function openSelected(tabName = currentTabName()) {
+    function handleOpenSelected(event, tabName = currentTabName()) {
+        event?.preventDefault();
+        event?.stopPropagation();
         const info = selectedGalleryImageInfo(tabName);
         if (!info) {
             setPanelStatus(tabName, "画像が選択されていません。", "error");
@@ -298,10 +362,8 @@
         });
     }
 
-    function handleOpenSelectedClick(event, tabName) {
-        event.preventDefault();
-        event.stopPropagation();
-        openSelected(tabName);
+    function openSelected(tabName = currentTabName()) {
+        handleOpenSelected(null, tabName);
     }
 
     function openBlank(tabName = currentTabName()) {
@@ -350,6 +412,57 @@
         if (event.origin !== location.origin) return;
         const data = event.data;
         if (!data || typeof data.type !== "string" || !data.type.startsWith("speech_bubble:")) return;
+        if (data.type === "speech_bubble:editor_pong") {
+            if (
+                data.requestId !== latestOpenRequestId ||
+                !pendingOpenRequest ||
+                event.source !== pendingOpenRequest.candidate
+            ) return;
+            clearPingRetries();
+            const { requested, requestId } = pendingOpenRequest;
+            editorWindow = event.source;
+            activeSession = {
+                key: data.jsonKey || requested.key,
+                imageUrl: "",
+                sourceName: data.sourceName || requested.sourceName,
+                tabName: data.sourceTab || requested.tabName,
+                documentId: data.documentId || "",
+                mode: data.mode || "",
+            };
+            installEditorCloseMonitor();
+            editorWindow.postMessage({ type: "speech_bubble:request_focus", requestId }, location.origin);
+            editorWindow.focus();
+            if (requested.imageUrl) {
+                sendSourceToExisting(requested, requestId);
+            } else {
+                pendingOpenRequest = null;
+            }
+            setPanelStatus(
+                requested.tabName,
+                "既存Editorへ再接続しました。前面に表示されない場合はタスクバーから選択してください。",
+                "success",
+            );
+            return;
+        }
+        if (data.type === "speech_bubble:source_applied") {
+            if (
+                data.requestId !== latestOpenRequestId ||
+                !pendingOpenRequest ||
+                event.source !== editorWindow
+            ) return;
+            const requested = pendingOpenRequest.requested;
+            activeSession = {
+                key: data.jsonKey || activeSession?.key || requested.key,
+                imageUrl: requested.imageUrl,
+                sourceName: data.sourceName || requested.sourceName,
+                tabName: data.sourceTab || requested.tabName,
+                documentId: data.documentId || "",
+                mode: data.mode || "image",
+            };
+            pendingOpenRequest = null;
+            return;
+        }
+        if (editorWindow && event.source !== editorWindow) return;
         if (activeSession && data.key && data.key !== activeSession.key) return;
         const tabName = data.source_tab || activeSession?.tabName || currentTabName();
 
@@ -358,7 +471,7 @@
                 setPanelStatus(tabName, "Editor: Ready", "success");
                 break;
             case "speech_bubble:source_loaded":
-                if (activeSession) {
+                if (activeSession && !pendingOpenRequest) {
                     activeSession.tabName = tabName;
                     activeSession.sourceName = data.source_name || activeSession.sourceName;
                 }
@@ -396,6 +509,7 @@
                 break;
             }
             case "speech_bubble:editor_closed":
+            case "speech_bubble:editor_closing":
             case "speech_bubble:cancel_editor":
                 cleanupEditor();
                 setPanelStatus(tabName, "Editor: Ready", "info");
@@ -454,7 +568,7 @@
         button.title = "Speech Bubbleで編集";
         button.setAttribute("aria-label", "Speech Bubbleで編集");
         button.innerHTML = iconMarkup();
-        button.addEventListener("click", (event) => handleOpenSelectedClick(event, tabName));
+        button.addEventListener("click", (event) => handleOpenSelected(event, tabName));
         row.appendChild(button);
     }
 
@@ -478,7 +592,7 @@
                 <p class="speech-bubble-forge-note">※ 別ウィンドウで開きます。ローカル画像はエディター内で選択・ドラッグ＆ドロップ・貼り付けできます。</p>
                 <div class="speech-bubble-forge-status" data-speech-bubble-status="${tabName}" data-level="info" aria-live="polite">Editor: Ready</div>
               </div>`;
-            details.querySelector('[data-action="gallery"]').addEventListener("click", (event) => handleOpenSelectedClick(event, tabName));
+            details.querySelector('[data-action="gallery"]').addEventListener("click", (event) => handleOpenSelected(event, tabName));
             details.querySelector('[data-action="blank"]').addEventListener("click", () => openBlank(tabName));
         }
 
