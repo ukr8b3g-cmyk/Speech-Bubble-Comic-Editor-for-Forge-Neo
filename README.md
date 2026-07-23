@@ -4,9 +4,18 @@ Version: **0.4.0**
 
 ComfyUI **Speech Bubble Layer** のHTMLエディターとPillow描画処理を、WebUI Forge Neoで単独動作するよう移植した拡張です。ComfyUIは不要です。
 
+> [!IMPORTANT]
+> 現在は開発版です。UI、保存形式、機能構成は今後変更される可能性があります。
+
 ## インストール
 
-ZIPを展開し、`sd-webui-speech-bubble-forge-neo` フォルダーをForge Neoの `extensions` 直下へコピーします。
+Forge Neoの `extensions` フォルダーで次を実行します。
+
+```powershell
+git clone https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo.git
+```
+
+またはGitHubからZIPをダウンロードし、展開したフォルダーを `extensions` 直下へ配置します。
 
 ```text
 stable-diffusion-webui-forge/
@@ -37,26 +46,37 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 
 ## Editor上部ボタン
 
-- **Close**: Editorを閉じます。自動保存ONなら現在画像の下書きを保持します。
-- **Discard Changes**: 未保存変更を破棄し、最後に明示保存した画像ごとのレイアウトへ戻します。
+- **Close**: Editorを閉じます。自動保存ONなら現在の編集ドキュメントの下書きを保持します。
+- **Discard Changes**: 現在の下書きだけを破棄し、最後に明示保存したレイアウトへ戻します。
 - **Save Layout**: レイアウトJSONだけを保存します。画像は書き出しません。
 - **Export Image**: 現在の状態から合成PNGを書き出します。明示保存レイアウトは変更しません。
 
 `Export Image`は主要色、`Save Layout`は通常色、`Discard Changes`は警告色です。
 
-## 画像ごとのレイアウト保存
+## 編集モードと保存領域
 
-画像内容のSHA-256をキーに、次を分離して保持します。
+素材カタログ、お気に入り、使用回数、フォント、Settingsは共通です。背景画像、配置レイヤー、キャンバスサイズ、Undo / Redo、選択状態、明示保存レイアウト、自動保存下書きは編集モードごとに分離します。
 
-```text
-明示保存したレイアウト
-自動保存中の下書き
-```
+### 選択中の生成画像を開く
 
+- 画像内容のSHA-256を識別子として使用します。
 - 同じ画像はForge再起動後やtxt2img / img2img切替後も復元します。
 - 新しい画像へ別画像のレイアウトを自動適用しません。
-- 明示保存レイアウトはForgeの `config/speech-bubble-forge/layouts` に保存します。
-- 編集中の下書きはブラウザーのlocalStorageへ保存します。
+
+### エディターを開く
+
+- 新しい単体編集ドキュメントとして、画像・配置レイヤーとも空の状態で開きます。
+- 生成画像側の吹き出し、SFX、Stamp、Frameを引き継ぎません。
+- ローカル画像を読み込んでも単体編集側の保存領域を維持します。
+- 同じ画像の保存済みレイアウトが見つかった場合だけ、単体編集側へコピーして復元できます。
+
+明示保存レイアウトはForgeの `config/speech-bubble-forge/layouts`、編集中の下書きはブラウザーのlocalStorageへ保存します。
+
+## レイヤーパネル
+
+- Properties / Layers間の分割線をドラッグして高さを変更できます。
+- 変更した高さはブラウザーに記憶され、次回も復元されます。
+- 未設定時は1920×1200表示を基準に、Layers領域を広めに確保します。
 
 ## Settings > Speech Bubble Editor
 
