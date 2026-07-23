@@ -19,10 +19,15 @@
     button { border:1px solid var(--line); border-radius:4px; background:var(--panel2); padding:4px 7px; cursor:pointer; }
     button:hover { border-color:var(--accent); }
     button.primary { background:#2e79bc; border-color:#63b5ff; color:#fff; }
-    #closeEditor,#deleteFrameBtn { background:#4a2929; border-color:#785050; color:#f6dddd; }
-    #discardChanges { background:#ffb000; border-color:#ffe16b; color:#211500; font-weight:700; box-shadow:0 0 0 1px #ffef9a55,0 0 10px #ffb00033; }
-    #discardChanges:hover { filter:brightness(1.08); }
-    #saveLayout { background:var(--panel2); border-color:var(--line); }
+    #undo,#redo { background:#344454; border-color:#52677a; color:#e2e8ef; }
+    #fit,#minus,#plus { background:#2d3945; border-color:#465766; color:#e2e8ef; }
+    #openBackgroundImage { background:#365a78; border-color:#547b9b; color:#e2e8ef; }
+    #closeEditor { background:#493336; border-color:#6d4a4e; color:#eadadd; }
+    #deleteFrameBtn { background:#4a2929; border-color:#785050; color:#f6dddd; }
+    #discardChanges { background:#92702f; border-color:#b28a43; color:#fff0ce; font-weight:700; }
+    #saveLayout { background:#347453; border-color:#4f936e; color:#e5f4eb; font-weight:600; }
+    #undo:hover,#redo:hover,#fit:hover,#minus:hover,#plus:hover,#openBackgroundImage:hover { filter:brightness(1.08); }
+    #closeEditor:hover,#discardChanges:hover,#saveLayout:hover { filter:brightness(1.06); }
     #exportImage { min-width:105px; }
     #saveState { margin-right:4px; color:#aeb9c6; font-size:11px; white-space:nowrap; }
     #saveState[data-level="dirty"] { color:#ffd166; }
@@ -97,7 +102,11 @@
     #emphasisProps .emphasis-control-row input[type="range"] { width:100%; min-width:0; margin:0; }
     #emphasisProps .emphasis-control-row input[type="number"] { width:58px; min-width:0; min-height:24px; height:24px; padding:2px 5px; }
     #emphasisProps .emphasis-compact-group { margin-top:5px; padding-top:3px; border-top:1px solid var(--line); }
-    #emphasisProps .emphasis-compact-group > summary { display:flex; align-items:center; min-height:25px; color:var(--muted); font-weight:600; cursor:pointer; user-select:none; }
+    #emphasisProps .emphasis-compact-group > summary { display:flex; align-items:center; gap:5px; min-height:25px; color:var(--muted); font-weight:600; cursor:pointer; user-select:none; list-style:none; }
+    #emphasisProps .emphasis-compact-group > summary::-webkit-details-marker { display:none; }
+    #emphasisProps .emphasis-compact-group > summary::before { content:"▸"; flex:0 0 10px; width:10px; color:var(--muted); line-height:1; }
+    #emphasisProps .emphasis-compact-group[open] > summary::before { content:"▾"; }
+    #emphasisProps .emphasis-compact-group > summary:focus-visible { outline:1px solid var(--accent); outline-offset:2px; border-radius:3px; }
     #emphasisProps .emphasis-compact-group-body { padding:2px 0 3px; }
     #emphasisProps .emphasis-seed-row { display:grid; grid-template-columns:92px minmax(80px,1fr) auto; align-items:center; gap:6px; margin:3px 0; }
     #emphasisProps .emphasis-seed-row > label { display:block; margin:0; }
@@ -121,11 +130,13 @@
     .drawer { position:fixed; top:40px; bottom:0; left:0; z-index:25; width:var(--drawer-width,224px); min-width:224px; padding:8px; background:var(--drawer); border-right:1px solid #11151a; box-shadow:8px 0 20px #0007; transform:translateX(-102%); transition:transform .16s ease; overflow:auto; }
     .drawer .palette { grid-template-columns:repeat(auto-fill,var(--drawer-card-width)); grid-auto-rows:var(--drawer-card-width); gap:var(--drawer-card-gap); max-width:none; margin-inline:0; justify-content:start; }
     .drawer .shape-card { min-width:0; width:var(--drawer-card-width); height:var(--drawer-card-width); aspect-ratio:auto; }
+    #allShapes.palette,#allSfx.palette { grid-template-columns:repeat(auto-fill,minmax(82px,1fr)); grid-auto-rows:auto; }
+    #allShapes .shape-card,#allSfx .shape-card { width:100%; height:auto; aspect-ratio:1; }
     #allFrames.palette { grid-template-columns:repeat(auto-fill,var(--drawer-card-width)); align-content:start; }
     .drawer .sfx-card { min-height:0; gap:3px; padding:4px 6px; }
     .drawer .sfx-card canvas { width:min(76px,100%); height:auto; aspect-ratio:19/15; }
     .drawer .sfx-card .shape-name { display:block; min-height:16px; line-height:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #quickShapes,#quickSfx,#quickStamps,#quickFrames { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    #quickShapes,#quickSfx,#quickStamps,#quickFrames,#quickEmphasisLines { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .drawer.open { transform:translateX(0); }
     .drawer-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
     .drawer-head strong { flex:1; }
@@ -274,8 +285,8 @@
 <body>
   <header>
     <strong>Speech Bubble Editor</strong>
-    <button id="undo">Undo</button><button id="redo">Redo</button>
-    <button id="fit">Fit</button><button id="minus">−</button><span id="zoom">100%</span><button id="plus">+</button><button id="openBackgroundImage" title="Load or replace the background image">Open Image…</button>
+    <button id="undo" title="Undo the last edit (Ctrl+Z)">Undo</button><button id="redo" title="Redo the last undone edit (Ctrl+Y / Ctrl+Shift+Z)">Redo</button>
+    <button id="fit" title="Fit the image to the editor window (Ctrl+0)">Fit</button><button id="minus" title="Zoom out">−</button><span id="zoom">100%</span><button id="plus" title="Zoom in">+</button><button id="openBackgroundImage" title="Load or replace the background image">Open Image…</button>
     <span class="spacer"></span><span id="saveState" data-level="info">画像を読み込んでください</span>
     <button id="closeEditor" title="Close the editor. An autosaved draft is retained when enabled.">Close</button><button id="discardChanges" title="Discard unsaved changes and restore the last explicitly saved layout.">Discard Changes</button><button id="saveLayout" title="Save only the image-specific layout JSON. No image is rendered.">Save Layout</button><button class="primary" id="exportImage" title="Render and save a new composite PNG without overwriting the source image.">Export Image</button>
     <input id="backgroundFileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
@@ -285,42 +296,42 @@
       <details class="left-section" data-left-section="bubbles" open>
         <summary>Speech Bubbles</summary>
         <div id="quickShapes" class="palette"></div>
-        <button id="openShapeDrawer">Browse Shapes…</button>
+        <button id="openShapeDrawer" title="Open the full speech bubble and shape library">Browse Shapes…</button>
       </details>
       <details class="left-section" data-left-section="sfx" open>
         <summary>Onomatopoeia / SFX</summary>
         <div id="quickSfx" class="palette"></div>
-        <button id="openSfxDrawer">Browse SFX…</button>
+        <button id="openSfxDrawer" title="Open the onomatopoeia and SFX library">Browse SFX…</button>
       </details>
       <details class="left-section" data-left-section="stamps" open>
         <summary>Comic Stamps / Symbols</summary>
         <div id="quickStamps" class="palette"></div>
-        <button id="openStampDrawer">Browse Stamps…</button>
+        <button id="openStampDrawer" title="Open the comic stamp and symbol library">Browse Stamps…</button>
       </details>
       <details class="left-section" data-left-section="frames" open>
         <summary>Frames</summary>
         <div id="quickFrames" class="palette"></div>
-        <button id="openFrameDrawer">Browse Frames…</button>
+        <button id="openFrameDrawer" title="Open the frame library">Browse Frames…</button>
       </details>
       <details class="left-section" data-left-section="emphasis" open>
         <summary>Emphasis Lines</summary>
         <div id="quickEmphasisLines" class="palette"></div>
       </details>
-      <button id="addText" style="width:100%;margin-top:5px;">＋ Text</button>
+      <button id="addText" title="Add a new text layer" style="width:100%;margin-top:5px;">＋ Text</button>
       <div id="shapeDrawer" class="drawer">
         <div class="drawer-resizer" title="Drag to resize. Double-click to reset."></div>
-        <div class="drawer-head"><strong id="shapeDrawerTitle">All Speech Bubbles</strong><button id="closeShapeDrawer">Close</button></div>
+        <div class="drawer-head"><strong id="shapeDrawerTitle">All Speech Bubbles</strong><button id="closeShapeDrawer" title="Close the shape library">Close</button></div>
         <div class="drawer-filters">
           <input id="shapeSearch" type="search" placeholder="Search presets…">
           <select id="shapeCategory" aria-label="Shape category"><option value="all">All categories</option><option value="user">User Presets</option><option value="dialogue">Dialogue</option><option value="thought">Thought / Quiet</option><option value="emotion">Emotion / Shout</option><option value="special">Electronic / Special</option><option value="narration">Narration</option></select>
         </div>
-        <div class="toolbar"><button id="importUserPresets">Import JSON</button><button id="exportUserPresets">Export JSON</button></div>
+        <div class="toolbar"><button id="importUserPresets" title="Import user shape presets from JSON">Import JSON</button><button id="exportUserPresets" title="Export user shape presets as JSON">Export JSON</button></div>
         <input id="userPresetImportFile" type="file" accept="application/json,.json" hidden>
         <div id="allShapes" class="palette"></div>
       </div>
       <div id="sfxDrawer" class="drawer">
         <div class="drawer-resizer" title="Drag to resize. Double-click to reset."></div>
-        <div class="drawer-head"><strong id="sfxDrawerTitle">Onomatopoeia / SFX</strong><button id="closeSfxDrawer">Close</button></div>
+        <div class="drawer-head"><strong id="sfxDrawerTitle">Onomatopoeia / SFX</strong><button id="closeSfxDrawer" title="Close the SFX or stamp library">Close</button></div>
         <div class="drawer-filters">
           <input id="sfxSearch" type="search" placeholder="Search onomatopoeia…">
           <select id="sfxCategory" aria-label="SFX category"><option value="all">All categories</option><option value="english">English</option><option value="japanese">Japanese</option><option value="symbols">Symbols</option><option value="effects">Effects</option></select>
@@ -330,7 +341,7 @@
       </div>
       <div id="frameDrawer" class="drawer">
         <div class="drawer-resizer" title="Drag to resize. Double-click to reset."></div>
-        <div class="drawer-head"><strong id="frameDrawerTitle">Frames</strong><button id="closeFrameDrawer">Close</button></div>
+        <div class="drawer-head"><strong id="frameDrawerTitle">Frames</strong><button id="closeFrameDrawer" title="Close the frame library">Close</button></div>
         <div class="drawer-filters">
           <input id="frameSearch" type="search" placeholder="Search frames…">
           <select id="frameCategory" aria-label="Frame category"><option value="all">All frame styles</option><option value="border">Borders</option><option value="rounded">Rounded</option><option value="cute">Cute / Floral / Pastel</option></select>
@@ -344,7 +355,7 @@
         <div id="emptyCanvasCard" class="empty-canvas-card">
           <strong>画像をここにドロップ</strong>
           <p>または</p>
-          <button id="chooseBackgroundImage" type="button">画像ファイルを選択</button>
+          <button id="chooseBackgroundImage" type="button" title="ローカル画像を背景として読み込みます">画像ファイルを選択</button>
           <p>Ctrl+Vでクリップボード画像を貼り付け<br>PNG / JPEG / WebP</p>
         </div>
       </div>
@@ -352,31 +363,31 @@
     </main>
     <aside class="right">
       <section id="propertiesDock" class="properties-dock">
-      <div class="dock-heading"><button id="propertiesDockToggle" class="dock-toggle" type="button" aria-expanded="true">Properties</button></div>
+      <div class="dock-heading"><button id="propertiesDockToggle" class="dock-toggle" type="button" aria-expanded="true" title="Show or hide the Properties panel">Properties</button></div>
       <div id="empty" class="hint">Select a layer to edit it.</div>
       <div id="properties" class="disabled">
         <div id="groupProps" class="selection-info" hidden><strong id="selectionCount">Multiple layers selected</strong><div>Drag the canvas handles to move, resize, or rotate them together.</div></div>
         <div id="textProps" hidden>
           <label>Text<textarea data-key="text" placeholder="Enter dialogue…"></textarea></label>
-          <label>Font<button id="fontPickerButton" class="font-picker-button" type="button" aria-haspopup="dialog" aria-expanded="false"><span id="fontCurrentName" class="font-current-name">Auto / System Default</span><span id="fontCurrentBadge" class="font-language-badge">AUTO</span></button><select id="fontSelect" data-key="font_id" hidden><option value="">Auto / System Default</option></select></label>
+          <label>Font<button id="fontPickerButton" class="font-picker-button" type="button" aria-haspopup="dialog" aria-expanded="false" title="Open the font browser"><span id="fontCurrentName" class="font-current-name">Auto / System Default</span><span id="fontCurrentBadge" class="font-language-badge">AUTO</span></button><select id="fontSelect" data-key="font_id" hidden><option value="">Auto / System Default</option></select></label>
           <div class="font-size-control"><label><span>Size</span><input data-key="font_size" type="number" min="1"></label></div>
           <label>Text Color<input data-key="color" type="color"></label>
-          <div class="compact-swatch-controls" data-swatch-targets="text"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="color">Text</button><button type="button" data-swatch-target="stroke_color">Outline</button></div></div>
+          <div class="compact-swatch-controls" data-swatch-targets="text"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="color" title="Apply swatches to the text color">Text</button><button type="button" data-swatch-target="stroke_color" title="Apply swatches to the text outline color">Outline</button></div></div>
           <div id="textColorSwatches" class="compact-color-swatches" role="group" aria-label="Text color swatches"></div>
           <label>Outline Color<input data-key="stroke_color" type="color"></label>
           <label>Outline Width<input data-key="stroke_width" type="number" min="0"></label>
           <div class="control-label">Writing direction</div>
           <div id="writingModes" class="segmented">
-            <button type="button" data-writing="horizontal">Horizontal<br>横書き</button>
-            <button type="button" data-writing="vertical">Vertical<br>縦書き</button>
+            <button type="button" data-writing="horizontal" title="Write text horizontally">Horizontal<br>横書き</button>
+            <button type="button" data-writing="vertical" title="Write text vertically">Vertical<br>縦書き</button>
           </div>
           <label class="compact-check" title="Fit the text box to the current text"><input data-key="auto_fit" type="checkbox"><span>Auto Fit</span></label>
           <div class="control-label">Character style</div>
           <div class="type-toolbar">
-            <button type="button" class="type-button" data-toggle-key="bold"><strong>B</strong>Bold</button>
-            <button type="button" class="type-button" data-toggle-key="italic"><strong>I</strong>Italic</button>
-            <button type="button" class="type-button" data-toggle-key="underline"><strong>U</strong>Underline</button>
-            <button type="button" class="type-button" data-toggle-key="strikethrough"><strong>S</strong>Strike</button>
+            <button type="button" class="type-button" data-toggle-key="bold" title="Toggle bold text"><strong>B</strong>Bold</button>
+            <button type="button" class="type-button" data-toggle-key="italic" title="Toggle italic text"><strong>I</strong>Italic</button>
+            <button type="button" class="type-button" data-toggle-key="underline" title="Toggle underline"><strong>U</strong>Underline</button>
+            <button type="button" class="type-button" data-toggle-key="strikethrough" title="Toggle strikethrough"><strong>S</strong>Strike</button>
           </div>
           <details id="textLayoutDetails" class="text-layout-details">
             <summary>Text Layout</summary>
@@ -397,7 +408,7 @@
           <label>Opacity<input data-key="opacity" type="number" min="0" max="1" step="0.05"></label>
           <div id="sfxMaskProps" hidden>
             <label id="sfxFillColorRow">Fill Color<input data-key="fill" type="color"></label>
-            <div class="compact-swatch-controls" data-swatch-targets="asset"><span class="control-label">Swatches</span><div class="segmented"><button id="sfxFillSwatchTarget" type="button" data-swatch-target="fill">Fill</button><button id="sfxStrokeSwatchTarget" type="button" data-swatch-target="stroke">Outline</button></div></div>
+            <div class="compact-swatch-controls" data-swatch-targets="asset"><span class="control-label">Swatches</span><div class="segmented"><button id="sfxFillSwatchTarget" type="button" data-swatch-target="fill" title="Apply swatches to the asset fill color">Fill</button><button id="sfxStrokeSwatchTarget" type="button" data-swatch-target="stroke" title="Apply swatches to the asset outline or border color">Outline</button></div></div>
             <div id="sfxColorSwatches" class="compact-color-swatches" role="group" aria-label="SFX fill and outline color swatches"></div>
             <label><span id="sfxOutlineColorLabel">Outline Color</span><input data-key="stroke" type="color"></label>
             <label><span id="sfxOutlineWidthLabel">Outline Width</span><input data-key="stroke_width" type="number" min="0" max="100" step="1"></label>
@@ -408,7 +419,7 @@
           <label>Preset<select id="presetSelect" data-key="preset_id"></select></label>
           <label>Tail<select data-key="tail"><option value="none">None</option><option value="top-left">Top Left</option><option value="top-right">Top Right</option><option value="bottom-left">Bottom Left</option><option value="bottom-right">Bottom Right</option><option value="left">Left</option><option value="right">Right</option></select></label>
           <div class="field"><label>Fill<input data-key="fill" type="color"></label><label>Stroke<input data-key="stroke" type="color"></label></div>
-          <div class="compact-swatch-controls" data-swatch-targets="bubble"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="fill">Fill</button><button type="button" data-swatch-target="stroke">Outline</button></div></div>
+          <div class="compact-swatch-controls" data-swatch-targets="bubble"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="fill" title="Apply swatches to the bubble fill color">Fill</button><button type="button" data-swatch-target="stroke" title="Apply swatches to the bubble outline color">Outline</button></div></div>
           <div id="bubbleColorSwatches" class="compact-color-swatches" role="group" aria-label="Speech bubble color swatches"></div>
           <div class="field"><label>Stroke Width<input data-key="stroke_width" type="number" min="0"></label><label>Opacity<input data-key="opacity" type="number" min="0" max="1" step="0.05"></label></div>
           <label>Outline Style<select data-key="stroke_style"><option value="solid">Solid</option><option value="double">Double</option></select></label>
@@ -426,18 +437,18 @@
               <label>Softness<input data-key="shape_softness" type="number" min="0" max="100" step="1"></label>
             </div>
             <label>Asymmetry<input data-key="shape_asymmetry" type="number" min="0" max="100" step="1"></label>
-            <button id="randomizeShape" type="button" style="width:100%;margin:4px 0 8px;">Randomize Shape</button>
+            <button id="randomizeShape" type="button" title="Generate a new variation of the selected shape" style="width:100%;margin:4px 0 8px;">Randomize Shape</button>
             <div id="shapeTuningHint" class="hint">Edit Path: direct Bézier editing</div>
           </div>
-          <button id="saveUserPreset" type="button" style="width:100%;margin:6px 0;">Save as User Preset…</button>
-          <div class="toolbar vector-tools"><button id="editVector">Edit Path</button><button id="addVectorPoint">＋ Point</button><button id="deleteVectorPoint">− Point</button></div>
+          <button id="saveUserPreset" type="button" title="Save the selected shape settings as a reusable preset" style="width:100%;margin:6px 0;">Save as User Preset…</button>
+          <div class="toolbar vector-tools"><button id="editVector" title="Start or finish direct path editing">Edit Path</button><button id="addVectorPoint" title="Add a point to the selected path">＋ Point</button><button id="deleteVectorPoint" title="Delete the selected path point">− Point</button></div>
           <div class="hint">Drag anchors/controls. Add or remove points.</div>
         </div>
         <div id="frameProps" hidden>
           <div class="inline-toggles"><label title="Fit frame to canvas"><span>Fit</span><input data-key="fit_to_canvas" type="checkbox"></label><label title="Keep frame above other layers"><span>Top</span><input data-key="pin_to_top" type="checkbox"></label></div>
           <div id="frameBorderProps">
             <div class="field"><label>Border Color<input data-key="border_color" type="color"></label><label>Inner Outline Color<input data-key="inner_stroke_color" type="color"></label></div>
-            <div class="compact-swatch-controls" data-swatch-targets="frame"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="border_color">Border</button><button type="button" data-swatch-target="inner_stroke_color">Outline</button></div></div>
+            <div class="compact-swatch-controls" data-swatch-targets="frame"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="border_color" title="Apply swatches to the frame border color">Border</button><button type="button" data-swatch-target="inner_stroke_color" title="Apply swatches to the frame inner outline color">Outline</button></div></div>
             <div id="frameColorSwatches" class="compact-color-swatches" role="group" aria-label="Frame color swatches"></div>
             <div class="field"><label>Left / Right Width<input data-key="border_width_x" type="number" min="0" step="1"></label><label>Top / Bottom Width<input data-key="border_width_y" type="number" min="0" step="1"></label></div>
             <label>Inner Outline Width<input data-key="inner_stroke_width" type="number" min="0" step="1"></label>
@@ -452,7 +463,7 @@
             <div id="frameAssetWarning" class="hint" hidden></div>
           </div>
           <label>Opacity<input data-key="opacity" type="number" min="0" max="1" step="0.05"></label>
-          <div class="frame-actions"><button id="resetFrame" type="button">Reset</button><button id="deleteFrameBtn" type="button">Delete</button></div>
+          <div class="frame-actions"><button id="resetFrame" type="button" title="Reset the selected frame settings">Reset</button><button id="deleteFrameBtn" type="button" title="Delete the selected frame">Delete</button></div>
           <details id="frameEffects"><summary>Effects</summary>
             <div class="frame-effect-note">Uses cleaned frame alpha.</div>
             <label class="compact-check"><input data-key="shadow_enabled" type="checkbox"><span>Enable Drop Shadow</span></label>
@@ -469,10 +480,11 @@
             <label>Preset<select data-key="preset"><option value="center">Center</option><option value="wide">Wide</option><option value="tall">Tall</option><option value="side">One Side</option></select></label>
             <label>Line Color<input data-key="color" type="color"></label>
           </div>
-          <div class="compact-swatch-controls" data-swatch-targets="emphasis"><span class="control-label">Swatches</span><div class="segmented"><button type="button" data-swatch-target="color">Line</button></div></div>
+          <div class="compact-swatch-controls" data-swatch-targets="emphasis"><span class="control-label">Line Color Swatches</span></div>
           <div id="emphasisColorSwatches" class="compact-color-swatches" role="group" aria-label="Emphasis line color swatches"></div>
           <div class="emphasis-control-row"><label for="emphasisOpacity">Opacity</label><input id="emphasisOpacity" data-key="opacity" type="number" aria-label="Opacity value"></div>
           <div class="emphasis-control-row"><label for="emphasisLineCount">Line Count</label><input id="emphasisLineCount" data-key="line_count" type="number" aria-label="Line Count value"></div>
+          <div class="emphasis-control-row emphasis-center-gap-master"><label for="emphasisCenterGapRange">Center Gap</label><input id="emphasisCenterGapRange" type="range" min="0.03" max="0.48" step="0.005" data-emphasis-derived-range="center_gap" title="Scale Center Gap X and Y together while preserving their ratio"><input id="emphasisCenterGapValue" type="number" min="0.03" max="0.48" step="0.005" aria-label="Center Gap value" title="Overall center gap size"></div>
           <div class="emphasis-control-row"><label for="emphasisInnerX">Center Gap X</label><input id="emphasisInnerX" data-key="inner_x" type="number" aria-label="Center Gap X value"></div>
           <div class="emphasis-control-row"><label for="emphasisInnerY">Center Gap Y</label><input id="emphasisInnerY" data-key="inner_y" type="number" aria-label="Center Gap Y value"></div>
           <div class="emphasis-control-row"><label for="emphasisLineWidth">Base Line Width</label><input id="emphasisLineWidth" data-key="line_width" type="number" aria-label="Base Line Width value"></div>
@@ -485,7 +497,7 @@
               <div class="emphasis-control-row"><label for="emphasisInnerRandom">Center Random</label><input id="emphasisInnerRandom" data-key="inner_random" type="number" aria-label="Center Random value"></div>
               <div class="emphasis-control-row"><label for="emphasisWidthRandom">Width Random</label><input id="emphasisWidthRandom" data-key="width_random" type="number" aria-label="Width Random value"></div>
               <div class="emphasis-control-row"><label for="emphasisSpacingRandom">Spacing Random</label><input id="emphasisSpacingRandom" data-key="spacing_random" type="number" aria-label="Spacing Random value"></div>
-              <div class="emphasis-seed-row"><label for="emphasisSeed">Seed</label><input id="emphasisSeed" data-key="seed" data-no-range type="number" min="0" max="4294967295" step="1"><button id="newEmphasisSeed" type="button">New Seed</button></div>
+              <div class="emphasis-seed-row"><label for="emphasisSeed">Seed</label><input id="emphasisSeed" data-key="seed" data-no-range type="number" min="0" max="4294967295" step="1"><button id="newEmphasisSeed" type="button" title="Generate a new random line pattern">New Seed</button></div>
             </div>
           </details>
           <details id="emphasisCenterDetails" class="emphasis-compact-group">
@@ -494,7 +506,7 @@
               <div class="hint">Drag the yellow center handle for normal positioning.</div>
               <div class="emphasis-control-row"><label for="emphasisCenterX">Center X</label><input id="emphasisCenterX" data-key="center_x" type="number" aria-label="Center X value"></div>
               <div class="emphasis-control-row"><label for="emphasisCenterY">Center Y</label><input id="emphasisCenterY" data-key="center_y" type="number" aria-label="Center Y value"></div>
-              <button id="resetEmphasisCenter" type="button">Reset Center</button>
+              <button id="resetEmphasisCenter" type="button" title="Reset the focus position to the canvas center">Reset Center</button>
             </div>
           </details>
         </div>
@@ -509,9 +521,9 @@
           <label>Shadow Color<input data-key="shadow_color" type="color"></label>
           <div class="hint">Direction</div>
           <div id="shadowDirections" class="direction-pad">
-            <button data-shadow-dir="-1,-1">↖</button><button data-shadow-dir="0,-1">↑</button><button data-shadow-dir="1,-1">↗</button>
-            <button data-shadow-dir="-1,0">←</button><button class="center" data-shadow-dir="0,0">•</button><button data-shadow-dir="1,0">→</button>
-            <button data-shadow-dir="-1,1">↙</button><button data-shadow-dir="0,1">↓</button><button data-shadow-dir="1,1">↘</button>
+            <button data-shadow-dir="-1,-1" title="Set shadow direction: upper left">↖</button><button data-shadow-dir="0,-1" title="Set shadow direction: up">↑</button><button data-shadow-dir="1,-1" title="Set shadow direction: upper right">↗</button>
+            <button data-shadow-dir="-1,0" title="Set shadow direction: left">←</button><button class="center" data-shadow-dir="0,0" title="Disable directional shadow offset">•</button><button data-shadow-dir="1,0" title="Set shadow direction: right">→</button>
+            <button data-shadow-dir="-1,1" title="Set shadow direction: lower left">↙</button><button data-shadow-dir="0,1" title="Set shadow direction: down">↓</button><button data-shadow-dir="1,1" title="Set shadow direction: lower right">↘</button>
           </div>
           <div class="field"><label>Shadow X<input data-key="shadow_x" type="number"></label><label>Shadow Y<input data-key="shadow_y" type="number"></label></div>
           <label>Shadow Blur<input data-key="shadow_blur" type="number" min="0"></label>
@@ -520,7 +532,7 @@
       </section>
       <div id="rightDockDivider" class="right-dock-divider" role="separator" aria-label="Resize Properties and Layers" aria-orientation="horizontal" tabindex="0"></div>
       <section id="layersDock" class="layers-dock">
-        <div class="layers-title-row"><button id="layersDockToggle" class="dock-toggle" type="button" aria-expanded="true">Layers</button><button id="groupSelection" title="Group selected layers (Ctrl+G)">Group</button><button id="ungroupSelection" title="Ungroup selected layers (Ctrl+Shift+G)">Ungroup</button></div>
+        <div class="layers-title-row"><button id="layersDockToggle" class="dock-toggle" type="button" aria-expanded="true" title="Show or hide the Layers panel">Layers</button><button id="groupSelection" title="Group selected layers (Ctrl+G)">Group</button><button id="ungroupSelection" title="Ungroup selected layers (Ctrl+Shift+G)">Ungroup</button></div>
         <div class="hint" title="Alt-click selects inside a group. Alt-drag moves independently.">Ctrl/Shift: Multi-select</div>
         <div id="layers" class="layers"></div>
       </section>
@@ -664,7 +676,11 @@
     ]);
     const EMPHASIS_BY_ID = new Map(EMPHASIS_PRESETS.map(preset=>[preset.id,preset]));
     const EMPHASIS_GEOMETRY_KEYS = new Set(["preset","line_count","inner_x","inner_y","line_width","line_length","taper","center_x","center_y","length_random","inner_random","width_random","spacing_random","seed","w","h"]);
+    const EMPHASIS_GAP_MIN = .03;
+    const EMPHASIS_GAP_MAX = .48;
     function emphasisClamp(value,minimum,maximum,fallback){const number=Number(value);return Math.max(minimum,Math.min(maximum,Number.isFinite(number)?number:fallback));}
+    function emphasisCenterGapValue(item){const x=Math.max(1e-8,Number(item?.inner_x)||.15),y=Math.max(1e-8,Number(item?.inner_y)||.20);return Math.sqrt(x*y);}
+    function scaleCenterGapPair(startX,startY,requestedGap){startX=emphasisClamp(startX,EMPHASIS_GAP_MIN,EMPHASIS_GAP_MAX,.15);startY=emphasisClamp(startY,EMPHASIS_GAP_MIN,EMPHASIS_GAP_MAX,.20);const startGap=emphasisCenterGapValue({inner_x:startX,inner_y:startY}),requested=emphasisClamp(requestedGap,EMPHASIS_GAP_MIN,EMPHASIS_GAP_MAX,startGap),minimumScale=Math.max(EMPHASIS_GAP_MIN/startX,EMPHASIS_GAP_MIN/startY),maximumScale=Math.min(EMPHASIS_GAP_MAX/startX,EMPHASIS_GAP_MAX/startY),scale=emphasisClamp(requested/startGap,minimumScale,maximumScale,1);return{inner_x:startX*scale,inner_y:startY*scale};}
     function emphasisMulberry32(seed){let value=Number(seed)>>>0;return()=>{value|=0;value=value+0x6D2B79F5|0;let result=Math.imul(value^value>>>15,1|value);result=result+Math.imul(result^result>>>7,61|result)^result;return((result^result>>>14)>>>0)/4294967296;};}
     function normalizeEmphasisParams(source={}){
       const preset=EMPHASIS_BY_ID.get(source.preset)||EMPHASIS_PRESETS[0];
@@ -1252,6 +1268,7 @@
     function normalizeBasicSymbolSettings(item){const kind=basicSymbolKindFor(item);if(kind==="trapezoid")item.symbol_top_width=normalizeNumericValue("symbol_top_width",item.symbol_top_width,100);if(kind==="square")item.symbol_skew=normalizeNumericValue("symbol_skew",item.symbol_skew,0);return kind;}
     function defaultSfx(presetId="don-exclamation-mask") { const preset=SFX_BY_ID.get(presetId)||SFX_PRESETS[0],mask=!!preset.mask,presetOutline=Number.isFinite(Number(preset.outlineWidth))?Number(preset.outlineWidth):(mask?sfxDefaultOutlineWidth(preset):0),item={id:id(),type:"sfx",asset_id:preset.id,asset_label:preset.label,asset_format:preset.format,asset_src:preset.src,mask_mode:mask,fill:sfxPresetFill(preset),stroke:preset.stroke||"#111111",stroke_width:presetOutline,x:0,y:0,w:preset.w,h:preset.h,rotation:0,opacity:1,shadow_enabled:false,shadow_color:"#000000",shadow_x:6,shadow_y:6,shadow_blur:4,visible:true};if(preset.symbolKind==="trapezoid")item.symbol_top_width=100;if(preset.symbolKind==="square")item.symbol_skew=0;return item; }
     function randomEmphasisSeed(){if(globalThis.crypto?.getRandomValues){const value=new Uint32Array(1);globalThis.crypto.getRandomValues(value);return value[0];}return Math.floor(Math.random()*4294967296)>>>0;}
+    function syncEmphasisCenterGapMaster(item,force=false){const range=document.getElementById("emphasisCenterGapRange"),number=document.getElementById("emphasisCenterGapValue"),active=item?.type==="emphasis_lines";if(!range||!number)return;range.disabled=!active;number.disabled=!active;if(!active){range.value=.03;number.value="";return;}const value=emphasisCenterGapValue(item);if(force||document.activeElement!==range)range.value=String(value);if(force||document.activeElement!==number)number.value=String(Number(value.toFixed(4)));}
     function regenerateEmphasisRays(item){if(!item||item.type!=="emphasis_lines")return[];item.overshoot=EMPHASIS_EDGE_OVERSHOOT;item.rays=generateNormalizedEmphasisRays(item,item.w,item.h);return item.rays;}
     const pendingEmphasisRegeneration=new Set();
     let emphasisRegenerationFrame=0;
@@ -1559,8 +1576,8 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function insertFrame(presetId,point=null){pushUndo();const item=defaultFrame(presetId);if(point){item.fit_to_canvas=false;item.w=Math.max(120,Math.round(state.width*.72));item.h=Math.max(120,Math.round(state.height*.72));placeInsertedItem(item,point);}state.elements.push(item);normalizePinnedFrameOrder();setSelection([item.id],item.id);syncProperties();render();}
     function refreshQuickFrames(){const quick=document.getElementById("quickFrames");if(!quick)return;quick.replaceChildren(...favoriteAssets("frame",FRAME_PRESETS,["frame-border","black-border"]).map(makeFrameCard));}
     function drawEmphasisThumbnail(canvasElement,preset){const width=136,height=80,target=canvasElement.getContext("2d"),rays=generateNormalizedEmphasisRays({...preset,preset:preset.id,seed:1529756813},width,height);canvasElement.width=width;canvasElement.height=height;target.fillStyle="#f7f7f7";target.fillRect(0,0,width,height);target.fillStyle="#111111";for(const polygon of rays){target.beginPath();target.moveTo(polygon[0][0]*width,polygon[0][1]*height);for(let index=1;index<4;index+=1)target.lineTo(polygon[index][0]*width,polygon[index][1]*height);target.closePath();target.fill();}}
-    function makeEmphasisCard(preset){const button=document.createElement("button"),preview=document.createElement("canvas"),name=document.createElement("span");button.type="button";button.className="shape-card";button.dataset.emphasis=preset.id;button.title=`${preset.label} — click to add, or drag the focus point to the canvas`;name.className="shape-name";name.textContent=preset.label;button.append(preview,name);button.onclick=()=>insertEmphasisLines(preset.id);enablePresetDrag(button,{kind:"emphasis-lines",id:preset.id});drawEmphasisThumbnail(preview,preset);return button;}
-    function refreshQuickEmphasisLines(){const quick=document.getElementById("quickEmphasisLines");if(!quick)return;quick.replaceChildren(...EMPHASIS_PRESETS.map(makeEmphasisCard));}
+    function makeEmphasisCard(preset){const button=document.createElement("button"),preview=document.createElement("canvas"),name=document.createElement("span");button.type="button";button.className="shape-card";button.dataset.emphasis=preset.id;button.title=`${preset.label} — click to add, or drag the focus point to the canvas`;name.className="shape-name";name.textContent=preset.label;button.append(preview,name,makeFavoriteMarker("emphasis",preset.id));button.onclick=()=>insertEmphasisLines(preset.id);enablePresetDrag(button,{kind:"emphasis-lines",id:preset.id});drawEmphasisThumbnail(preview,preset);return button;}
+    function refreshQuickEmphasisLines(){const quick=document.getElementById("quickEmphasisLines");if(!quick)return;quick.replaceChildren(...favoriteAssets("emphasis",EMPHASIS_PRESETS,["center","wide"]).map(makeEmphasisCard));}
     function insertEmphasisLines(presetId,point=null){pushUndo();const item=defaultEmphasisLines(presetId);if(point){item.center_x=emphasisClamp(point.x/state.width,-.5,1.5,item.center_x);item.center_y=emphasisClamp(point.y/state.height,-.5,1.5,item.center_y);regenerateEmphasisRays(item);}state.elements.push(item);normalizePinnedFrameOrder();setSelection([item.id],item.id);syncProperties();render();}
     function filterFrameCards(){const query=document.getElementById("frameSearch").value.trim().toLowerCase(),category=document.getElementById("frameCategory").value;document.querySelectorAll("#allFrames [data-frame]").forEach(card=>{card.hidden=!((category==="all"||card.dataset.category===category)&&(!query||card.dataset.search.includes(query)));});}
     function renderFrameBrowser(){document.getElementById("frameDrawerTitle").textContent=`Frames (${FRAME_PRESETS.length})`;document.getElementById("allFrames").replaceChildren(...FRAME_PRESETS.map(makeFrameCard));filterFrameCards();}
@@ -1966,7 +1983,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
        const fixedPath=isFixedPathItem(item),tuning=shapeTuningForItem(item),family=tuning?.family,roundnessLabel=document.querySelector("#roundnessProps label");document.getElementById("roundnessProps").hidden=!["oval","box"].includes(family);if(roundnessLabel)roundnessLabel.childNodes[0].nodeValue=family==="oval"?"Oval Fullness":"Corner Roundness";document.getElementById("jaggedShapeProps").hidden=!["jagged","soft"].includes(family);document.getElementById("cloudShapeProps").hidden=family!=="cloud"||fixedPath;document.getElementById("valleyConcavityRow").hidden=family!=="jagged"||item?.valley_style==="straight";document.getElementById("shapeIntensityRow").hidden=["oval","box"].includes(family);document.getElementById("shapeIntensityLabel").textContent=family==="cloud"?"Cloudiness":family==="heart"?"Heart Fullness":"Shape Intensity";document.getElementById("shapeTuningHint").textContent=family==="oval"?"Adjust oval fullness; it remains an oval.":family==="box"?"Adjust corner radius; it remains a box.":family==="jagged"?(item?.valley_style==="straight"?"Sharp asymmetric manga spikes":"Curved inward manga spikes"):family==="soft"?"Rounded asymmetric burst; never collapses to an oval.":family==="cloud"?"Asymmetric manga thinking-cloud lobes.":family==="heart"?"Adjust within the heart family.":"Edit Path: direct Bézier editing";
       document.getElementById("transformDetails").hidden=!item||locked||multiple;document.getElementById("groupSelection").disabled=items.filter(layer=>!layer.locked).length<2;document.getElementById("ungroupSelection").disabled=!items.some(layer=>layer.group_id);const selectedFrame=item?.type==="frame",decorativeFrame=selectedFrame&&(item.frame_kind==="decorative"||item.frame_mode!=="border"||!!item.asset_src),framePreset=selectedFrame?(FRAME_BY_ID.get(item.frame_preset_id)||FRAME_PRESETS[0]):null,frameFitModeProps=document.getElementById("frameFitModeProps"),frameAssetWarning=document.getElementById("frameAssetWarning");if(frameBorderProps)frameBorderProps.hidden=!selectedFrame||decorativeFrame;if(frameDecorativeProps)frameDecorativeProps.hidden=!selectedFrame||!decorativeFrame;if(frameFitModeProps)frameFitModeProps.hidden=!selectedFrame||(item.frame_mode||framePreset?.frame_mode)!=="full-overlay";syncFrameAttachedDecorationControls(selectedFrame?item:null,framePreset);if(frameAssetWarning){const status=selectedFrame?frameAssetScaleStatus(item,framePreset):null;frameAssetWarning.hidden=!status;frameAssetWarning.textContent=status?.text||"";frameAssetWarning.dataset.level=status?.level||"";}if(deleteFrameBtn)deleteFrameBtn.disabled=!isFrameSelected(item);
       const edit=document.getElementById("editVector"),addPoint=document.getElementById("addVectorPoint"),deletePoint=document.getElementById("deleteVectorPoint"),vectorTools=document.querySelector(".vector-tools"),vectorHint=document.querySelector(".vector-tools + .hint"),vectorEditing=state.vectorEditId===item?.id;if(fixedPath&&vectorEditing){state.vectorEditId=null;state.vectorAnchorIndex=null;state.vectorAddMode=false;}const editingPath=!fixedPath&&state.vectorEditId===item?.id;if(vectorTools)vectorTools.hidden=fixedPath;if(vectorHint)vectorHint.hidden=fixedPath;edit.disabled=fixedPath;edit.textContent=editingPath?"Finish Path":"Edit Path";edit.classList.toggle("active",editingPath);addPoint.classList.toggle("active",state.vectorAddMode);addPoint.disabled=!editingPath;deletePoint.disabled=!editingPath||state.vectorAnchorIndex===null||(item?.path_points?.length||0)<=3;
-      if(!item){updateSfxSwatches(null);updateCompactColorSwatches(null);updateFontPicker(null);return;}if(item.type==="text")item.writing=item.writing==="horizontal"?"horizontal":"vertical";const values=multiple?selectionBounds(items):item;panel.querySelectorAll("[data-key]").forEach(input=>{const key=input.dataset.key,value=key==="sfx_scale"&&item.type==="sfx"?sfxScalePercent(item):values?.[key];if(input.type==="checkbox")input.checked=!!value;else if(input.type==="number")input.value=numericDisplayValue(key,value,rangeSpecs[key]?.[0]??0);else input.value=value??"";});panel.querySelectorAll("[data-range-key]").forEach(input=>{const key=input.dataset.rangeKey,value=key==="sfx_scale"&&item.type==="sfx"?sfxScalePercent(item):values?.[key];input.value=numericDisplayValue(key,value,rangeSpecs[key]?.[0]??0);});updateSfxSwatches(item);updateCompactColorSwatches(item);
+      if(!item){syncEmphasisCenterGapMaster(null);updateSfxSwatches(null);updateCompactColorSwatches(null);updateFontPicker(null);return;}if(item.type==="text")item.writing=item.writing==="horizontal"?"horizontal":"vertical";const values=multiple?selectionBounds(items):item;panel.querySelectorAll("[data-key]").forEach(input=>{const key=input.dataset.key,value=key==="sfx_scale"&&item.type==="sfx"?sfxScalePercent(item):values?.[key];if(input.type==="checkbox")input.checked=!!value;else if(input.type==="number")input.value=numericDisplayValue(key,value,rangeSpecs[key]?.[0]??0);else input.value=value??"";});panel.querySelectorAll("[data-range-key]").forEach(input=>{const key=input.dataset.rangeKey,value=key==="sfx_scale"&&item.type==="sfx"?sfxScalePercent(item):values?.[key];input.value=numericDisplayValue(key,value,rangeSpecs[key]?.[0]??0);});syncEmphasisCenterGapMaster(item);updateSfxSwatches(item);updateCompactColorSwatches(item);
       document.querySelectorAll("[data-writing]").forEach(button=>button.classList.toggle("active",button.dataset.writing===item.writing));document.querySelectorAll("[data-toggle-key]").forEach(button=>{const active=!!item[button.dataset.toggleKey];button.classList.toggle("active",active);button.setAttribute("aria-pressed",String(active));});document.getElementById("saveUserPreset").textContent=item.user_preset_id?"Update User Preset…":"Save as User Preset…";
       updateFontPicker(item);if(document.getElementById("fontBrowser").classList.contains("open"))renderFontBrowser();
     }
@@ -2060,6 +2077,13 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.addEventListener("paste",event=>{const editing=["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName);if(editing)return;const item=Array.from(event.clipboardData?.items||[]).find(entry=>entry.kind==="file"&&String(entry.type||"").startsWith("image/"));const file=item?.getAsFile?.();if(file){event.preventDefault();requestBackgroundFile(file);return;}if(layerClipboard?.length){event.preventDefault();pasteLayers();}});
     function addTextLayer(){pushUndo();const item=defaultText();item.x=Math.max(0,state.width/2-item.w/2);item.y=Math.max(0,state.height/2-item.h/2);state.elements.push(item);setSelection([item.id],item.id);syncProperties();render();}
     document.getElementById("addText").onclick=addTextLayer;
+    const emphasisCenterGapRange=document.getElementById("emphasisCenterGapRange"),emphasisCenterGapNumber=document.getElementById("emphasisCenterGapValue");
+    let emphasisCenterGapEdit=null;
+    function beginEmphasisCenterGapEdit(){const item=state.elements.find(element=>element.id===state.selected);if(!item||item.type!=="emphasis_lines"||item.locked||state.selection.length!==1)return null;if(!emphasisCenterGapEdit||emphasisCenterGapEdit.item!==item)emphasisCenterGapEdit={item,startX:item.inner_x,startY:item.inner_y};beginPropertyEdit();return emphasisCenterGapEdit;}
+    function updateEmphasisCenterGap(control){const edit=beginEmphasisCenterGapEdit(),requested=Number(control.value);if(!edit||!Number.isFinite(requested))return;const pair=scaleCenterGapPair(edit.startX,edit.startY,requested);edit.item.inner_x=pair.inner_x;edit.item.inner_y=pair.inner_y;regenerateEmphasisRays(edit.item);syncProperties();requestRender({canvas:true});}
+    function finishEmphasisCenterGapEdit(){const edit=emphasisCenterGapEdit;if(!edit)return;emphasisCenterGapEdit=null;commitPropertyEdit();syncEmphasisCenterGapMaster(edit.item,true);requestRender({canvas:true,layers:true,preview:true});}
+    for(const control of [emphasisCenterGapRange,emphasisCenterGapNumber]){control.addEventListener("pointerdown",beginEmphasisCenterGapEdit);control.addEventListener("focus",beginEmphasisCenterGapEdit);control.addEventListener("input",()=>updateEmphasisCenterGap(control));control.addEventListener("change",finishEmphasisCenterGapEdit);control.addEventListener("pointerup",finishEmphasisCenterGapEdit);control.addEventListener("pointercancel",finishEmphasisCenterGapEdit);control.addEventListener("blur",finishEmphasisCenterGapEdit);}
+    emphasisCenterGapNumber.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();emphasisCenterGapNumber.blur();}});
     document.getElementById("newEmphasisSeed").onclick=()=>{const item=state.elements.find(element=>element.id===state.selected);if(!item||item.type!=="emphasis_lines"||item.locked)return;pushUndo();item.seed=randomEmphasisSeed();regenerateEmphasisRays(item);syncProperties();render();};
     document.getElementById("resetEmphasisCenter").onclick=()=>{const item=state.elements.find(element=>element.id===state.selected);if(!item||item.type!=="emphasis_lines"||item.locked||(item.center_x===.5&&item.center_y===.5))return;pushUndo();item.center_x=.5;item.center_y=.5;regenerateEmphasisRays(item);syncProperties();render();};
     document.getElementById("fontPickerButton").onclick=openFontBrowser;document.getElementById("closeFontBrowser").onclick=closeFontBrowser;

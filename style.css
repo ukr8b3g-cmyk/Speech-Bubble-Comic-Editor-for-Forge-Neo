@@ -34,9 +34,22 @@
     padding: 0 0.75rem 0.75rem;
 }
 .speech-bubble-forge-actions {
-    display: flex;
+    display: grid;
     gap: 0.5rem;
-    flex-wrap: wrap;
+}
+.speech-bubble-forge-action-row {
+    display: grid;
+    grid-template-columns: minmax(15.5rem, 18rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+}
+.speech-bubble-forge-action-row > button {
+    width: 100%;
+}
+.speech-bubble-forge-action-description {
+    color: var(--body-text-color-subdued, #9aa6b6);
+    font-size: 0.8rem;
+    line-height: 1.4;
 }
 .speech-bubble-forge-panel-body button {
     box-sizing: border-box;
@@ -96,6 +109,13 @@
 .speech-bubble-forge-status[data-level="success"] { color: #58b880; }
 .speech-bubble-forge-status[data-level="error"] { color: #e07676; }
 .speech-bubble-forge-status a { color: var(--link-text-color, #78b8ff); font-weight: 700; }
+
+@media (max-width: 720px) {
+    .speech-bubble-forge-action-row {
+        grid-template-columns: 1fr;
+        gap: 0.3rem;
+    }
+}
 
 .speech-bubble-forge-export-result {
     display: flex;

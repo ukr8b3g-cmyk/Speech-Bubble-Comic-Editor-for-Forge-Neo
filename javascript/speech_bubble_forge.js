@@ -659,14 +659,30 @@
               <summary>Speech Bubble Editor</summary>
               <div class="speech-bubble-forge-panel-body">
                 <div class="speech-bubble-forge-actions">
-                  <button type="button" data-action="gallery">選択中の生成画像を開く <span aria-hidden="true">↗</span></button>
-                  <button type="button" data-action="blank">エディターを開く <span aria-hidden="true">↗</span></button>
+                  <div class="speech-bubble-forge-action-row">
+                    <button type="button" data-action="gallery">選択中の生成画像を開く <span aria-hidden="true">↗</span></button>
+                    <span class="speech-bubble-forge-action-description">Forgeで選択中の生成画像を、画像ごとの編集状態で開きます。</span>
+                  </div>
+                  <div class="speech-bubble-forge-action-row">
+                    <button type="button" data-action="blank">単体エディターを開く <span aria-hidden="true">↗</span></button>
+                    <span class="speech-bubble-forge-action-description">生成画像とは別の編集領域です。新規または前回の単体編集を開き、ローカル画像を編集できます。</span>
+                  </div>
                 </div>
-                <p class="speech-bubble-forge-note">※ 別ウィンドウで開きます。ローカル画像はエディター内で選択・ドラッグ＆ドロップ・貼り付けできます。</p>
+                <p class="speech-bubble-forge-note">※ どちらも別ウィンドウで開きます。</p>
                 <div class="speech-bubble-forge-status" data-speech-bubble-status="${tabName}" data-level="info" aria-live="polite">Editor: Ready</div>
               </div>`;
-            details.querySelector('[data-action="gallery"]').addEventListener("click", (event) => handleOpenSelected(event, tabName));
-            details.querySelector('[data-action="blank"]').addEventListener("click", () => openBlank(tabName));
+        }
+
+        const galleryAction = details.querySelector('[data-action="gallery"]');
+        const blankAction = details.querySelector('[data-action="blank"]');
+        if (galleryAction) galleryAction.onclick = (event) => handleOpenSelected(event, tabName);
+        if (blankAction) {
+            blankAction.onclick = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setPanelStatus(tabName, "Editorを開いています…", "info");
+                openBlank(tabName);
+            };
         }
 
         const anchor = findScriptAnchor(settings, tabName);

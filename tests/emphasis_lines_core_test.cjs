@@ -16,8 +16,12 @@ vm.runInNewContext(
   `${coreMatch[1]}
 globalThis.EmphasisLinesCore = {
   EMPHASIS_EDGE_OVERSHOOT,
+  EMPHASIS_GAP_MIN,
+  EMPHASIS_GAP_MAX,
   EMPHASIS_PRESETS,
   EMPHASIS_GEOMETRY_KEYS,
+  emphasisCenterGapValue,
+  scaleCenterGapPair,
   normalizeEmphasisParams,
   generateNormalizedEmphasisRays,
   validEmphasisRays
@@ -28,6 +32,8 @@ const Core = context.EmphasisLinesCore;
 
 assert.strictEqual(Core.EMPHASIS_PRESETS.length, 4);
 assert.strictEqual(Core.EMPHASIS_EDGE_OVERSHOOT, 0.035);
+assert.strictEqual(Core.EMPHASIS_GAP_MIN, 0.03);
+assert.strictEqual(Core.EMPHASIS_GAP_MAX, 0.48);
 for (const key of ["inner_random", "seed", "w", "h"]) {
   assert(Core.EMPHASIS_GEOMETRY_KEYS.has(key));
 }
@@ -104,6 +110,15 @@ for (let index = 0; index < flatRays.length; index += 1) {
   }
 }
 assert(innerChanged, "Center Random must change an inner endpoint");
+const initialGap = Core.emphasisCenterGapValue({inner_x: 0.15, inner_y: 0.20});
+assert(Math.abs(initialGap - Math.sqrt(0.03)) < 1e-12);
+const scaledGap = Core.scaleCenterGapPair(0.15, 0.20, initialGap * 1.2);
+assert(Math.abs(scaledGap.inner_x - 0.18) < 1e-12);
+assert(Math.abs(scaledGap.inner_y - 0.24) < 1e-12);
+assert(Math.abs(scaledGap.inner_x / scaledGap.inner_y - 0.75) < 1e-12);
+const clampedGap = Core.scaleCenterGapPair(0.30, 0.40, 0.48);
+assert(clampedGap.inner_x <= 0.48 && clampedGap.inner_y <= 0.48);
+assert(Math.abs(clampedGap.inner_x / clampedGap.inner_y - 0.75) < 1e-12);
 assert.strictEqual(
   Core.normalizeEmphasisParams({
     ...Core.EMPHASIS_PRESETS[0],
@@ -121,6 +136,8 @@ for (const requiredId of [
   "quickEmphasisLines",
   "emphasisProps",
   "emphasisColorSwatches",
+  "emphasisCenterGapRange",
+  "emphasisCenterGapValue",
   "emphasisRandomDetails",
   "emphasisCenterDetails",
   "newEmphasisSeed",
@@ -129,14 +146,24 @@ for (const requiredId of [
   assert(html.includes(`id="${requiredId}"`), `${requiredId} must exist`);
 }
 assert(!html.includes('data-key="overshoot"'));
+assert(!html.includes('data-key="center_gap"'));
 assert(!html.includes('id="regenerateEmphasisLines"'));
 assert(!/<details id="emphasis(?:Random|Center)Details"[^>]*\sopen(?:\s|>)/.test(html));
+assert(html.includes("#quickShapes,#quickSfx,#quickStamps,#quickFrames,#quickEmphasisLines"));
+assert(html.includes('makeFavoriteMarker("emphasis",preset.id)'));
+assert(html.includes('favoriteAssets("emphasis",EMPHASIS_PRESETS,["center","wide"])'));
 const emphasisProps = html.match(
   /<div id="emphasisProps" hidden>([\s\S]*?)\n        <\/div>\n        <details id="transformDetails"/,
 )?.[1] || "";
 assert.strictEqual(
-  (emphasisProps.match(/class="emphasis-control-row"/g) || []).length,
-  13,
+  (emphasisProps.match(/class="emphasis-control-row(?:\s|")/g) || []).length,
+  14,
 );
+assert(
+  emphasisProps.indexOf('id="emphasisCenterGapRange"')
+    < emphasisProps.indexOf('id="emphasisInnerX"'),
+);
+assert(html.includes('content:"▸"'));
+assert(html.includes('content:"▾"'));
 
 console.log("emphasis_lines_core_test: OK");
