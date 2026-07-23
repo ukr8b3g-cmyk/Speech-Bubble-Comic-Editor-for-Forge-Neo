@@ -2,6 +2,7 @@
     "use strict";
 
     const EDITOR_WINDOW_NAME = "speech_bubble_forge_editor";
+    const EDITOR_WINDOW_STATE_KEY = "speech-bubble/editor/window-state:v1";
     const DEFAULT_SETTINGS = Object.freeze({
         output_dir: "outputs/speech-bubble-forge",
         window_width: 1440,
@@ -199,10 +200,33 @@
     function popupFeatures() {
         const availableWidth = screen.availWidth || window.innerWidth || runtimeSettings.window_width;
         const availableHeight = screen.availHeight || window.innerHeight || runtimeSettings.window_height;
-        const width = Math.min(runtimeSettings.window_width, availableWidth);
-        const height = Math.min(runtimeSettings.window_height, availableHeight);
-        const left = Math.max(0, (screen.availLeft || 0) + Math.round((availableWidth - width) / 2));
-        const top = Math.max(0, (screen.availTop || 0) + Math.round((availableHeight - height) / 2));
+        const availableLeft = Number(screen.availLeft) || 0;
+        const availableTop = Number(screen.availTop) || 0;
+        let saved = null;
+        try {
+            saved = JSON.parse(localStorage.getItem(EDITOR_WINDOW_STATE_KEY) || "null");
+        } catch {
+            // Use the configured initial size when stored state is unavailable.
+        }
+        const restoreMaximized = saved?.mode === "maximized";
+        const storedWidth = Number(saved?.width);
+        const storedHeight = Number(saved?.height);
+        const width = restoreMaximized
+            ? availableWidth
+            : Math.min(availableWidth, Math.max(640, Number.isFinite(storedWidth) ? storedWidth : runtimeSettings.window_width));
+        const height = restoreMaximized
+            ? availableHeight
+            : Math.min(availableHeight, Math.max(480, Number.isFinite(storedHeight) ? storedHeight : runtimeSettings.window_height));
+        const centeredLeft = availableLeft + Math.round((availableWidth - width) / 2);
+        const centeredTop = availableTop + Math.round((availableHeight - height) / 2);
+        const storedLeft = Number(saved?.left);
+        const storedTop = Number(saved?.top);
+        const left = restoreMaximized
+            ? availableLeft
+            : Math.min(Math.max(Number.isFinite(storedLeft) ? storedLeft : centeredLeft, availableLeft), availableLeft + availableWidth - width);
+        const top = restoreMaximized
+            ? availableTop
+            : Math.min(Math.max(Number.isFinite(storedTop) ? storedTop : centeredTop, availableTop), availableTop + availableHeight - height);
         return `popup=yes,resizable=yes,scrollbars=yes,width=${width},height=${height},left=${left},top=${top}`;
     }
 
@@ -223,7 +247,7 @@
         editor.searchParams.set("mode", session.mode || (session.imageUrl ? "image" : "standalone"));
         if (session.standaloneId) editor.searchParams.set("standaloneId", session.standaloneId);
         if (session.imageUrl) editor.searchParams.set("imageUrl", session.imageUrl);
-        editor.searchParams.set("v", "20260723-05");
+        editor.searchParams.set("v", "20260723-06");
         return editor.toString();
     }
 

@@ -564,6 +564,7 @@
     const LEGACY_SAVED_LAYOUT_PREFIX = "speech_bubble:forge:layout:saved:";
     const LEGACY_DRAFT_LAYOUT_PREFIX = "speech_bubble:forge:layout:draft:";
     const LAST_STANDALONE_ID_KEY = "speech-bubble/standalone/last-document-id";
+    const EDITOR_WINDOW_STATE_KEY = "speech-bubble/editor/window-state:v1";
     const DOCUMENT_DB_NAME = "speech-bubble-forge-documents";
     const DOCUMENT_DB_STORE = "backgrounds";
     const canvas = document.getElementById("canvas");
@@ -2056,8 +2057,9 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("groupSelection").onclick=groupSelected;document.getElementById("ungroupSelection").onclick=ungroupSelected;
     document.getElementById("plus").onclick=()=>{state.zoom=Math.min(4,state.zoom*1.2);requestRender({canvas:true});}; document.getElementById("minus").onclick=()=>{state.zoom=Math.max(.25,state.zoom/1.2);requestRender({canvas:true});}; document.getElementById("fit").onclick=fitView;
     document.getElementById("undo").onclick=undoAction; document.getElementById("redo").onclick=redoAction;
+    function saveEditorWindowState(){const availableWidth=Number(screen.availWidth)||window.outerWidth||window.innerWidth,availableHeight=Number(screen.availHeight)||window.outerHeight||window.innerHeight,availableLeft=Number(screen.availLeft)||0,availableTop=Number(screen.availTop)||0,width=Math.round(window.outerWidth||window.innerWidth),height=Math.round(window.outerHeight||window.innerHeight),left=Math.round(Number.isFinite(window.screenX)?window.screenX:window.screenLeft||availableLeft),top=Math.round(Number.isFinite(window.screenY)?window.screenY:window.screenTop||availableTop),tolerance=32,maximized=Math.abs(width-availableWidth)<=tolerance&&Math.abs(height-availableHeight)<=tolerance&&Math.abs(left-availableLeft)<=tolerance&&Math.abs(top-availableTop)<=tolerance;try{localStorage.setItem(EDITOR_WINDOW_STATE_KEY,JSON.stringify({mode:maximized?"maximized":"windowed",width,height,left,top,updatedAt:Date.now()}));}catch{}}
     function cleanupTransientState(){clearTimeout(livePreviewTimer);livePreviewTimer=null;clearTimeout(autoSaveTimer);autoSaveTimer=null;try{localStorage.removeItem(jsonKey);}catch{}if(sourceObjectUrl){URL.revokeObjectURL(sourceObjectUrl);sourceObjectUrl=null;}}
-    function closeEditor(){if(editorClosed)return;if(layoutDirty&&!autoSaveEnabled&&!confirm("未保存の変更があります。保存せずに閉じますか？"))return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});window.close();}
+    function closeEditor(){if(editorClosed)return;if(layoutDirty&&!autoSaveEnabled&&!confirm("未保存の変更があります。保存せずに閉じますか？"))return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();saveEditorWindowState();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});window.close();}
     document.getElementById("closeEditor").onclick=closeEditor;
     document.getElementById("discardChanges").onclick=discardChanges;
     document.getElementById("saveLayout").onclick=saveLayoutExplicit;
@@ -2098,7 +2100,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       }
     });
     window.addEventListener("beforeunload",event=>{if(editorClosed||autoSaveEnabled||!layoutDirty)return;event.preventDefault();event.returnValue="";});
-    window.addEventListener("pagehide",()=>{if(editorClosed)return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});});
+    window.addEventListener("pagehide",()=>{if(editorClosed)return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();saveEditorWindowState();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});});
     const properties=document.getElementById("properties");
     const shapePropertyKeys=new Set(["shape_intensity","shape_asymmetry","shape_roundness","spike_count","valley_style","valley_concavity","lobe_count","lobe_depth","shape_softness"]);
     const textFitPropertyKeys=new Set(["text","writing","font_id","font_path","font_size","tracking","font_scale_x","font_scale_y","bold","italic","stroke_width","stroke_color","shadow_enabled","shadow_x","shadow_y","shadow_blur","auto_fit"]);
