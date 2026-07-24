@@ -223,7 +223,7 @@ Export & SavingとEditor & Layoutは横幅を使った2カラム配置で、Drop
 
 - 同名ファイルの世代バックアップ／世代数
 - 合成画像の形式（PNG / JPEG / WebP）
-- PNG圧縮レベル／JPEG品質／WebP品質・ロスレス
+- PNG圧縮レベル（互換レンダラー用）／JPEG品質／WebP品質・ロスレス
 - Overlay PNGも同時保存（初期OFF）
 
 ### Editor・キャッシュ
@@ -244,6 +244,8 @@ Export & SavingとEditor & Layoutは横幅を使った2カラム配置で、Drop
 通常はExportのたびに保存先を選択します。前回選択したフォルダーをブラウザーへ記憶し、次回の選択開始位置として再利用します。キャンセル時は書き出しません。記憶した開始位置はSettingsの「前回の保存先をリセット」から無効化できます。
 
 `Export Image`はEditorに実際に表示された選択枠なしのCanvas画像を直接保存します。文字位置、縦書き、アウトライン、Bold、アンチエイリアスを別エンジンで再描画しないため、PNGおよびロスレスWebPではEditor表示と同じ描画ピクセルを維持します。JPEGと非ロスレスWebPでは、保存形式の圧縮による画質差だけが発生します。
+
+Canvas画像はBase64へ変換せずバイナリ送信します。Overlay保存がOFFの場合はOverlay用CanvasとPNGを生成しません。PNGおよびOverlay PNGはサーバーで再エンコードせず、Canvas Blobをそのまま保存します。この高速化による画質劣化はありません。SettingsのPNG圧縮レベルは互換レンダラーからの書き出しにだけ適用されます。
 
 「Forge Neoの出力先を基準にする」がONの場合、Forgeの共通Output Directoryを優先し、未設定時はtxt2img / img2imgの出力先を使用します。ブラウザーのセキュリティ制限により、OS上のパスを初回から自動選択することはできません。初回だけForge出力先を手動で選択・許可すると、以後はそのフォルダーから開始します。フォルダー選択に非対応のブラウザーでは、Forge出力先（設定OFF時は固定保存先）へ直接保存します。
 

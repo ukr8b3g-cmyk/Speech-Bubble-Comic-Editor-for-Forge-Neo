@@ -28,6 +28,7 @@
         auto_save: true,
         keep_previous_layout: true,
         save_overlay: false,
+        export_transport: "legacy_json_v1",
         asset_cache_version: "0",
     });
 
@@ -248,6 +249,7 @@
             auto_save: payload?.auto_save !== false,
             keep_previous_layout: payload?.keep_previous_layout !== false,
             save_overlay: payload?.save_overlay === true,
+            export_transport: String(payload?.export_transport || DEFAULT_SETTINGS.export_transport),
             asset_cache_version: String(payload?.asset_cache_version || DEFAULT_SETTINGS.asset_cache_version),
         };
     }
@@ -361,6 +363,8 @@
         editor.searchParams.set("dateSubfolder", runtimeSettings.date_subfolder);
         editor.searchParams.set("backupEnabled", runtimeSettings.backup_enabled ? "1" : "0");
         editor.searchParams.set("backupGenerations", String(runtimeSettings.backup_generations));
+        editor.searchParams.set("saveOverlay", runtimeSettings.save_overlay ? "1" : "0");
+        editor.searchParams.set("exportTransport", runtimeSettings.export_transport);
         editor.searchParams.set("theme", currentTheme || detectForgeTheme());
         editor.searchParams.set("assetVersion", runtimeSettings.asset_cache_version);
         editor.searchParams.set("sourceTab", session.tabName || "");

@@ -71,11 +71,10 @@ def test_editor_exports_the_rendered_canvas_as_the_canonical_image():
         encoding="utf-8"
     )
     assert 'render_mode:"browser_canvas_v1"' in editor
-    assert "composite_data_url:rendered.compositeDataUrl" in editor
-    assert "overlay_data_url:rendered.overlayDataUrl" in editor
     assert "layout_json:rendered.layoutJson" in editor
-    assert 'payload.detail==="image_data_url is required"' in editor
-    assert "image_data_url:imageDataUrl" in editor
+    assert 'exportTransport==="multipart_canvas_v1"' in editor
+    assert 'form.append("composite",rendered.compositeBlob' in editor
+    assert 'if(rendered.overlayBlob)form.append("overlay"' in editor
     assert "snapshotCleanSceneCanvas()" in editor
     assert 'source.toBlob(' in editor
 
@@ -238,6 +237,10 @@ def test_export_routes_fixed_and_client_delivery():
             app = FastAPI()
             api.register_routes(app)
             client = TestClient(app)
+            assert (
+                client.get("/speech-bubble-forge/config").json()["export_transport"]
+                == "multipart_canvas_v1"
+            )
             request = {
                 "image_data_url": image_data_url,
                 "layout_json": "{}",
@@ -326,3 +329,71 @@ def test_export_routes_fixed_and_client_delivery():
             )
             assert response.status_code == 400
             assert "dimensions do not match" in response.json()["detail"]
+
+            def png_bytes(value):
+                encoded = io.BytesIO()
+                value.save(encoded, "PNG")
+                return encoded.getvalue()
+
+            composite_png = png_bytes(browser_composite)
+            overlay_png = png_bytes(browser_overlay)
+            metadata = json.dumps(
+                {
+                    "render_mode": "browser_canvas_v1",
+                    "layout_json": json.dumps(
+                        {"canvas": {"width": 12, "height": 10}}
+                    ),
+                    "name": "multipart-wysiwyg",
+                    "client_save": True,
+                }
+            )
+            response = client.post(
+                "/speech-bubble-forge/export",
+                files={
+                    "metadata": (
+                        "metadata.json",
+                        metadata.encode("utf-8"),
+                        "application/json",
+                    ),
+                    "composite": (
+                        "composite.png",
+                        composite_png,
+                        "image/png",
+                    ),
+                    "overlay": ("overlay.png", overlay_png, "image/png"),
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["render_mode"] == "browser_canvas_v1"
+            assert client.get(payload["download_url"]).content == composite_png
+            assert client.get(payload["overlay_download_url"]).content == overlay_png
+            assert client.delete(
+                f"/speech-bubble-forge/client-export/{payload['client_export_token']}"
+            ).json()["deleted"]
+
+            settings.save_overlay = False
+            response = client.post(
+                "/speech-bubble-forge/export",
+                files={
+                    "metadata": (
+                        "metadata.json",
+                        metadata.encode("utf-8"),
+                        "application/json",
+                    ),
+                    "composite": (
+                        "composite.png",
+                        composite_png,
+                        "image/png",
+                    ),
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["save_overlay"] is False
+            assert payload["overlay_url"] is None
+            assert payload["overlay_download_url"] is None
+            assert client.get(payload["download_url"]).content == composite_png
+            assert client.delete(
+                f"/speech-bubble-forge/client-export/{payload['client_export_token']}"
+            ).json()["deleted"]

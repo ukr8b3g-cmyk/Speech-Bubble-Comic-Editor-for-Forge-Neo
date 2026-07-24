@@ -43,6 +43,7 @@ EXTENSION_ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = EXTENSION_ROOT / "web"
 _MAX_IMAGE_BYTES = 96 * 1024 * 1024
 _MAX_LAYOUT_CHARS = 8 * 1024 * 1024
+_EXPORT_TRANSPORT = "multipart_canvas_v1"
 _SAVE_LOCK = threading.RLock()
 _LAYOUT_LOCK = threading.RLock()
 _FINGERPRINT_RE = re.compile(r"^[a-f0-9]{64}$")
@@ -55,6 +56,21 @@ _CLIENT_EXPORT_MAX_AGE = 60 * 60
 
 def preset_path() -> Path:
     return data_root() / "config" / "speech-bubble-forge" / "presets.json"
+
+
+def _decode_image_bytes(raw, field_name="image"):
+    if not raw or len(raw) > _MAX_IMAGE_BYTES:
+        raise ValueError(f"{field_name} is empty or too large")
+    try:
+        image = Image.open(io.BytesIO(raw))
+        image_format = str(image.format or "").upper()
+        image.load()
+        image = ImageOps.exif_transpose(image).convert("RGBA")
+    except Exception as error:
+        raise ValueError(f"Could not decode {field_name}") from error
+    if image.width * image.height > 100_000_000:
+        raise ValueError("Image dimensions are too large")
+    return image, image_format
 
 
 def _decode_data_url(value, field_name="image_data_url"):
@@ -71,31 +87,45 @@ def _decode_data_url(value, field_name="image_data_url"):
         raw = base64.b64decode(match.group(2), validate=True)
     except (binascii.Error, ValueError) as error:
         raise ValueError("Invalid base64 image") from error
-    if not raw or len(raw) > _MAX_IMAGE_BYTES:
-        raise ValueError("Image is empty or too large")
-    try:
-        image = Image.open(io.BytesIO(raw))
-        image.load()
-        image = ImageOps.exif_transpose(image).convert("RGBA")
-    except Exception as error:
-        raise ValueError("Could not decode image") from error
-    if image.width * image.height > 100_000_000:
-        raise ValueError("Image dimensions are too large")
-    return image
+    return _decode_image_bytes(raw, field_name)[0]
 
 
-def _browser_canvas_export(payload, layout):
+def _browser_canvas_export(payload, layout, save_overlay):
     if payload.get("render_mode") != "browser_canvas_v1":
         return None
-    composite = _decode_data_url(
-        payload.get("composite_data_url"),
-        "composite_data_url",
-    )
-    overlay = _decode_data_url(
-        payload.get("overlay_data_url"),
-        "overlay_data_url",
-    )
-    if composite.size != overlay.size:
+    composite_png = payload.get("_composite_png")
+    if isinstance(composite_png, bytes):
+        composite, composite_format = _decode_image_bytes(
+            composite_png,
+            "composite",
+        )
+        if composite_format != "PNG":
+            raise ValueError("Browser canvas composite must be PNG")
+    else:
+        composite = _decode_data_url(
+            payload.get("composite_data_url"),
+            "composite_data_url",
+        )
+        composite_png = None
+    overlay_png = payload.get("_overlay_png")
+    if save_overlay:
+        if isinstance(overlay_png, bytes):
+            overlay, overlay_format = _decode_image_bytes(
+                overlay_png,
+                "overlay",
+            )
+            if overlay_format != "PNG":
+                raise ValueError("Browser canvas overlay must be PNG")
+        else:
+            overlay = _decode_data_url(
+                payload.get("overlay_data_url"),
+                "overlay_data_url",
+            )
+            overlay_png = None
+    else:
+        overlay = None
+        overlay_png = None
+    if overlay is not None and composite.size != overlay.size:
         raise ValueError("Browser canvas composite and overlay dimensions do not match")
     canvas = layout.get("canvas") if isinstance(layout, dict) else None
     if isinstance(canvas, dict):
@@ -105,7 +135,51 @@ def _browser_canvas_export(payload, layout):
         )
         if composite.size != expected:
             raise ValueError("Browser canvas dimensions do not match the layout")
-    return composite, overlay
+    return composite, overlay, composite_png, overlay_png
+
+
+async def _read_export_upload(form, name, limit, required=True):
+    upload = form.get(name)
+    if upload is None:
+        if required:
+            raise ValueError(f"{name} is required")
+        return None
+    if not hasattr(upload, "read"):
+        raise ValueError(f"{name} must be a file upload")
+    raw = await upload.read(limit + 1)
+    if not raw or len(raw) > limit:
+        raise ValueError(f"{name} is empty or too large")
+    return raw
+
+
+async def _export_request_payload(request):
+    content_type = str(request.headers.get("content-type") or "").lower()
+    if not content_type.startswith("multipart/form-data"):
+        return await request.json()
+    form = await request.form()
+    metadata_raw = await _read_export_upload(
+        form,
+        "metadata",
+        _MAX_LAYOUT_CHARS + 64 * 1024,
+    )
+    try:
+        payload = json.loads(metadata_raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("Export metadata is invalid") from error
+    if not isinstance(payload, dict):
+        raise ValueError("Export metadata must be an object")
+    payload["_composite_png"] = await _read_export_upload(
+        form,
+        "composite",
+        _MAX_IMAGE_BYTES,
+    )
+    payload["_overlay_png"] = await _read_export_upload(
+        form,
+        "overlay",
+        _MAX_IMAGE_BYTES,
+        required=False,
+    )
+    return payload
 
 
 def _safe_name(value):
@@ -174,6 +248,16 @@ def _write_image(image, path, image_format, settings):
 
 def _write_png(image, path, settings):
     _write_image(image, path, "png", settings)
+
+
+def _write_bytes(data, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_bytes(data)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _output_extension(image_format: str) -> str:
@@ -372,6 +456,7 @@ def register_routes(app):
             "version": __version__,
             "settings_ui_version": SETTINGS_UI_VERSION,
             "user_asset_api_version": USER_ASSET_API_VERSION,
+            "export_transport": _EXPORT_TRANSPORT,
             "settings": public_settings().as_dict(),
         }
 
@@ -381,6 +466,7 @@ def register_routes(app):
             "version": __version__,
             "settings_ui_version": SETTINGS_UI_VERSION,
             "user_asset_api_version": USER_ASSET_API_VERSION,
+            "export_transport": _EXPORT_TRANSPORT,
             **public_settings().as_dict(),
         }
 
@@ -581,10 +667,14 @@ def register_routes(app):
     async def export_image(request: Request):
         client_token = ""
         try:
-            payload = await request.json()
+            payload = await _export_request_payload(request)
             _normalized_layout, parsed_layout = _validate_layout(payload.get("layout_json", "{}"))
             settings = public_settings()
-            browser_canvas = _browser_canvas_export(payload, parsed_layout)
+            browser_canvas = _browser_canvas_export(
+                payload,
+                parsed_layout,
+                settings.save_overlay,
+            )
             if browser_canvas is None:
                 image = _decode_data_url(payload.get("image_data_url"))
                 composite, overlay, _ = render_composite(
@@ -593,9 +683,11 @@ def register_routes(app):
                     font_path=str(payload.get("font_path") or ""),
                     supersample=settings.supersample,
                 )
+                composite_png = None
+                overlay_png = None
                 render_mode = "pillow_layout_v1"
             else:
-                composite, overlay = browser_canvas
+                composite, overlay, composite_png, overlay_png = browser_canvas
                 render_mode = "browser_canvas_v1"
 
             now = datetime.now()
@@ -639,14 +731,20 @@ def register_routes(app):
                     _rotate_backups(composite_path, settings.backup_generations)
                     if settings.save_overlay:
                         _rotate_backups(overlay_path, settings.backup_generations)
-                _write_image(
-                    composite,
-                    composite_path,
-                    settings.output_format,
-                    settings,
-                )
+                if settings.output_format == "png" and composite_png is not None:
+                    _write_bytes(composite_png, composite_path)
+                else:
+                    _write_image(
+                        composite,
+                        composite_path,
+                        settings.output_format,
+                        settings,
+                    )
                 if settings.save_overlay:
-                    _write_png(overlay, overlay_path, settings)
+                    if overlay_png is not None:
+                        _write_bytes(overlay_png, overlay_path)
+                    else:
+                        _write_png(overlay, overlay_path, settings)
 
             if client_save:
                 composite_url = (

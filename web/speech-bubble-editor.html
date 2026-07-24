@@ -635,6 +635,8 @@
     const dateSubfolder = params.get("dateSubfolder") || "none";
     const backupEnabled = params.get("backupEnabled") !== "0";
     const backupGenerations = Math.max(1,Math.min(20,Number(params.get("backupGenerations"))||5));
+    const saveOverlay = params.get("saveOverlay") === "1";
+    const exportTransport = params.get("exportTransport") || "legacy_json_v1";
     const assetCacheVersion = params.get("assetVersion") || "20260723-04";
     const SAVED_LAYOUT_PREFIX = "speech-bubble/layout/";
     const DRAFT_LAYOUT_PREFIX = "speech-bubble/draft/";
@@ -1811,7 +1813,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function deleteVectorPoint(){const item=state.elements.find(element=>element.id===state.vectorEditId);if(!item||state.vectorAnchorIndex===null||item.path_points.length<=3)return;pushUndo();item.path_points.splice(state.vectorAnchorIndex,1);state.vectorAnchorIndex=Math.min(state.vectorAnchorIndex,item.path_points.length-1);syncProperties();render();}
     function updateLivePreviewCanvas(){const maxEdge=480,previewScale=Math.min(1,maxEdge/Math.max(state.width,state.height)),width=Math.max(1,Math.round(state.width*previewScale)),height=Math.max(1,Math.round(state.height*previewScale));if(livePreviewCanvas.width!==width)livePreviewCanvas.width=width;if(livePreviewCanvas.height!==height)livePreviewCanvas.height=height;livePreviewContext.clearRect(0,0,width,height);livePreviewContext.drawImage(cleanSceneCanvas,0,0,width,height);pendingLivePreview=livePreviewCanvas;return livePreviewCanvas;}
     function snapshotCleanSceneCanvas(){const snapshot=document.createElement("canvas");snapshot.width=cleanSceneCanvas.width;snapshot.height=cleanSceneCanvas.height;snapshot.getContext("2d").drawImage(cleanSceneCanvas,0,0);return snapshot;}
-    function canvasPngDataUrl(source){return new Promise((resolve,reject)=>source.toBlob(blob=>blob?blobToDataUrl(blob).then(resolve,reject):reject(new Error("Editor表示を画像化できませんでした。")),"image/png"));}
+    function canvasPngBlob(source){return new Promise((resolve,reject)=>source.toBlob(blob=>blob?resolve(blob):reject(new Error("Editor表示を画像化できませんでした。")),"image/png"));}
     async function captureWysiwygExport(){
       flushPendingRender();
       if(document.fonts?.ready)await document.fonts.ready;
@@ -1819,15 +1821,16 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       renderCanvas();
       const composite=snapshotCleanSceneCanvas(),backgroundVisible=state.backgroundVisible;
       let overlay=null;
-      try{
-        if(backgroundVisible){state.backgroundVisible=false;renderCanvas();}
-        overlay=snapshotCleanSceneCanvas();
-      }finally{
-        if(backgroundVisible){state.backgroundVisible=true;renderCanvas();}
+      if(saveOverlay){
+        try{
+          if(backgroundVisible){state.backgroundVisible=false;renderCanvas();}
+          overlay=snapshotCleanSceneCanvas();
+        }finally{
+          if(backgroundVisible){state.backgroundVisible=true;renderCanvas();}
+        }
       }
-      const [compositeDataUrl,overlayDataUrl]=await Promise.all([canvasPngDataUrl(composite),canvasPngDataUrl(overlay)]);
-      if(!compositeDataUrl.startsWith("data:image/png;base64,")||!overlayDataUrl.startsWith("data:image/png;base64,"))throw new Error("Editor表示を画像化できませんでした。");
-      return{compositeDataUrl,overlayDataUrl,layoutJson};
+      const [compositeBlob,overlayBlob]=await Promise.all([canvasPngBlob(composite),overlay?canvasPngBlob(overlay):Promise.resolve(null)]);
+      return{compositeBlob,overlayBlob,layoutJson};
     }
     function livePreviewDataUrl(){if(!pendingLivePreview)return null;return state.backgroundVisible?pendingLivePreview.toDataURL("image/jpeg",.84):pendingLivePreview.toDataURL("image/png");}
     function flushLivePreview(){clearTimeout(livePreviewTimer);livePreviewTimer=null;flushPendingRender();clearTimeout(livePreviewTimer);livePreviewTimer=null;renderCanvas();updateLivePreviewCanvas();const dataUrl=livePreviewDataUrl()||lastLivePreviewDataUrl;pendingLivePreview=null;return dataUrl;}
@@ -2031,20 +2034,21 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       button.disabled=true;button.textContent="Exporting…";setSaveState("画像を書き出しています…","info");
       postHost("speech_bubble:export_started",{image_hash:imageHash,document_id:documentId});
       try{
-        const rendered=await captureWysiwygExport();
-        let response=await fetch(`${forgeApiBase}/export`,{
-          method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({render_mode:"browser_canvas_v1",composite_data_url:rendered.compositeDataUrl,overlay_data_url:rendered.overlayDataUrl,layout_json:rendered.layoutJson,name:sourceName||"speech_bubble",image_hash:imageHash,document_id:documentId,source_tab:sourceTab,client_save:Boolean(directory)}),
-        });
-        let payload=await response.json().catch(()=>({}));
-        if(response.status===400&&payload.detail==="image_data_url is required"){
-          const imageDataUrl=await blobToDataUrl(await sourceImageBlob());
+        let response;
+        if(exportTransport==="multipart_canvas_v1"){
+          const rendered=await captureWysiwygExport(),metadata={render_mode:"browser_canvas_v1",layout_json:rendered.layoutJson,name:sourceName||"speech_bubble",image_hash:imageHash,document_id:documentId,source_tab:sourceTab,client_save:Boolean(directory)},form=new FormData();
+          form.append("metadata",new Blob([JSON.stringify(metadata)],{type:"application/json"}),"metadata.json");
+          form.append("composite",rendered.compositeBlob,"composite.png");
+          if(rendered.overlayBlob)form.append("overlay",rendered.overlayBlob,"overlay.png");
+          response=await fetch(`${forgeApiBase}/export`,{method:"POST",body:form});
+        }else{
+          const imageDataUrl=await blobToDataUrl(await sourceImageBlob()),layout=currentLayoutJson();
           response=await fetch(`${forgeApiBase}/export`,{
             method:"POST",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({image_data_url:imageDataUrl,layout_json:rendered.layoutJson,name:sourceName||"speech_bubble",image_hash:imageHash,document_id:documentId,source_tab:sourceTab,client_save:Boolean(directory)}),
+            body:JSON.stringify({image_data_url:imageDataUrl,layout_json:layout,name:sourceName||"speech_bubble",image_hash:imageHash,document_id:documentId,source_tab:sourceTab,client_save:Boolean(directory)}),
           });
-          payload=await response.json().catch(()=>({}));
         }
+        let payload=await response.json().catch(()=>({}));
         if(!response.ok||!payload.ok)throw new Error(payload.detail||`Export failed (${response.status})`);
         clientExportToken=payload.client_export_token||"";
         let download="",view="";

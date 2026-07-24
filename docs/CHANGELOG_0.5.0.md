@@ -32,6 +32,7 @@
 - EditorのMy Presetsとクリック／ドラッグ配置
 - 不変asset IDによるCanvas／Pillow描画
 - Export ImageをEditorの選択枠なしCanvasから直接保存し、文字位置・アウトライン・Bold・アンチエイリアスをWYSIWYG化
+- Exportをmultipartバイナリ送信へ変更し、Overlay OFF時の生成省略とPNGの無再エンコード保存に対応
 - Settingsの4セクションAccordion
 - Self Diagnosticsとコピー可能なレポート
 - V1 API、セキュリティ、テスト、Codex指示書

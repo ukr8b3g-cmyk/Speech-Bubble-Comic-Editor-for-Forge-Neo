@@ -256,7 +256,7 @@ def _on_ui_settings():
             component=gr.Slider,
             component_args={"minimum": 0, "maximum": 9, "step": 1},
             section=_SETTINGS_SECTION,
-        ).info("高いほど小さくなりますが、保存に時間がかかります"),
+        ).info("互換レンダラー用。EditorのPNGはCanvas Blobを直接保存します"),
     )
     _add_option(
         "speech_bubble_forge_jpeg_quality",
