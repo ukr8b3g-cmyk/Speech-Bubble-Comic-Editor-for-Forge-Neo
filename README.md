@@ -119,11 +119,19 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 
 ## レイヤーパネル
 
+![Layersパネル](docs/images/editor-layers-panel.png)
+
+- 一覧の上側にあるレイヤーほど、キャンバスでも手前へ表示されます。
+- レイヤーをクリックして選択し、Ctrl / Shiftを使って複数選択できます。
+- `Group` / `Ungroup`で複数レイヤーをまとめたり解除したりできます。
+- 各行から表示切替、ロック、その他のレイヤー操作を行えます。
 - Properties / Layers間の分割線をドラッグして高さを変更できます。
 - 変更した高さはブラウザーに記憶され、次回も復元されます。
 - 未設定時は1920×1200表示を基準に、Layers領域を広めに確保します。
 
 ## Emphasis Lines（集中線）
+
+![Emphasis LinesのProperties](docs/images/emphasis-lines-properties.png)
 
 - `Frames` の下、`+ Text` の上へ2件を表示します。お気に入りを優先し、未登録時はCenter / Wideを表示します。
 - プリセットはCenter / Wide / Tall / One Sideを収録しています。
@@ -137,23 +145,37 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 
 ## Settings > Speech Bubble Editor
 
-![Forge NeoのSpeech Bubble Editor設定画面](docs/images/forge-settings-speech-bubble-editor.png)
+![Forge NeoのSettingsタブ](docs/images/settings-navigation.png)
 
 Forge Neo上部の `Settings` タブから、書き出し、保存先、ウィンドウ、自動保存、編集キャッシュをまとめて設定できます。変更後は `Apply settings` を押してください。設定内容は次回のEditor起動から反映されるため、開いているEditorは一度閉じてから開き直します。
+
+### 保存先・ファイル名
+
+![保存先とファイル名の設定](docs/images/settings-export-location-filename.png)
 
 - Export時に毎回保存先を選択（初期ON）
 - Forge Neoの出力先を基準にする／前回選択したフォルダーを記憶・リセット
 - フォルダー選択非対応時の固定保存先
 - ファイル名形式／日付別サブフォルダー
+
+### 形式・品質・バックアップ
+
+![出力形式、品質、バックアップの設定](docs/images/settings-format-quality.png)
+
 - 同名ファイルの世代バックアップ／世代数
 - 合成画像の形式（PNG / JPEG / WebP）
 - PNG圧縮レベル／JPEG品質／WebP品質・ロスレス
+- Overlay PNGも同時保存（初期OFF）
+
+### Editor・キャッシュ
+
+![Editorとキャッシュの設定](docs/images/settings-editor-cache.png)
+
 - 初期ウィンドウ幅／高さ
 - Supersample（1～4）
 - 自動保存 ON／OFF
 - 画像ごとのレイアウトを保持
 - ブラウザー編集キャッシュの使用量表示／削除
-- Overlay PNGも同時保存（初期OFF）
 - 素材キャッシュ再構築
 
 自動保存下書きは最大100件かつ更新後90日、単体Editorの背景画像と再表示用生成画像はそれぞれ最大10件に自動整理されます。生成画像の一時URLが失効した場合は、初回表示時に保持した画像を使って再オープンします。「編集キャッシュを削除」はブラウザー内の下書き、ローカルのレイアウトコピー、単体背景、再表示用生成画像を削除します。Forge側へ明示保存したレイアウト、お気に入り、素材、保存先設定は維持します。

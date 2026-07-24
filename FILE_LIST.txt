@@ -4,8 +4,13 @@ UPSTREAM.md
 VERIFICATION.md
 docs/images/asset-browser-stamps.png
 docs/images/editor-common-ui-properties.png
+docs/images/editor-layers-panel.png
+docs/images/emphasis-lines-properties.png
 docs/images/forge-editor-launch-panel.png
-docs/images/forge-settings-speech-bubble-editor.png
+docs/images/settings-editor-cache.png
+docs/images/settings-export-location-filename.png
+docs/images/settings-format-quality.png
+docs/images/settings-navigation.png
 docs/images/standalone-editor-start-choice.png
 javascript/speech_bubble_forge.js
 metadata.ini
