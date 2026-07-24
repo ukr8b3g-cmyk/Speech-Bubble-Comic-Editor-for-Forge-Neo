@@ -18,6 +18,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 
+from . import __version__
+from .diagnostics import run_self_diagnostics
 from .font_catalog import font_by_id, public_fonts
 from .presets import read_user_presets, update_user_presets
 from .renderer import get_frame_asset_catalog, get_sfx_asset_catalog, render_composite
@@ -28,6 +30,13 @@ from .settings import (
     output_root,
     public_settings,
     rebuild_all_caches,
+)
+from .user_assets import (
+    SETTINGS_UI_VERSION,
+    USER_ASSET_API_VERSION,
+    USER_ASSET_MAX_UPLOAD_BYTES,
+    UserAssetError,
+    default_user_asset_store,
 )
 
 EXTENSION_ROOT = Path(__file__).resolve().parents[1]
@@ -250,6 +259,49 @@ def _route_exists(app, path, method=None):
     return False
 
 
+_USER_ASSET_REQUEST_MAX_BYTES = max(6 * 1024 * 1024, (USER_ASSET_MAX_UPLOAD_BYTES * 4 // 3) + 128 * 1024)
+
+
+async def _bounded_json_request(request: Request, maximum_bytes: int = _USER_ASSET_REQUEST_MAX_BYTES):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > maximum_bytes:
+                raise HTTPException(status_code=413, detail="Request body is too large")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > maximum_bytes:
+            raise HTTPException(status_code=413, detail="Request body is too large")
+    if not body:
+        return {}
+    try:
+        return json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise HTTPException(status_code=400, detail="Invalid JSON request") from error
+
+
+def _user_asset_http_error(error: UserAssetError) -> HTTPException:
+    if error.code == "preset_not_found":
+        status_code = 404
+    elif error.code == "duplicate_name":
+        status_code = 409
+    elif error.code in {
+        "opaque_confirmation_required",
+        "animated_image",
+        "unsupported_format",
+        "file_too_large",
+    }:
+        status_code = 422
+    elif error.code.startswith("index_"):
+        status_code = 500
+    else:
+        status_code = 400
+    return HTTPException(status_code=status_code, detail=error.as_dict())
+
+
 def _safe_output_file(filename: str) -> Path:
     for root in allowed_output_roots():
         candidate = (root / filename).resolve()
@@ -293,12 +345,20 @@ def register_routes(app):
         return {
             "ok": True,
             "name": "Speech Bubble Editor for Forge Neo",
-            "version": "0.4.0",
+            "version": __version__,
+            "settings_ui_version": SETTINGS_UI_VERSION,
+            "user_asset_api_version": USER_ASSET_API_VERSION,
             "settings": public_settings().as_dict(),
         }
 
     async def config():
-        return {"ok": True, **public_settings().as_dict()}
+        return {
+            "ok": True,
+            "version": __version__,
+            "settings_ui_version": SETTINGS_UI_VERSION,
+            "user_asset_api_version": USER_ASSET_API_VERSION,
+            **public_settings().as_dict(),
+        }
 
     async def output_file(filename: str):
         path = _safe_output_file(filename)
@@ -346,6 +406,76 @@ def register_routes(app):
     async def reload_assets():
         rebuild_all_caches()
         return get_sfx_asset_catalog()
+
+    async def get_user_assets():
+        try:
+            return default_user_asset_store().catalog()
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def create_user_asset(request: Request):
+        try:
+            return default_user_asset_store().create(await _bounded_json_request(request))
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def organize_user_asset_archive():
+        try:
+            return default_user_asset_store().organize_archive()
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def update_user_asset(preset_id: str, request: Request):
+        try:
+            return default_user_asset_store().update(preset_id, await _bounded_json_request(request))
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def replace_user_asset_image(preset_id: str, request: Request):
+        try:
+            return default_user_asset_store().replace_image(preset_id, await _bounded_json_request(request))
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def delete_user_asset(preset_id: str):
+        try:
+            return default_user_asset_store().delete(preset_id)
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def user_asset_file(asset_id: str):
+        try:
+            path = default_user_asset_store().asset_path(asset_id)
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+        if path is None:
+            raise HTTPException(status_code=404, detail="User asset not found")
+        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        return FileResponse(
+            path,
+            media_type=media_type,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    async def user_asset_thumbnail(asset_id: str):
+        try:
+            path = default_user_asset_store().thumbnail_path(asset_id)
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+        if path is None:
+            raise HTTPException(status_code=404, detail="User asset thumbnail not found")
+        return FileResponse(
+            path,
+            media_type="image/webp",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    async def self_diagnostics(request: Request):
+        try:
+            payload = await request.json()
+        except json.JSONDecodeError:
+            payload = {}
+        return run_self_diagnostics(str(payload.get("frontend_version") or ""))
 
     async def get_presets():
         return {"version": 1, "presets": read_user_presets(preset_path())}
@@ -577,6 +707,39 @@ def register_routes(app):
         ("/speech_bubble/frame-assets", frame_assets, ["GET"]),
         ("/speech_bubble/assets/sfx", sfx_assets, ["GET"]),
         ("/speech_bubble/assets/reload", reload_assets, ["POST"]),
+        ("/speech-bubble-forge/user-assets", get_user_assets, ["GET"]),
+        ("/speech-bubble-forge/user-assets", create_user_asset, ["POST"]),
+        (
+            "/speech-bubble-forge/user-assets/archive/organize",
+            organize_user_asset_archive,
+            ["POST"],
+        ),
+        (
+            "/speech-bubble-forge/user-assets/asset/{asset_id}",
+            user_asset_file,
+            ["GET"],
+        ),
+        (
+            "/speech-bubble-forge/user-assets/thumbnail/{asset_id}",
+            user_asset_thumbnail,
+            ["GET"],
+        ),
+        (
+            "/speech-bubble-forge/user-assets/{preset_id}/image",
+            replace_user_asset_image,
+            ["PUT"],
+        ),
+        (
+            "/speech-bubble-forge/user-assets/{preset_id}",
+            update_user_asset,
+            ["PATCH"],
+        ),
+        (
+            "/speech-bubble-forge/user-assets/{preset_id}",
+            delete_user_asset,
+            ["DELETE"],
+        ),
+        ("/speech-bubble-forge/diagnostics", self_diagnostics, ["POST"]),
         ("/speech_bubble/presets", get_presets, ["GET"]),
         ("/speech_bubble/presets", post_presets, ["POST"]),
         ("/speech-bubble-forge/export", export_image, ["POST"]),

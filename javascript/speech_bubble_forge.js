@@ -3,6 +3,7 @@
 
     const EDITOR_WINDOW_NAME = "speech_bubble_forge_editor";
     const EDITOR_WINDOW_STATE_KEY = "speech-bubble/editor/window-state:v1";
+    const QUICK_PANEL_STATE_KEY = "speech-bubble/forge-panel-state:v1";
     const DEFAULT_SETTINGS = Object.freeze({
         output_dir: "outputs/speech-bubble-forge",
         fixed_output_dir: "outputs/speech-bubble-forge",
@@ -42,6 +43,73 @@
     let focusRetryTimers = [];
 
     const appRoot = () => (typeof gradioApp === "function" ? gradioApp() : document);
+
+    function quickPanelOpenState(tabName) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(QUICK_PANEL_STATE_KEY) || "{}");
+            return saved?.[tabName] === true;
+        } catch {
+            return false;
+        }
+    }
+
+    function saveQuickPanelOpenState(tabName, open) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(QUICK_PANEL_STATE_KEY) || "{}");
+            const state = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+            state[tabName] = Boolean(open);
+            localStorage.setItem(QUICK_PANEL_STATE_KEY, JSON.stringify(state));
+        } catch {
+            // Panel state is optional.
+        }
+    }
+
+    function buttonWithText(scope, text, selectors) {
+        if (!scope) return null;
+        const expected = String(text || "").trim().toLocaleLowerCase();
+        for (const selector of selectors) {
+            const match = Array.from(scope.querySelectorAll(selector)).find((button) => {
+                return button.textContent?.trim().toLocaleLowerCase() === expected;
+            });
+            if (match) return match;
+        }
+        return null;
+    }
+
+    function openSpeechBubbleSettings(event) {
+        event?.preventDefault();
+        event?.stopPropagation();
+        const root = appRoot();
+        const mainSettingsTab = buttonWithText(root, "Settings", [
+            "#tabs > .tab-nav button",
+            "#tabs > div.tab-nav button",
+            "#tabs button[role='tab']",
+        ]);
+        if (!mainSettingsTab) {
+            toast("Settingsタブを開けませんでした。上部のSettingsからSpeech Bubble Editorを選択してください。", "error");
+            return;
+        }
+        mainSettingsTab.click();
+        let completed = false;
+        for (const delay of [0, 80, 220, 500]) {
+            setTimeout(() => {
+                if (completed) return;
+                const settings = root.querySelector("#settings");
+                const section = buttonWithText(settings, "Speech Bubble Editor", [
+                    ":scope > .tab-nav button",
+                    ":scope > div.tab-nav button",
+                    ".tab-nav button",
+                ]);
+                if (section) section.click();
+                const panel = root.querySelector("#speech-bubble-forge-settings-panel");
+                if (!panel || (!section && delay < 500)) return;
+                completed = true;
+                panel.scrollIntoView({ behavior: "smooth", block: "start" });
+                panel.classList.add("speech-bubble-settings-link-target");
+                setTimeout(() => panel.classList.remove("speech-bubble-settings-link-target"), 1400);
+            }, delay);
+        }
+    }
 
     function rootRelative(path) {
         const base = new URL(document.baseURI);
@@ -300,7 +368,7 @@
         editor.searchParams.set("mode", session.mode || (session.imageUrl ? "image" : "standalone"));
         if (session.standaloneId) editor.searchParams.set("standaloneId", session.standaloneId);
         if (session.imageUrl) editor.searchParams.set("imageUrl", session.imageUrl);
-        editor.searchParams.set("v", "20260724-06");
+        editor.searchParams.set("v", "20260724-10");
         return editor.toString();
     }
 
@@ -674,6 +742,17 @@
         return directChildOf(settings, container) || container;
     }
 
+    function placeQuickPanel(settings, details, anchor) {
+        if (anchor && anchor !== details && anchor.parentElement === settings) {
+            const alreadyPlaced =
+                details.parentElement === settings &&
+                details.nextElementSibling === anchor;
+            if (!alreadyPlaced) settings.insertBefore(details, anchor);
+        } else if (details.parentElement !== settings) {
+            settings.appendChild(details);
+        }
+    }
+
     function addGalleryButton(tabName) {
         const root = appRoot();
         const row = root.querySelector(`#image_buttons_${tabName}`);
@@ -703,6 +782,7 @@
             details = document.createElement("details");
             details.className = "speech-bubble-forge-panel";
             details.dataset.speechBubblePanel = tabName;
+            details.open = quickPanelOpenState(tabName);
             details.innerHTML = `
               <summary>Speech Bubble Editor</summary>
               <div class="speech-bubble-forge-panel-body">
@@ -716,13 +796,18 @@
                     <span class="speech-bubble-forge-action-description">生成画像とは別の編集領域です。新規または前回の単体編集を開き、ローカル画像を編集できます。</span>
                   </div>
                 </div>
-                <p class="speech-bubble-forge-note">※ どちらも別ウィンドウで開きます。</p>
-                <div class="speech-bubble-forge-status" data-speech-bubble-status="${tabName}" data-level="info" aria-live="polite">Editor: Ready</div>
+                <div class="speech-bubble-forge-meta-row">
+                  <p class="speech-bubble-forge-note">※ どちらも別ウィンドウで開きます。</p>
+                  <button type="button" class="speech-bubble-forge-settings-link" data-action="settings">Speech Bubble Editor 設定を開く <span aria-hidden="true">→</span></button>
+                  <div class="speech-bubble-forge-status" data-speech-bubble-status="${tabName}" data-level="info" aria-live="polite">Editor: Ready</div>
+                </div>
               </div>`;
+            details.addEventListener("toggle", () => saveQuickPanelOpenState(tabName, details.open));
         }
 
         const galleryAction = details.querySelector('[data-action="gallery"]');
         const blankAction = details.querySelector('[data-action="blank"]');
+        const settingsAction = details.querySelector('[data-action="settings"]');
         if (galleryAction) galleryAction.onclick = (event) => handleOpenSelected(event, tabName);
         if (blankAction) {
             blankAction.onclick = (event) => {
@@ -732,13 +817,10 @@
                 openBlank(tabName);
             };
         }
+        if (settingsAction) settingsAction.onclick = openSpeechBubbleSettings;
 
         const anchor = findScriptAnchor(settings, tabName);
-        if (anchor && anchor !== details && anchor.parentElement === settings) {
-            settings.insertBefore(details, anchor);
-        } else if (!details.isConnected || details.parentElement !== settings) {
-            settings.appendChild(details);
-        }
+        placeQuickPanel(settings, details, anchor);
     }
 
     function refreshPanelState(tabName) {

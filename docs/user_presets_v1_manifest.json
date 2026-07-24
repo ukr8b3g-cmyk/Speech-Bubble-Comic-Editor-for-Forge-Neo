@@ -1,0 +1,56 @@
+{
+  "name": "Speech Bubble Editor User Presets / Self Diagnostics V1",
+  "extension_version": "0.5.0",
+  "settings_ui_version": "1.0.0",
+  "user_asset_api_version": 1,
+  "user_asset_schema_version": 1,
+  "forge_core_modified": false,
+  "categories": ["sfx", "stamp"],
+  "accepted_formats": ["png", "static_webp"],
+  "rejected_formats": ["jpeg", "gif", "svg", "animated_webp"],
+  "style_defaults": [
+    "mask_mode",
+    "width",
+    "height",
+    "opacity",
+    "fill",
+    "stroke",
+    "stroke_width",
+    "shadow_enabled",
+    "shadow_color",
+    "shadow_x",
+    "shadow_y",
+    "shadow_blur"
+  ],
+  "forge_panel_state": ["txt2img", "img2img"],
+  "limits": {
+    "recommended_long_side_px": 512,
+    "optional_resize_long_side_px": 768,
+    "maximum_upload_bytes": 4194304,
+    "maximum_source_pixels": 25000000,
+    "maximum_name_characters": 48,
+    "maximum_presets": 1000
+  },
+  "storage": {
+    "relative_to_data_root": "config/speech-bubble-forge/user-presets",
+    "index": "index.json",
+    "index_backup": "index.json.bak",
+    "assets": "assets/<sha256>.<png|webp>",
+    "thumbnails": "thumbnails/<sha256>.webp"
+  },
+  "api": [
+    {"method": "GET", "path": "/speech-bubble-forge/user-assets"},
+    {"method": "POST", "path": "/speech-bubble-forge/user-assets"},
+    {"method": "PATCH", "path": "/speech-bubble-forge/user-assets/{preset_id}"},
+    {"method": "PUT", "path": "/speech-bubble-forge/user-assets/{preset_id}/image"},
+    {"method": "DELETE", "path": "/speech-bubble-forge/user-assets/{preset_id}"},
+    {"method": "GET", "path": "/speech-bubble-forge/user-assets/asset/{asset_id}"},
+    {"method": "GET", "path": "/speech-bubble-forge/user-assets/thumbnail/{asset_id}"},
+    {"method": "POST", "path": "/speech-bubble-forge/diagnostics"}
+  ],
+  "deferred_to_v2": [
+    "bulk_import",
+    "zip_backup_restore",
+    "manual_ordering"
+  ]
+}

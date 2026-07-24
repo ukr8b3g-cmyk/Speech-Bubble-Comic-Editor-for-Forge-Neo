@@ -35,6 +35,13 @@ from speech_bubble_forge.settings import (
     rebuild_all_caches,
     reset_export_directory_memory,
 )
+from speech_bubble_forge.user_assets import (
+    SETTINGS_UI_VERSION,
+    USER_ASSET_MAX_SOURCE_PIXELS,
+    USER_ASSET_MAX_UPLOAD_BYTES,
+    USER_ASSET_RECOMMENDED_SIDE,
+    USER_ASSET_RESIZE_SIDE,
+)
 
 _SETTINGS_SECTION = ("speech_bubble_forge", "Speech Bubble Editor")
 
@@ -59,7 +66,66 @@ def _cache_component_args():
 
 def _on_ui_settings():
     note = shared.OptionHTML(
-        "独立ウィンドウ型のSpeech Bubble Editor設定です。変更は次回エディター起動から反映されます。"
+        f"""
+        <div id="speech-bubble-forge-settings-panel" class="speech-bubble-forge-settings-panel" data-ui-version="{SETTINGS_UI_VERSION}">
+          <div class="speech-bubble-forge-settings-heading">
+            <div><strong>Speech Bubble Editor 設定</strong><small>独立ウィンドウ型Editorの設定とユーザー素材を管理します。</small></div>
+          </div>
+
+          <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="user-presets" open>
+            <summary><span>User Presets（ユーザープリセット）</span><small data-speech-bubble-user-summary>読み込み中…</small></summary>
+            <div class="speech-bubble-forge-settings-group-body">
+              <div class="speech-bubble-forge-preset-counts" aria-live="polite">
+                <div><strong>Onomatopoeia / SFX</strong><span data-speech-bubble-user-count="sfx">0個</span></div>
+                <div><strong>Comic Stamps / Symbols</strong><span data-speech-bubble-user-count="stamp">0個</span></div>
+              </div>
+              <div class="speech-bubble-forge-user-controls">
+                <span>登録先</span>
+                <div class="speech-bubble-forge-segmented" role="group" aria-label="ユーザープリセットの登録先">
+                  <button type="button" data-speech-bubble-user-category="sfx" aria-pressed="true">SFX</button>
+                  <button type="button" data-speech-bubble-user-category="stamp" aria-pressed="false">Stamp</button>
+                </div>
+              </div>
+              <div class="speech-bubble-forge-user-drop" data-speech-bubble-user-drop tabindex="0" role="button" aria-label="PNGまたはWebPを登録">
+                <strong>PNG / WebPをここへドロップ</strong>
+                <span>または</span>
+                <button type="button" data-speech-bubble-user-choose>ファイルを選択</button>
+                <small>推奨: 長辺{USER_ASSET_RECOMMENDED_SIDE}px / 任意縮小: 長辺{USER_ASSET_RESIZE_SIDE}px / 上限: {USER_ASSET_MAX_UPLOAD_BYTES // 1024 // 1024}MB・{USER_ASSET_MAX_SOURCE_PIXELS // 10_000:,}万画素</small>
+              </div>
+              <input type="file" data-speech-bubble-user-file accept="image/png,image/webp,.png,.webp" hidden>
+              <div class="speech-bubble-forge-user-actions">
+                <button type="button" data-speech-bubble-user-manage>プリセット管理</button>
+                <span data-speech-bubble-user-status aria-live="polite"></span>
+              </div>
+              <small>追加・変更・削除は即時保存されます。上部のApply settingsは不要です。</small>
+            </div>
+          </details>
+
+          <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="export">
+            <summary><span>Export &amp; Saving（保存とエクスポート）</span><small data-speech-bubble-summary="export">保存先・形式・品質・バックアップ</small></summary>
+            <div class="speech-bubble-forge-settings-group-body" data-speech-bubble-settings-body="export"></div>
+          </details>
+
+          <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="editor">
+            <summary><span>Editor &amp; Layout（エディタとレイアウト）</span><small data-speech-bubble-summary="editor">ウィンドウサイズ・Supersample・自動保存</small></summary>
+            <div class="speech-bubble-forge-settings-group-body" data-speech-bubble-settings-body="editor"></div>
+          </details>
+
+          <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="cache">
+            <summary><span>Cache &amp; Diagnostics（キャッシュと診断）</span><small data-speech-bubble-summary="cache">編集キャッシュ・素材キャッシュ・自己診断</small></summary>
+            <div class="speech-bubble-forge-settings-group-body">
+              <div data-speech-bubble-settings-body="cache"></div>
+              <div class="speech-bubble-forge-diagnostics-card">
+                <div><strong>自己診断</strong><small data-speech-bubble-diagnostic-last>前回: 未実行</small></div>
+                <div class="speech-bubble-forge-diagnostics-actions">
+                  <button type="button" data-speech-bubble-diagnostic-run>自己診断を実行</button>
+                  <button type="button" data-speech-bubble-diagnostic-show disabled>前回レポート</button>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+        """
     )
     note.section = _SETTINGS_SECTION
     _add_option("speech_bubble_forge_settings_note", note)

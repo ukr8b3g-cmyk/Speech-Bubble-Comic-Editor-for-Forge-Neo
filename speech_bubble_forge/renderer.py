@@ -9,6 +9,11 @@ from pathlib import Path, PurePosixPath
 import numpy as np
 from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont
 
+try:
+    from .user_assets import resolve_user_asset_path
+except ImportError:  # Standalone module loading used by the renderer regression tests.
+    from speech_bubble_forge.user_assets import resolve_user_asset_path
+
 
 _PREVIEW_SUBFOLDER = "speech_bubble_preview"
 _NODE_DIRECTORY = str(Path(__file__).resolve().parents[1])
@@ -260,6 +265,9 @@ def reload_sfx_asset_catalog():
 
 
 def _sfx_asset_path(asset_id):
+    if str(asset_id or "").startswith("user:"):
+        path = resolve_user_asset_path(str(asset_id).removeprefix("user:"))
+        return str(path) if path else None
     for pack in get_sfx_asset_catalog().get("packs", []):
         pack_dir = _SFX_ASSET_ROOT / str(pack.get("id") or "")
         for item in pack.get("items", []):
@@ -1889,6 +1897,7 @@ def _draw_text_layer(layer, element, default_font_path, scale):
 
 def _draw_sfx_stamp(layer, element, scale):
     asset_id = str(element.get("asset_id") or "")
+    user_asset_id = str(element.get("user_asset_id") or "").removeprefix("user:")
     symbol_kind = _BASIC_SYMBOL_KINDS.get(asset_id)
     box_w = max(1, int(round(float(element.get("w", 1)) * scale)))
     box_h = max(1, int(round(float(element.get("h", 1)) * scale)))
@@ -1896,13 +1905,14 @@ def _draw_sfx_stamp(layer, element, scale):
         alpha = _basic_symbol_alpha((box_w, box_h), symbol_kind, element)
         source = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
     else:
-        asset_path = _sfx_asset_path(asset_id)
+        user_asset_path = resolve_user_asset_path(user_asset_id) if user_asset_id else None
+        asset_path = str(user_asset_path) if user_asset_path else _sfx_asset_path(asset_id)
         if not asset_path or not os.path.isfile(asset_path):
             return
         with Image.open(asset_path) as source_image:
             source = source_image.convert("RGBA").resize((box_w, box_h), Image.Resampling.LANCZOS)
 
-    dynamic_mask = next((item.get("mask") for item in get_sfx_asset_catalog().get("items", []) if item.get("id") == asset_id), False)
+    dynamic_mask = bool(element.get("mask_mode")) or next((item.get("mask") for item in get_sfx_asset_catalog().get("items", []) if item.get("id") == asset_id), False)
     outline_width = max(0, int(round(float(element.get("stroke_width", 3 if dynamic_mask else 0)) * scale)))
     if symbol_kind or asset_id in _MASK_SFX_ASSETS or dynamic_mask:
         if not symbol_kind:
@@ -1929,11 +1939,34 @@ def _draw_sfx_stamp(layer, element, scale):
         source = source.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
     shadow_enabled = bool(element.get("shadow_enabled"))
+    glow_enabled = bool(element.get("glow_enabled"))
     shadow_x = int(round(float(element.get("shadow_x", 0)) * scale))
     shadow_y = int(round(float(element.get("shadow_y", 0)) * scale))
     shadow_blur = max(0, int(round(float(element.get("shadow_blur", 0)) * scale)))
-    padding = max(abs(shadow_x), abs(shadow_y), shadow_blur * 2) + 2 if shadow_enabled else 0
+    glow_blur = max(0, float(element.get("glow_blur", 0) or 0) * scale)
+    glow_spread = max(0, float(element.get("glow_spread", 0) or 0) * scale)
+    shadow_padding = max(abs(shadow_x), abs(shadow_y), shadow_blur * 2) + 2 if shadow_enabled else 0
+    glow_padding = int(math.ceil(glow_blur * 3 + glow_spread)) + 2 if glow_enabled else 0
+    padding = max(shadow_padding, glow_padding)
     local = Image.new("RGBA", (source.width + padding * 2, source.height + padding * 2), (0, 0, 0, 0))
+
+    if glow_enabled:
+        glow_mask = Image.new("L", local.size, 0)
+        glow_mask.paste(source.getchannel("A"), (padding, padding))
+        spread_radius = min(63, int(round(glow_spread)))
+        if spread_radius > 0:
+            glow_mask = glow_mask.filter(ImageFilter.MaxFilter(spread_radius * 2 + 1))
+        if glow_blur > 0:
+            glow_mask = glow_mask.filter(ImageFilter.GaussianBlur(glow_blur))
+        glow_color = _effect_rgba(
+            element.get("glow_color"),
+            "#ffffff",
+            element.get("glow_opacity", 0.75),
+        )
+        glow_alpha_value = glow_color[3]
+        glow = Image.new("RGBA", local.size, glow_color)
+        glow.putalpha(glow_mask.point(lambda value: int(value * glow_alpha_value / 255)))
+        local.alpha_composite(glow)
 
     if shadow_enabled:
         shadow_alpha = source.getchannel("A")
