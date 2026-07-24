@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -62,6 +63,21 @@ def test_browser_urls_follow_current_forge_origin():
         assert "7862" not in source
     assert "document.baseURI" in launcher
     assert "location.origin" in editor
+
+
+def test_editor_exports_the_rendered_canvas_as_the_canonical_image():
+    root = Path(__file__).resolve().parents[1]
+    editor = (root / "web" / "speech-bubble-editor.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'render_mode:"browser_canvas_v1"' in editor
+    assert "composite_data_url:rendered.compositeDataUrl" in editor
+    assert "overlay_data_url:rendered.overlayDataUrl" in editor
+    assert "layout_json:rendered.layoutJson" in editor
+    assert 'payload.detail==="image_data_url is required"' in editor
+    assert "image_data_url:imageDataUrl" in editor
+    assert "snapshotCleanSceneCanvas()" in editor
+    assert 'source.toBlob(' in editor
 
 
 def test_filename_modes_and_sequence():
@@ -198,6 +214,12 @@ def test_export_routes_fixed_and_client_delivery():
         overlay = Image.new("RGBA", (12, 10), (255, 0, 0, 100))
         output_root_calls = []
 
+        render_calls = []
+
+        def fake_render(*args, **kwargs):
+            render_calls.append((args, kwargs))
+            return composite, overlay, {}
+
         with (
             patch.object(
                 api,
@@ -210,7 +232,7 @@ def test_export_routes_fixed_and_client_delivery():
             patch.object(
                 api,
                 "render_composite",
-                lambda *args, **kwargs: (composite, overlay, {}),
+                fake_render,
             ),
         ):
             app = FastAPI()
@@ -246,3 +268,61 @@ def test_export_routes_fixed_and_client_delivery():
                 f"/speech-bubble-forge/client-export/{token}"
             ).json()["deleted"]
             assert client.get(payload["download_url"]).status_code == 404
+
+            settings.output_format = "png"
+            settings.filename_format = "source_only"
+            browser_composite = Image.new("RGBA", (12, 10), (17, 34, 51, 255))
+            browser_overlay = Image.new("RGBA", (12, 10), (201, 102, 3, 144))
+
+            def data_url(value):
+                encoded = io.BytesIO()
+                value.save(encoded, "PNG")
+                return (
+                    "data:image/png;base64,"
+                    + base64.b64encode(encoded.getvalue()).decode("ascii")
+                )
+
+            previous_render_calls = len(render_calls)
+            response = client.post(
+                "/speech-bubble-forge/export",
+                json={
+                    "render_mode": "browser_canvas_v1",
+                    "composite_data_url": data_url(browser_composite),
+                    "overlay_data_url": data_url(browser_overlay),
+                    "layout_json": json.dumps(
+                        {"canvas": {"width": 12, "height": 10}}
+                    ),
+                    "name": "wysiwyg",
+                    "client_save": True,
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["render_mode"] == "browser_canvas_v1"
+            assert len(render_calls) == previous_render_calls
+            composite_response = client.get(payload["download_url"])
+            overlay_response = client.get(payload["overlay_download_url"])
+            with Image.open(io.BytesIO(composite_response.content)) as written:
+                assert written.convert("RGBA").tobytes() == browser_composite.tobytes()
+            with Image.open(io.BytesIO(overlay_response.content)) as written:
+                assert written.convert("RGBA").tobytes() == browser_overlay.tobytes()
+            assert client.delete(
+                f"/speech-bubble-forge/client-export/{payload['client_export_token']}"
+            ).json()["deleted"]
+
+            response = client.post(
+                "/speech-bubble-forge/export",
+                json={
+                    "render_mode": "browser_canvas_v1",
+                    "composite_data_url": data_url(browser_composite),
+                    "overlay_data_url": data_url(
+                        Image.new("RGBA", (11, 10), (0, 0, 0, 0))
+                    ),
+                    "layout_json": json.dumps(
+                        {"canvas": {"width": 12, "height": 10}}
+                    ),
+                    "name": "invalid-wysiwyg",
+                },
+            )
+            assert response.status_code == 400
+            assert "dimensions do not match" in response.json()["detail"]

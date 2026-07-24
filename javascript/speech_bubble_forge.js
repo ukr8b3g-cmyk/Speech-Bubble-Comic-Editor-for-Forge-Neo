@@ -690,7 +690,7 @@
                 window.focus();
                 setPanelStatus(
                     tabName,
-                    `画像書き出し完了: ${data.width || "?"}×${data.height || "?"} / SS ${data.supersample || runtimeSettings.supersample}`,
+                    `画像書き出し完了: ${data.width || "?"}×${data.height || "?"} / ${data.render_mode === "browser_canvas_v1" ? "WYSIWYG" : `SS ${data.supersample || runtimeSettings.supersample}`}`,
                     "success",
                     compositeUrl,
                 );

@@ -325,7 +325,7 @@ def _on_ui_settings():
             component=gr.Slider,
             component_args={"minimum": 1, "maximum": 4, "step": 1},
             section=_SETTINGS_SECTION,
-        ).info("保存時の高解像度描画。2推奨"),
+        ).info("互換レンダラー用。EditorのExport Imageは表示Canvasを直接保存します"),
     )
     _add_option(
         "speech_bubble_forge_auto_save",

@@ -31,6 +31,7 @@
 - 再編集画面へ別名保存を追加し、既存プリセットの上書き前に警告を表示
 - EditorのMy Presetsとクリック／ドラッグ配置
 - 不変asset IDによるCanvas／Pillow描画
+- Export ImageをEditorの選択枠なしCanvasから直接保存し、文字位置・アウトライン・Bold・アンチエイリアスをWYSIWYG化
 - Settingsの4セクションAccordion
 - Self Diagnosticsとコピー可能なレポート
 - V1 API、セキュリティ、テスト、Codex指示書

@@ -57,9 +57,9 @@ def preset_path() -> Path:
     return data_root() / "config" / "speech-bubble-forge" / "presets.json"
 
 
-def _decode_data_url(value):
+def _decode_data_url(value, field_name="image_data_url"):
     if not isinstance(value, str):
-        raise ValueError("image_data_url is required")
+        raise ValueError(f"{field_name} is required")
     match = re.fullmatch(
         r"data:image/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n]+)",
         value,
@@ -82,6 +82,30 @@ def _decode_data_url(value):
     if image.width * image.height > 100_000_000:
         raise ValueError("Image dimensions are too large")
     return image
+
+
+def _browser_canvas_export(payload, layout):
+    if payload.get("render_mode") != "browser_canvas_v1":
+        return None
+    composite = _decode_data_url(
+        payload.get("composite_data_url"),
+        "composite_data_url",
+    )
+    overlay = _decode_data_url(
+        payload.get("overlay_data_url"),
+        "overlay_data_url",
+    )
+    if composite.size != overlay.size:
+        raise ValueError("Browser canvas composite and overlay dimensions do not match")
+    canvas = layout.get("canvas") if isinstance(layout, dict) else None
+    if isinstance(canvas, dict):
+        expected = (
+            max(1, int(canvas.get("width", composite.width))),
+            max(1, int(canvas.get("height", composite.height))),
+        )
+        if composite.size != expected:
+            raise ValueError("Browser canvas dimensions do not match the layout")
+    return composite, overlay
 
 
 def _safe_name(value):
@@ -560,13 +584,19 @@ def register_routes(app):
             payload = await request.json()
             _normalized_layout, parsed_layout = _validate_layout(payload.get("layout_json", "{}"))
             settings = public_settings()
-            image = _decode_data_url(payload.get("image_data_url"))
-            composite, overlay, _ = render_composite(
-                image,
-                json.dumps(parsed_layout, ensure_ascii=False),
-                font_path=str(payload.get("font_path") or ""),
-                supersample=settings.supersample,
-            )
+            browser_canvas = _browser_canvas_export(payload, parsed_layout)
+            if browser_canvas is None:
+                image = _decode_data_url(payload.get("image_data_url"))
+                composite, overlay, _ = render_composite(
+                    image,
+                    json.dumps(parsed_layout, ensure_ascii=False),
+                    font_path=str(payload.get("font_path") or ""),
+                    supersample=settings.supersample,
+                )
+                render_mode = "pillow_layout_v1"
+            else:
+                composite, overlay = browser_canvas
+                render_mode = "browser_canvas_v1"
 
             now = datetime.now()
             prefix = _safe_name(payload.get("name") or "speech_bubble")
@@ -668,6 +698,7 @@ def register_routes(app):
                 "width": composite.width,
                 "height": composite.height,
                 "supersample": settings.supersample,
+                "render_mode": render_mode,
                 "save_overlay": settings.save_overlay,
                 "output_format": settings.output_format,
                 "output_dir": None if client_save else str(export_root),
