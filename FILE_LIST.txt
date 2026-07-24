@@ -2,6 +2,11 @@ CODEX_INSTRUCTIONS.md
 README.md
 UPSTREAM.md
 VERIFICATION.md
+docs/images/asset-browser-stamps.png
+docs/images/editor-common-ui-properties.png
+docs/images/forge-editor-launch-panel.png
+docs/images/forge-settings-speech-bubble-editor.png
+docs/images/standalone-editor-start-choice.png
 javascript/speech_bubble_forge.js
 metadata.ini
 requirements.txt
