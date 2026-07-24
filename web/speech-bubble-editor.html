@@ -288,7 +288,7 @@
     <button id="undo" title="Undo the last edit (Ctrl+Z)">Undo</button><button id="redo" title="Redo the last undone edit (Ctrl+Y / Ctrl+Shift+Z)">Redo</button>
     <button id="fit" title="Fit the image to the editor window (Ctrl+0)">Fit</button><button id="minus" title="Zoom out">−</button><span id="zoom">100%</span><button id="plus" title="Zoom in">+</button><button id="openBackgroundImage" title="Load or replace the background image">Open Image…</button>
     <span class="spacer"></span><span id="saveState" data-level="info">画像を読み込んでください</span>
-    <button id="closeEditor" title="Close the editor. An autosaved draft is retained when enabled.">Close</button><button id="discardChanges" title="Discard unsaved changes and restore the last explicitly saved layout.">Discard Changes</button><button id="saveLayout" title="Save only the image-specific layout JSON. No image is rendered.">Save Layout</button><button class="primary" id="exportImage" title="Render and save a new composite PNG without overwriting the source image.">Export Image</button>
+    <button id="closeEditor" title="Close the editor. An autosaved draft is retained when enabled.">Close</button><button id="discardChanges" title="Discard unsaved changes and restore the last explicitly saved layout.">Discard Changes</button><button id="saveLayout" title="Save only the image-specific layout JSON. No image is rendered.">Save Layout</button><button class="primary" id="exportImage" title="Render and save a new composite image without overwriting the source image.">Export Image</button>
     <input id="backgroundFileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
   </header>
   <div class="layout">
@@ -484,7 +484,7 @@
           <div id="emphasisColorSwatches" class="compact-color-swatches" role="group" aria-label="Emphasis line color swatches"></div>
           <div class="emphasis-control-row"><label for="emphasisOpacity">Opacity</label><input id="emphasisOpacity" data-key="opacity" type="number" aria-label="Opacity value"></div>
           <div class="emphasis-control-row"><label for="emphasisLineCount">Line Count</label><input id="emphasisLineCount" data-key="line_count" type="number" aria-label="Line Count value"></div>
-          <div class="emphasis-control-row emphasis-center-gap-master"><label for="emphasisCenterGapRange">Center Gap</label><input id="emphasisCenterGapRange" type="range" min="0.03" max="0.48" step="0.005" data-emphasis-derived-range="center_gap" title="Scale Center Gap X and Y together while preserving their ratio"><input id="emphasisCenterGapValue" type="number" min="0.03" max="0.48" step="0.005" aria-label="Center Gap value" title="Overall center gap size"></div>
+          <div class="emphasis-control-row emphasis-center-gap-master"><label for="emphasisCenterGapRange">Center Gap</label><input id="emphasisCenterGapRange" type="range" min="0.03" max="0.65" step="0.005" data-emphasis-derived-range="center_gap" title="Scale Center Gap X and Y together while preserving their ratio"><input id="emphasisCenterGapValue" type="number" min="0.03" max="0.65" step="0.005" aria-label="Center Gap value" title="Overall center gap size"></div>
           <div class="emphasis-control-row"><label for="emphasisInnerX">Center Gap X</label><input id="emphasisInnerX" data-key="inner_x" type="number" aria-label="Center Gap X value"></div>
           <div class="emphasis-control-row"><label for="emphasisInnerY">Center Gap Y</label><input id="emphasisInnerY" data-key="inner_y" type="number" aria-label="Center Gap Y value"></div>
           <div class="emphasis-control-row"><label for="emphasisLineWidth">Base Line Width</label><input id="emphasisLineWidth" data-key="line_width" type="number" aria-label="Base Line Width value"></div>
@@ -602,15 +602,31 @@
     const autoSaveEnabled = params.get("autoSave") !== "0";
     const autoSaveDelay = Math.max(800, Math.min(10000, Number(params.get("autoSaveDelay")) || 2200));
     const keepLayoutEnabled = params.get("keepLayout") !== "0";
+    const promptExportLocation = params.get("promptExportLocation") === "1";
+    const useForgeOutputDir = params.get("useForgeOutputDir") !== "0";
+    const rememberExportDirectory = params.get("rememberExportDirectory") !== "0";
+    const exportDirectoryVersion = params.get("exportDirectoryVersion") || "0";
+    const forgeOutputDir = params.get("forgeOutputDir") || "";
+    const filenameFormat = params.get("filenameFormat") || "source_datetime";
+    const dateSubfolder = params.get("dateSubfolder") || "none";
+    const backupEnabled = params.get("backupEnabled") !== "0";
+    const backupGenerations = Math.max(1,Math.min(20,Number(params.get("backupGenerations"))||5));
     const assetCacheVersion = params.get("assetVersion") || "20260723-04";
     const SAVED_LAYOUT_PREFIX = "speech-bubble/layout/";
     const DRAFT_LAYOUT_PREFIX = "speech-bubble/draft/";
     const LEGACY_SAVED_LAYOUT_PREFIX = "speech_bubble:forge:layout:saved:";
     const LEGACY_DRAFT_LAYOUT_PREFIX = "speech_bubble:forge:layout:draft:";
+    const DRAFT_META_KEY = "speech-bubble/draft-meta:v1";
+    const MAX_DRAFT_DOCUMENTS = 100;
+    const DRAFT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+    const MAX_STANDALONE_BACKGROUNDS = 10;
+    const MAX_GENERATED_BACKGROUNDS = 10;
     const LAST_STANDALONE_ID_KEY = "speech-bubble/standalone/last-document-id";
     const EDITOR_WINDOW_STATE_KEY = "speech-bubble/editor/window-state:v1";
     const DOCUMENT_DB_NAME = "speech-bubble-forge-documents";
     const DOCUMENT_DB_STORE = "backgrounds";
+    const EXPORT_DIRECTORY_DB_NAME = "speech-bubble-forge-export-directory";
+    const EXPORT_DIRECTORY_DB_STORE = "directories";
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     const cleanSceneCanvas = document.createElement("canvas");
@@ -643,8 +659,52 @@
     function safeStoredLayout(value){if(typeof value!=="string"||!value.trim())return"{}";try{return JSON.stringify(JSON.parse(value),null,2);}catch{return"{}";}}
     function localLayoutCache(id=documentId){if(!id)return{saved:"{}",draft:"",hasSaved:false,hasDraft:false};let saved="{}",draft="",hasSaved=false,hasDraft=false;try{let savedRaw=localStorage.getItem(savedLayoutKey(id)),draftRaw=autoSaveEnabled?localStorage.getItem(draftLayoutKey(id)):null;const legacyHash=legacyImageHash(id);if(savedRaw===null&&legacyHash)savedRaw=localStorage.getItem(`${LEGACY_SAVED_LAYOUT_PREFIX}${legacyHash}`);if(draftRaw===null&&legacyHash&&autoSaveEnabled)draftRaw=localStorage.getItem(`${LEGACY_DRAFT_LAYOUT_PREFIX}${legacyHash}`);hasSaved=typeof savedRaw==="string";hasDraft=typeof draftRaw==="string";saved=safeStoredLayout(savedRaw||"{}");draft=hasDraft?safeStoredLayout(draftRaw):"";}catch{}return{saved,draft,hasSaved,hasDraft};}
     function openDocumentDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DOCUMENT_DB_NAME,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(DOCUMENT_DB_STORE))request.result.createObjectStore(DOCUMENT_DB_STORE,{keyPath:"documentId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
-    async function documentBackground(id){if(!id?.startsWith("standalone:"))return null;try{const db=await openDocumentDb();return await new Promise((resolve,reject)=>{const transaction=db.transaction(DOCUMENT_DB_STORE,"readonly"),request=transaction.objectStore(DOCUMENT_DB_STORE).get(id);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);transaction.oncomplete=()=>db.close();});}catch(error){console.warn("Speech Bubble standalone background unavailable",error);return null;}}
-    async function storeDocumentBackground(id,blob,name){if(!id?.startsWith("standalone:")||!blob)return;try{const db=await openDocumentDb();await new Promise((resolve,reject)=>{const transaction=db.transaction(DOCUMENT_DB_STORE,"readwrite");transaction.objectStore(DOCUMENT_DB_STORE).put({documentId:id,blob,sourceName:name||"speech_bubble",updatedAt:Date.now()});transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});db.close();localStorage.setItem(LAST_STANDALONE_ID_KEY,id);}catch(error){console.warn("Speech Bubble standalone background save failed",error);}}
+    function draftCacheMetadata(){try{const value=JSON.parse(localStorage.getItem(DRAFT_META_KEY)||"{}");return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}catch{return{};}}
+    function saveDraftCacheMetadata(value){try{localStorage.setItem(DRAFT_META_KEY,JSON.stringify(value));}catch{}}
+    function removeDraftCache(id=documentId){if(!id)return;try{localStorage.removeItem(draftLayoutKey(id));const metadata=draftCacheMetadata();delete metadata[id];saveDraftCacheMetadata(metadata);}catch{}}
+    function pruneDraftCache(){
+      try{
+        const now=Date.now(),cutoff=now-DRAFT_MAX_AGE_MS,metadata=draftCacheMetadata(),entries=[];
+        for(let index=0;index<localStorage.length;index++){
+          const key=localStorage.key(index);
+          if(!key?.startsWith(DRAFT_LAYOUT_PREFIX))continue;
+          const id=key.slice(DRAFT_LAYOUT_PREFIX.length),updatedAt=Number(metadata[id])||now;
+          if(updatedAt<cutoff){localStorage.removeItem(key);delete metadata[id];index--;continue;}
+          entries.push({id,key,updatedAt});
+        }
+        entries.sort((left,right)=>right.updatedAt-left.updatedAt);
+        for(const entry of entries.slice(MAX_DRAFT_DOCUMENTS)){localStorage.removeItem(entry.key);delete metadata[entry.id];}
+        const retained={};for(const entry of entries.slice(0,MAX_DRAFT_DOCUMENTS)){retained[entry.id]=entry.updatedAt;}
+        saveDraftCacheMetadata(retained);
+        return{count:Object.keys(retained).length,removed:Math.max(0,entries.length-MAX_DRAFT_DOCUMENTS)};
+      }catch{return{count:0,removed:0};}
+    }
+    function touchDraftCache(id=documentId){if(!id)return;const metadata=draftCacheMetadata();metadata[id]=Date.now();saveDraftCacheMetadata(metadata);pruneDraftCache();}
+    function backgroundRecordKind(record){const id=String(record?.documentId||"");return record?.kind==="generated"||id.startsWith("generated:")?"generated":"standalone";}
+    function retainedBackgroundRecords(records,kind,maximum){return records.filter(record=>backgroundRecordKind(record)===kind).sort((left,right)=>(Number(right.updatedAt)||0)-(Number(left.updatedAt)||0)).slice(0,maximum);}
+    async function pruneDocumentBackgrounds(){
+      try{
+        const db=await openDocumentDb();let records=[];
+        await new Promise((resolve,reject)=>{const transaction=db.transaction(DOCUMENT_DB_STORE,"readonly"),request=transaction.objectStore(DOCUMENT_DB_STORE).getAll();request.onsuccess=()=>{records=Array.isArray(request.result)?request.result:[];};transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});
+        db.close();
+        const standalone=retainedBackgroundRecords(records,"standalone",MAX_STANDALONE_BACKGROUNDS),generated=retainedBackgroundRecords(records,"generated",MAX_GENERATED_BACKGROUNDS),retainedIds=new Set([...standalone,...generated].map(record=>record.documentId));
+        const removed=records.filter(record=>!retainedIds.has(record.documentId));
+        if(removed.length){const cleanupDb=await openDocumentDb();await new Promise((resolve,reject)=>{const transaction=cleanupDb.transaction(DOCUMENT_DB_STORE,"readwrite"),store=transaction.objectStore(DOCUMENT_DB_STORE);removed.forEach(record=>store.delete(record.documentId));transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});cleanupDb.close();}
+        const previous=localStorage.getItem(LAST_STANDALONE_ID_KEY)||"";
+        if(removed.some(record=>record.documentId===previous)){const newest=standalone[0]?.documentId;if(newest)localStorage.setItem(LAST_STANDALONE_ID_KEY,newest);else localStorage.removeItem(LAST_STANDALONE_ID_KEY);}
+        return{standalone:standalone.length,generated:generated.length,removed:removed.length};
+      }catch(error){console.warn("Speech Bubble standalone background cleanup failed",error);return{count:0,removed:0};}
+    }
+    function openExportDirectoryDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open(EXPORT_DIRECTORY_DB_NAME,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(EXPORT_DIRECTORY_DB_STORE))request.result.createObjectStore(EXPORT_DIRECTORY_DB_STORE,{keyPath:"id"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+    async function clearRememberedExportDirectory(){try{const db=await openExportDirectoryDb();await new Promise((resolve,reject)=>{const transaction=db.transaction(EXPORT_DIRECTORY_DB_STORE,"readwrite");transaction.objectStore(EXPORT_DIRECTORY_DB_STORE).delete("last");transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});db.close();}catch(error){console.warn("Speech Bubble export directory reset failed",error);}}
+    async function loadRememberedExportDirectory(){if(!rememberExportDirectory){await clearRememberedExportDirectory();return null;}try{const db=await openExportDirectoryDb();let record=null;await new Promise((resolve,reject)=>{const transaction=db.transaction(EXPORT_DIRECTORY_DB_STORE,"readonly"),request=transaction.objectStore(EXPORT_DIRECTORY_DB_STORE).get("last");request.onsuccess=()=>{record=request.result||null;};transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});db.close();if(record?.version!==exportDirectoryVersion){if(record)await clearRememberedExportDirectory();return null;}return record?.handle?.kind==="directory"?record.handle:null;}catch(error){console.warn("Speech Bubble remembered export directory unavailable",error);return null;}}
+    async function storeRememberedExportDirectory(handle){if(!rememberExportDirectory||!handle)return;try{const db=await openExportDirectoryDb();await new Promise((resolve,reject)=>{const transaction=db.transaction(EXPORT_DIRECTORY_DB_STORE,"readwrite");transaction.objectStore(EXPORT_DIRECTORY_DB_STORE).put({id:"last",handle,version:exportDirectoryVersion,updatedAt:Date.now()});transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});db.close();}catch(error){console.warn("Speech Bubble export directory save failed",error);}}
+    async function cachedBackground(id){if(!id)return null;try{const db=await openDocumentDb();return await new Promise((resolve,reject)=>{const transaction=db.transaction(DOCUMENT_DB_STORE,"readonly"),request=transaction.objectStore(DOCUMENT_DB_STORE).get(id);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error);transaction.oncomplete=()=>db.close();});}catch(error){console.warn("Speech Bubble cached background unavailable",error);return null;}}
+    async function documentBackground(id){return id?.startsWith("standalone:")?cachedBackground(id):null;}
+    async function storeCachedBackground(record){if(!record?.documentId||!record?.blob)return;const db=await openDocumentDb();await new Promise((resolve,reject)=>{const transaction=db.transaction(DOCUMENT_DB_STORE,"readwrite");transaction.objectStore(DOCUMENT_DB_STORE).put({...record,updatedAt:Date.now()});transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});db.close();await pruneDocumentBackgrounds();}
+    async function storeDocumentBackground(id,blob,name){if(!id?.startsWith("standalone:")||!blob)return;try{await storeCachedBackground({documentId:id,kind:"standalone",blob,sourceName:name||"speech_bubble"});localStorage.setItem(LAST_STANDALONE_ID_KEY,id);}catch(error){console.warn("Speech Bubble standalone background save failed",error);}}
+    async function generatedBackgroundId(name,tab,url){const cleanUrl=String(url||"").split("?")[0],fallback=cleanUrl.split("/").pop()||"speech_bubble",identity=`${String(tab||"unknown").toLowerCase()}\n${String(name||fallback).toLowerCase()}`;try{const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(identity));return`generated:${Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,"0")).join("")}`;}catch{let hash=2166136261;for(let index=0;index<identity.length;index++){hash^=identity.charCodeAt(index);hash=Math.imul(hash,16777619);}return`generated:${(hash>>>0).toString(16).padStart(8,"0")}`;}}
+    async function storeGeneratedBackground(id,blob,name,tab,url){if(!id?.startsWith("generated:")||!blob)return;try{await storeCachedBackground({documentId:id,kind:"generated",blob,sourceName:name||"speech_bubble",sourceTab:tab||"",sourceUrl:String(url||"")});}catch(error){console.warn("Speech Bubble generated background save failed",error);}}
     function setSaveState(message,level="info"){const node=document.getElementById("saveState");if(!node)return;node.textContent=message;node.dataset.level=level;}
     function updateActionState(){const hasImage=imageLoaded&&Boolean(image.naturalWidth);document.getElementById("saveLayout").disabled=!hasImage;document.getElementById("exportImage").disabled=!hasImage;document.getElementById("discardChanges").disabled=!hasImage||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasImage;if(!hasImage)setSaveState("画像を読み込んでください","info");else if(layoutDirty)setSaveState(autoSaveEnabled?"未保存の変更（下書き保存対象）":"未保存の変更があります","dirty");else if(hasExplicitSavedLayout)setSaveState("レイアウト保存済み","saved");else setSaveState("新規レイアウト","info");}
     function markLayoutDirty(){if(!dirtyTrackingEnabled||!imageLoaded)return;layoutDirty=currentLayoutJson()!==lastSavedLayout;updateActionState();}
@@ -677,7 +737,7 @@
     const EMPHASIS_BY_ID = new Map(EMPHASIS_PRESETS.map(preset=>[preset.id,preset]));
     const EMPHASIS_GEOMETRY_KEYS = new Set(["preset","line_count","inner_x","inner_y","line_width","line_length","taper","center_x","center_y","length_random","inner_random","width_random","spacing_random","seed","w","h"]);
     const EMPHASIS_GAP_MIN = .03;
-    const EMPHASIS_GAP_MAX = .48;
+    const EMPHASIS_GAP_MAX = .65;
     function emphasisClamp(value,minimum,maximum,fallback){const number=Number(value);return Math.max(minimum,Math.min(maximum,Number.isFinite(number)?number:fallback));}
     function emphasisCenterGapValue(item){const x=Math.max(1e-8,Number(item?.inner_x)||.15),y=Math.max(1e-8,Number(item?.inner_y)||.20);return Math.sqrt(x*y);}
     function scaleCenterGapPair(startX,startY,requestedGap){startX=emphasisClamp(startX,EMPHASIS_GAP_MIN,EMPHASIS_GAP_MAX,.15);startY=emphasisClamp(startY,EMPHASIS_GAP_MIN,EMPHASIS_GAP_MAX,.20);const startGap=emphasisCenterGapValue({inner_x:startX,inner_y:startY}),requested=emphasisClamp(requestedGap,EMPHASIS_GAP_MIN,EMPHASIS_GAP_MAX,startGap),minimumScale=Math.max(EMPHASIS_GAP_MIN/startX,EMPHASIS_GAP_MIN/startY),maximumScale=Math.min(EMPHASIS_GAP_MAX/startX,EMPHASIS_GAP_MAX/startY),scale=emphasisClamp(requested/startGap,minimumScale,maximumScale,1);return{inner_x:startX*scale,inner_y:startY*scale};}
@@ -687,8 +747,8 @@
       return{
         preset:preset.id,
         line_count:Math.round(emphasisClamp(source.line_count,20,500,preset.line_count)),
-        inner_x:emphasisClamp(source.inner_x,.03,.48,preset.inner_x),
-        inner_y:emphasisClamp(source.inner_y,.03,.48,preset.inner_y),
+        inner_x:emphasisClamp(source.inner_x,.03,.65,preset.inner_x),
+        inner_y:emphasisClamp(source.inner_y,.03,.65,preset.inner_y),
         line_width:emphasisClamp(source.line_width,.0005,.035,preset.line_width),
         line_length:emphasisClamp(source.line_length,.15,1,preset.line_length),
         taper:emphasisClamp(source.taper,0,1,preset.taper),
@@ -1685,7 +1745,54 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     }
     function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||""));reader.onerror=()=>reject(reader.error||new Error("画像を読み込めませんでした。"));reader.readAsDataURL(blob);});}
     function resolveForgeUrl(value){if(!value)return"";try{return new URL(value,location.href).href;}catch{return String(value);}}
-    function downloadUrl(url,filename){const anchor=document.createElement("a");anchor.href=url;anchor.download=filename||"speech_bubble.png";anchor.rel="noopener";document.body.appendChild(anchor);anchor.click();anchor.remove();}
+    async function directoryFile(directory,name){try{return await directory.getFileHandle(name);}catch(error){if(error?.name==="NotFoundError")return null;throw error;}}
+    async function writeDirectoryFile(directory,name,blob){const handle=await directory.getFileHandle(name,{create:true}),writable=await handle.createWritable();try{await writable.write(blob);await writable.close();}catch(error){await writable.abort().catch(()=>{});throw error;}}
+    async function rotateDirectoryBackups(directory,name){
+      if(!backupEnabled||!await directoryFile(directory,name))return;
+      const dot=name.lastIndexOf("."),stem=dot>0?name.slice(0,dot):name,extension=dot>0?name.slice(dot):"";
+      const backupName=index=>`${stem}_backup_${String(index).padStart(2,"0")}${extension}`;
+      const escaped=value=>value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),pattern=new RegExp(`^${escaped(stem)}_backup_(\\d+)${escaped(extension)}$`);
+      for await(const [entryName] of directory.entries()){const match=entryName.match(pattern);if(match&&Number(match[1])>backupGenerations)await directory.removeEntry(entryName);}
+      for(let index=backupGenerations;index>1;index--){
+        const previous=backupName(index-1),handle=await directoryFile(directory,previous);
+        if(!handle)continue;
+        await writeDirectoryFile(directory,backupName(index),await handle.getFile());
+        await directory.removeEntry(previous);
+      }
+      const original=await directory.getFileHandle(name);
+      await writeDirectoryFile(directory,backupName(1),await original.getFile());
+    }
+    async function datedDirectory(directory){
+      const now=new Date();
+      if(dateSubfolder==="none")return directory;
+      const two=value=>String(value).padStart(2,"0"),month=`${now.getFullYear()}-${two(now.getMonth()+1)}`;
+      const name=dateSubfolder==="year_month_day"?`${month}-${two(now.getDate())}`:month;
+      return directory.getDirectoryHandle(name,{create:true});
+    }
+    async function availableClientFilename(directory,candidate){
+      if(filenameFormat!=="source_sequence")return candidate;
+      const dot=candidate.lastIndexOf("."),extension=dot>0?candidate.slice(dot):"",stem=dot>0?candidate.slice(0,dot):candidate,prefix=stem.replace(/_\d{4}$/,"");
+      for(let sequence=1;sequence<1000000;sequence++){
+        const name=`${prefix}_${String(sequence).padStart(4,"0")}${extension}`;
+        if(!await directoryFile(directory,name))return name;
+      }
+      throw new Error("保存先の連番を作成できませんでした。");
+    }
+    async function fetchExportBlob(url){const response=await fetch(resolveForgeUrl(url),{cache:"no-store"});if(!response.ok)throw new Error(`書き出しファイルを取得できませんでした (${response.status})`);return response.blob();}
+    async function saveClientExport(directory,payload){
+      const target=await datedDirectory(directory),filename=await availableClientFilename(target,payload.filename),dot=filename.lastIndexOf("."),stem=dot>0?filename.slice(0,dot):filename;
+      const composite=await fetchExportBlob(payload.download_url||payload.composite_url);
+      await rotateDirectoryBackups(target,filename);
+      await writeDirectoryFile(target,filename,composite);
+      let overlayFilename="";
+      if(payload.save_overlay&&payload.overlay_download_url){
+        overlayFilename=`${stem}_overlay.png`;
+        const overlay=await fetchExportBlob(payload.overlay_download_url);
+        await rotateDirectoryBackups(target,overlayFilename);
+        await writeDirectoryFile(target,overlayFilename,overlay);
+      }
+      return{filename,overlayFilename};
+    }
     async function fetchSavedLayout(id){
       if(!id||!keepLayoutEnabled)return{saved:"{}",hasSaved:false};
       try{
@@ -1742,7 +1849,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function persistDraftNow(){
       if(!autoSaveEnabled||!imageLoaded||!documentId||!layoutDirty)return;
       const layout=currentLayoutJson();
-      try{localStorage.setItem(jsonKey,layout);localStorage.setItem(draftLayoutKey(),layout);}catch{}
+      try{localStorage.setItem(jsonKey,layout);localStorage.setItem(draftLayoutKey(),layout);touchDraftCache();}catch{}
       if(documentMode==="standalone")try{localStorage.setItem(LAST_STANDALONE_ID_KEY,documentId);}catch{}
       postHost("speech_bubble:autosave_layout",{revision:renderRevision,image_hash:imageHash,document_id:documentId});
       setSaveState("下書きを自動保存しました","dirty");
@@ -1783,7 +1890,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         });
         const payload=await response.json().catch(()=>({}));
         if(!response.ok||!payload.ok)throw new Error(payload.detail||`Layout save failed (${response.status})`);
-        try{localStorage.setItem(jsonKey,layout);localStorage.setItem(savedLayoutKey(),layout);localStorage.removeItem(draftLayoutKey());}catch{}
+        try{localStorage.setItem(jsonKey,layout);localStorage.setItem(savedLayoutKey(),layout);removeDraftCache();}catch{}
         if(documentMode==="standalone")try{localStorage.setItem(LAST_STANDALONE_ID_KEY,documentId);}catch{}
         lastSavedLayout=layout;hasExplicitSavedLayout=true;layoutDirty=false;updateActionState();
         postHost("speech_bubble:layout_saved",{image_hash:imageHash,document_id:documentId,layout_json:layout});
@@ -1796,25 +1903,49 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       if(!imageLoaded||!layoutDirty)return;
       if(!confirm("未保存の変更を破棄して、最後に保存したレイアウトへ戻しますか？"))return;
       clearTimeout(autoSaveTimer);autoSaveTimer=null;
-      try{localStorage.removeItem(draftLayoutKey());localStorage.setItem(jsonKey,lastSavedLayout);}catch{}
+      try{removeDraftCache();localStorage.setItem(jsonKey,lastSavedLayout);}catch{}
       applyLayoutForCurrentImage(lastSavedLayout,{dirty:false});
       postHost("speech_bubble:layout_discarded",{image_hash:imageHash,document_id:documentId});
     }
     async function exportImage(){
       if(!imageLoaded){setSaveState("背景画像を読み込んでください","error");return;}
-      const button=document.getElementById("exportImage"),original=button.textContent;let exportSucceeded=false;
+      let directory=null,fixedLocationFallback=false,clientExportToken="";
+      if(promptExportLocation){
+        if(typeof window.showDirectoryPicker==="function"){
+          try{
+            const rememberedDirectory=await loadRememberedExportDirectory(),pickerOptions={id:`sbe-${exportDirectoryVersion.slice(-12)}`,mode:"readwrite"};
+            if(rememberedDirectory)pickerOptions.startIn=rememberedDirectory;
+            else if(useForgeOutputDir&&forgeOutputDir)setSaveState(`Forge出力先を選択してください: ${forgeOutputDir}`,"info");
+            directory=await window.showDirectoryPicker(pickerOptions);
+            await storeRememberedExportDirectory(directory);
+          }catch(error){if(error?.name==="AbortError"){updateActionState();return;}setSaveState(error?.message||"保存先を選択できませんでした","error");return;}
+        }else{
+          fixedLocationFallback=true;
+          console.warn("Speech Bubble directory picker is unavailable; using the configured server output directory.");
+        }
+      }
+      const button=document.getElementById("exportImage"),original=button.textContent;let exportSucceeded=false,exportedFilename="";
       button.disabled=true;button.textContent="Exporting…";setSaveState("画像を書き出しています…","info");
       postHost("speech_bubble:export_started",{image_hash:imageHash,document_id:documentId});
       try{
         const imageDataUrl=await blobToDataUrl(await sourceImageBlob()),layout=currentLayoutJson();
         const response=await fetch(`${forgeApiBase}/export`,{
           method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({image_data_url:imageDataUrl,layout_json:layout,name:sourceName||"speech_bubble",image_hash:imageHash,document_id:documentId}),
+          body:JSON.stringify({image_data_url:imageDataUrl,layout_json:layout,name:sourceName||"speech_bubble",image_hash:imageHash,document_id:documentId,source_tab:sourceTab,client_save:Boolean(directory)}),
         });
         const payload=await response.json().catch(()=>({}));
         if(!response.ok||!payload.ok)throw new Error(payload.detail||`Export failed (${response.status})`);
-        const download=resolveForgeUrl(payload.download_url||payload.composite_url),view=resolveForgeUrl(payload.composite_url||payload.download_url);
-        downloadUrl(download,payload.filename);
+        clientExportToken=payload.client_export_token||"";
+        let download="",view="";
+        if(directory){
+          const saved=await saveClientExport(directory,payload);
+          payload.filename=saved.filename;
+          payload.overlay_filename=saved.overlayFilename||payload.overlay_filename;
+        }else{
+          download=resolveForgeUrl(payload.download_url||payload.composite_url);
+          view=resolveForgeUrl(payload.composite_url||payload.download_url);
+        }
+        exportedFilename=payload.filename;
         exportSucceeded=true;
         postHost("speech_bubble:export_complete",{
           filename:payload.filename,composite_url:view,download_url:download,
@@ -1825,7 +1956,11 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         window.opener?.focus();
       }catch(error){
         console.error("Speech Bubble export failed",error);setSaveState(error?.message||"画像の書き出しに失敗しました","error");postHost("speech_bubble:export_failed",{message:error?.message||"画像の書き出しに失敗しました。"});
-      }finally{button.disabled=false;button.textContent=original;updateActionState();if(exportSucceeded)setSaveState("画像を書き出しました",layoutDirty?"dirty":"saved");}
+      }finally{
+        if(clientExportToken)fetch(`${forgeApiBase}/client-export/${encodeURIComponent(clientExportToken)}`,{method:"DELETE"}).catch(()=>{});
+        button.disabled=false;button.textContent=original;updateActionState();
+        if(exportSucceeded)setSaveState(fixedLocationFallback?`フォルダー選択非対応のため${useForgeOutputDir?"Forge出力先":"固定保存先"}へ書き出しました`:`${exportedFilename} を書き出しました`,layoutDirty?"dirty":"saved");
+      }
     }
     function loadImageElement(url){return new Promise((resolve,reject)=>{image.onload=()=>resolve();image.onerror=()=>reject(new Error("画像を表示できませんでした。"));image.src=url;if(image.complete&&image.naturalWidth)resolve();});}
     function showImageRestoreChoice(){return new Promise(resolve=>{const dialog=document.getElementById("imageLayoutRestoreDialog");imageRestoreResolver=resolve;if(typeof dialog.showModal==="function")dialog.showModal();else{imageRestoreResolver=null;resolve(confirm("この画像の保存済みレイアウトを単体編集へコピーしますか？")?"restore":"new");}});}
@@ -1905,10 +2040,24 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     async function loadRemoteImage(url,{name=sourceName,tab=sourceTab}={}){
       if(!url)return;
       setSaveState("生成画像を読み込んでいます…","info");
-      const response=await fetch(url,{cache:"no-store"});
-      if(!response.ok)throw new Error(`背景画像を取得できませんでした (${response.status})`);
-      const blob=await response.blob();
-      await loadImageBlob(blob,{name,tab,mode:"image"});
+      const cacheId=await generatedBackgroundId(name,tab,url);
+      let blob=null,remoteError=null;
+      try{
+        const response=await fetch(url,{cache:"force-cache"});
+        if(!response.ok)throw new Error(`背景画像を取得できませんでした (${response.status})`);
+        blob=await response.blob();
+        if(!String(blob.type||"").startsWith("image/"))throw new Error("取得した背景画像の形式を確認できませんでした。");
+      }catch(error){remoteError=error;}
+      if(blob){
+        await loadImageBlob(blob,{name,tab,mode:"image"});
+        await storeGeneratedBackground(cacheId,blob,name,tab,url);
+        return;
+      }
+      const cached=await cachedBackground(cacheId);
+      if(!cached?.blob)throw remoteError||new Error("背景画像を取得できませんでした。");
+      await loadImageBlob(cached.blob,{name:cached.sourceName||name,tab:cached.sourceTab||tab,mode:"image"});
+      await storeCachedBackground(cached);
+      setSaveState("保持済みの生成画像を再表示しました","info");
     }
     async function performPendingReplacement(){
       const pending=pendingReplacementSource;pendingReplacementSource=null;
@@ -1994,7 +2143,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         const fallback=catalog.find(font=>font.recommended)||catalog[0],loaders=[];state.elements.filter(item=>item.type==="text").forEach(item=>{let font=catalog.find(candidate=>candidate.id===item.font_id)||catalog.find(candidate=>candidate.path&&candidate.path===item.font_path)||catalog.find(candidate=>fontFamilyKey(candidate.family)===fontFamilyKey(item.font_family));if(!font)font=fallback;if(font){item.font_id=font.id;item.font_family=font.family;item.font_css_family=fontCssFamily(font);item.font_path="";loaders.push(ensureFontLoaded(font));}});syncProperties();render();Promise.all(loaders).then(()=>{syncProperties();render();});
       }catch(error){console.warn("Speech Bubble font list unavailable",error);}
     }
-    const rangeSpecs={x:[-8192,8192,1],y:[-8192,8192,1],w:[1,8192,1],h:[1,8192,1],sfx_scale:[10,400,1],symbol_top_width:[20,180,1],symbol_skew:[-50,50,1],opacity:[0,1,.05],font_size:[1,500,1],tracking:[-200,500,5],font_scale_x:[10,500,1],font_scale_y:[10,500,1],rotation:[-180,180,1],stroke_width:[0,100,.5],border_width:[0,1000,1],border_width_x:[0,1000,1],border_width_y:[0,1000,1],inner_stroke_width:[0,200,1],frame_scale:[10,400,1],frame_inset:[-2048,2048,1],shadow_opacity:[0,1,.05],shadow_x:[-500,500,1],shadow_y:[-500,500,1],shadow_blur:[0,200,1],glow_opacity:[0,1,.05],glow_blur:[0,200,1],glow_spread:[0,100,1],shape_intensity:[0,100,1],shape_asymmetry:[0,100,1],shape_roundness:[0,100,1],spike_count:[5,32,1],valley_concavity:[0,100,1],lobe_count:[5,20,1],lobe_depth:[0,100,1],shape_softness:[0,100,1],line_count:[20,500,1],inner_x:[.03,.48,.005],inner_y:[.03,.48,.005],line_width:[.0005,.035,.0005],line_length:[.15,1,.01],taper:[0,1,.01],center_x:[-.5,1.5,.005],center_y:[-.5,1.5,.005],length_random:[0,1,.01],inner_random:[0,1,.01],width_random:[0,1,.01],spacing_random:[0,1,.01],seed:[0,4294967295,1]};
+    const rangeSpecs={x:[-8192,8192,1],y:[-8192,8192,1],w:[1,8192,1],h:[1,8192,1],sfx_scale:[10,400,1],symbol_top_width:[20,180,1],symbol_skew:[-50,50,1],opacity:[0,1,.05],font_size:[1,500,1],tracking:[-200,500,5],font_scale_x:[10,500,1],font_scale_y:[10,500,1],rotation:[-180,180,1],stroke_width:[0,100,.5],border_width:[0,1000,1],border_width_x:[0,1000,1],border_width_y:[0,1000,1],inner_stroke_width:[0,200,1],frame_scale:[10,400,1],frame_inset:[-2048,2048,1],shadow_opacity:[0,1,.05],shadow_x:[-500,500,1],shadow_y:[-500,500,1],shadow_blur:[0,200,1],glow_opacity:[0,1,.05],glow_blur:[0,200,1],glow_spread:[0,100,1],shape_intensity:[0,100,1],shape_asymmetry:[0,100,1],shape_roundness:[0,100,1],spike_count:[5,32,1],valley_concavity:[0,100,1],lobe_count:[5,20,1],lobe_depth:[0,100,1],shape_softness:[0,100,1],line_count:[20,500,1],inner_x:[.03,.65,.005],inner_y:[.03,.65,.005],line_width:[.0005,.035,.0005],line_length:[.15,1,.01],taper:[0,1,.01],center_x:[-.5,1.5,.005],center_y:[-.5,1.5,.005],length_random:[0,1,.01],inner_random:[0,1,.01],width_random:[0,1,.01],spacing_random:[0,1,.01],seed:[0,4294967295,1]};
     function numericStepDecimals(step){const text=String(step),decimal=text.indexOf(".");return decimal<0?0:Math.min(4,text.length-decimal-1);}
     function normalizeNumericValue(key,value,fallback=0){const spec=rangeSpecs[key];let number=Number(value);if(!Number.isFinite(number)){number=Number(fallback);if(!Number.isFinite(number))number=0;}if(key==="tracking")return trackingValue(number,fallback);if(!spec)return Object.is(number,-0)?0:number;const [minimum,maximum,step]=spec;number=Math.max(minimum,Math.min(maximum,number));if(step>0)number=Math.round(number/step)*step;number=Number(number.toFixed(numericStepDecimals(step)));return Object.is(number,-0)?0:number;}
     function numericDisplayValue(key,value,fallback=0){return String(normalizeNumericValue(key,value,fallback));}
@@ -2128,7 +2277,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("chooseBackgroundImage").onclick=chooseBackground;
     backgroundInput.addEventListener("change",()=>{const file=backgroundInput.files?.[0];if(file)requestBackgroundFile(file);backgroundInput.value="";});
     document.getElementById("replaceCancel").onclick=()=>{pendingReplacementSource=null;document.getElementById("replaceImageDialog").close();};
-    document.getElementById("replaceDiscard").onclick=async()=>{try{if(documentId)localStorage.removeItem(draftLayoutKey());}catch{}document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
+    document.getElementById("replaceDiscard").onclick=async()=>{try{if(documentId)removeDraftCache();}catch{}document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
     document.getElementById("replaceSave").onclick=async()=>{if(!(await saveLayoutExplicit()))return;document.getElementById("replaceImageDialog").close();await performPendingReplacement();};
     document.getElementById("imageRestoreCancel").onclick=()=>finishDialogChoice("imageLayoutRestoreDialog","image","cancel");
     document.getElementById("imageRestoreNew").onclick=()=>finishDialogChoice("imageLayoutRestoreDialog","image","new");
@@ -2204,6 +2353,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       document.documentElement.dataset.theme=initialTheme==="light"?"light":initialTheme==="dark"?"dark":(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");
       initializePresetUI();initializeSfxSwatches();initializeCompactColorSwatches();refreshQuickSfx();refreshQuickFrames();refreshQuickEmphasisLines();initializeDrawerResize();initializeAccordionState();initializeLeftSectionState();initializeRightDockDefault();initializeRightDockResize();enhanceNumericInputs();loadUserPresets();
       loadState("{}");lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=false;layoutDirty=false;imageLoaded=false;updateActionState();firstPaint();
+      deferEditorTask(()=>{pruneDraftCache();pruneDocumentBackgrounds();});
       if(imageUrl){
         try{await loadRemoteImage(imageUrl,{name:sourceName,tab:sourceTab});}
         catch(error){console.error("Speech Bubble initial image load failed",error);imageLoaded=false;updateActionState();setSaveState(error?.message||"背景画像を読み込めませんでした","error");}

@@ -2791,10 +2791,10 @@ def _normalize_emphasis_params(source):
             source.get("line_count"), 20, 500, base["line_count"]
         )),
         "inner_x": _emphasis_clamp(
-            source.get("inner_x"), 0.03, 0.48, base["inner_x"]
+            source.get("inner_x"), 0.03, 0.65, base["inner_x"]
         ),
         "inner_y": _emphasis_clamp(
-            source.get("inner_y"), 0.03, 0.48, base["inner_y"]
+            source.get("inner_y"), 0.03, 0.65, base["inner_y"]
         ),
         "line_width": _emphasis_clamp(
             source.get("line_width"), 0.0005, 0.035, base["line_width"]

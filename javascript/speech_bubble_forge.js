@@ -5,12 +5,28 @@
     const EDITOR_WINDOW_STATE_KEY = "speech-bubble/editor/window-state:v1";
     const DEFAULT_SETTINGS = Object.freeze({
         output_dir: "outputs/speech-bubble-forge",
+        fixed_output_dir: "outputs/speech-bubble-forge",
+        forge_output_dir: "outputs",
+        forge_output_dirs: {},
+        prompt_export_location: true,
+        use_forge_output_dir: true,
+        remember_export_directory: true,
+        export_directory_version: "0",
+        filename_format: "source_datetime",
+        date_subfolder: "none",
+        backup_enabled: true,
+        backup_generations: 5,
+        output_format: "png",
+        png_compression: 6,
+        jpeg_quality: 95,
+        webp_quality: 90,
+        webp_lossless: false,
         window_width: 1440,
         window_height: 900,
         supersample: 2,
         auto_save: true,
         keep_previous_layout: true,
-        save_overlay: true,
+        save_overlay: false,
         asset_cache_version: "0",
     });
 
@@ -23,6 +39,7 @@
     let latestOpenRequestId = null;
     let pendingOpenRequest = null;
     let pingRetryTimers = [];
+    let focusRetryTimers = [];
 
     const appRoot = () => (typeof gradioApp === "function" ? gradioApp() : document);
 
@@ -133,12 +150,36 @@
     function normalizeSettings(payload) {
         return {
             output_dir: String(payload?.output_dir || DEFAULT_SETTINGS.output_dir),
+            fixed_output_dir: String(payload?.fixed_output_dir || DEFAULT_SETTINGS.fixed_output_dir),
+            forge_output_dir: String(payload?.forge_output_dir || DEFAULT_SETTINGS.forge_output_dir),
+            forge_output_dirs: payload?.forge_output_dirs && typeof payload.forge_output_dirs === "object"
+                ? payload.forge_output_dirs
+                : DEFAULT_SETTINGS.forge_output_dirs,
+            prompt_export_location: payload?.prompt_export_location !== false,
+            use_forge_output_dir: payload?.use_forge_output_dir !== false,
+            remember_export_directory: payload?.remember_export_directory !== false,
+            export_directory_version: String(payload?.export_directory_version || DEFAULT_SETTINGS.export_directory_version),
+            filename_format: ["source_datetime", "source_sequence", "source_only", "speech_bubble_datetime"].includes(payload?.filename_format)
+                ? payload.filename_format
+                : DEFAULT_SETTINGS.filename_format,
+            date_subfolder: ["none", "year_month", "year_month_day"].includes(payload?.date_subfolder)
+                ? payload.date_subfolder
+                : DEFAULT_SETTINGS.date_subfolder,
+            backup_enabled: payload?.backup_enabled !== false,
+            backup_generations: Math.max(1, Math.min(20, Number(payload?.backup_generations) || DEFAULT_SETTINGS.backup_generations)),
+            output_format: ["png", "jpeg", "webp"].includes(payload?.output_format)
+                ? payload.output_format
+                : DEFAULT_SETTINGS.output_format,
+            png_compression: Math.max(0, Math.min(9, Number.isFinite(Number(payload?.png_compression)) ? Number(payload.png_compression) : DEFAULT_SETTINGS.png_compression)),
+            jpeg_quality: Math.max(1, Math.min(100, Number(payload?.jpeg_quality) || DEFAULT_SETTINGS.jpeg_quality)),
+            webp_quality: Math.max(1, Math.min(100, Number(payload?.webp_quality) || DEFAULT_SETTINGS.webp_quality)),
+            webp_lossless: payload?.webp_lossless === true,
             window_width: Math.max(900, Math.min(3840, Number(payload?.window_width) || DEFAULT_SETTINGS.window_width)),
             window_height: Math.max(640, Math.min(2160, Number(payload?.window_height) || DEFAULT_SETTINGS.window_height)),
             supersample: Math.max(1, Math.min(4, Number(payload?.supersample) || DEFAULT_SETTINGS.supersample)),
             auto_save: payload?.auto_save !== false,
             keep_previous_layout: payload?.keep_previous_layout !== false,
-            save_overlay: payload?.save_overlay !== false,
+            save_overlay: payload?.save_overlay === true,
             asset_cache_version: String(payload?.asset_cache_version || DEFAULT_SETTINGS.asset_cache_version),
         };
     }
@@ -240,6 +281,18 @@
         editor.searchParams.set("autoSave", runtimeSettings.auto_save ? "1" : "0");
         editor.searchParams.set("autoSaveDelay", "2200");
         editor.searchParams.set("keepLayout", runtimeSettings.keep_previous_layout ? "1" : "0");
+        editor.searchParams.set("promptExportLocation", runtimeSettings.prompt_export_location ? "1" : "0");
+        editor.searchParams.set("useForgeOutputDir", runtimeSettings.use_forge_output_dir ? "1" : "0");
+        editor.searchParams.set("rememberExportDirectory", runtimeSettings.remember_export_directory ? "1" : "0");
+        editor.searchParams.set("exportDirectoryVersion", runtimeSettings.export_directory_version);
+        editor.searchParams.set(
+            "forgeOutputDir",
+            runtimeSettings.forge_output_dirs?.[session.tabName] || runtimeSettings.forge_output_dir,
+        );
+        editor.searchParams.set("filenameFormat", runtimeSettings.filename_format);
+        editor.searchParams.set("dateSubfolder", runtimeSettings.date_subfolder);
+        editor.searchParams.set("backupEnabled", runtimeSettings.backup_enabled ? "1" : "0");
+        editor.searchParams.set("backupGenerations", String(runtimeSettings.backup_generations));
         editor.searchParams.set("theme", currentTheme || detectForgeTheme());
         editor.searchParams.set("assetVersion", runtimeSettings.asset_cache_version);
         editor.searchParams.set("sourceTab", session.tabName || "");
@@ -247,7 +300,7 @@
         editor.searchParams.set("mode", session.mode || (session.imageUrl ? "image" : "standalone"));
         if (session.standaloneId) editor.searchParams.set("standaloneId", session.standaloneId);
         if (session.imageUrl) editor.searchParams.set("imageUrl", session.imageUrl);
-        editor.searchParams.set("v", "20260723-06");
+        editor.searchParams.set("v", "20260724-06");
         return editor.toString();
     }
 
@@ -270,6 +323,7 @@
     function cleanupEditor() {
         clearEditorCloseMonitor();
         clearPingRetries();
+        clearFocusRetries();
         activeSession = null;
         pendingOpenRequest = null;
         latestOpenRequestId = null;
@@ -297,6 +351,31 @@
         pingRetryTimers = [];
     }
 
+    function clearFocusRetries() {
+        focusRetryTimers.forEach(clearTimeout);
+        focusRetryTimers = [];
+    }
+
+    function requestEditorFocus(candidate = editorWindow, requestId = latestOpenRequestId) {
+        if (!candidate || candidate.closed) return;
+        clearFocusRetries();
+        for (const delay of [0, 90, 240]) {
+            focusRetryTimers.push(setTimeout(() => {
+                if (
+                    !candidate ||
+                    candidate.closed ||
+                    candidate !== editorWindow ||
+                    (requestId && requestId !== latestOpenRequestId)
+                ) return;
+                candidate.postMessage(
+                    { type: "speech_bubble:request_focus", requestId },
+                    location.origin,
+                );
+                candidate.focus();
+            }, delay));
+        }
+    }
+
     function sendEditorPing(candidate, requestId) {
         candidate.postMessage({ type: "speech_bubble:host_ping", requestId }, location.origin);
     }
@@ -306,7 +385,7 @@
         pendingOpenRequest = { candidate, requested, requestId };
         latestOpenRequestId = requestId;
         clearPingRetries();
-        for (const delay of [0, 140, 360]) {
+        for (const delay of [0, 140, 360, 800, 1400]) {
             pingRetryTimers.push(setTimeout(() => {
                 if (requestId !== latestOpenRequestId || !editorWindow || editorWindow.closed) return;
                 sendEditorPing(candidate, requestId);
@@ -430,42 +509,11 @@
         openEditor({ sourceName: "speech_bubble", tabName, mode: "standalone", standaloneId: randomUuid() });
     }
 
-    function bestEffortGalleryInsert(tabName, imageUrl, filename) {
+    function removeLegacyExportResults() {
         const root = appRoot();
-        const gallery = root.querySelector(`#${tabName}_gallery`);
-        const row = root.querySelector(`#image_buttons_${tabName}`);
-        if (!gallery || !row || !imageUrl) return false;
-
-        let result = row.parentElement?.querySelector(`[data-speech-bubble-export-result="${tabName}"]`);
-        if (!result) {
-            result = document.createElement("a");
-            result.dataset.speechBubbleExportResult = tabName;
-            result.className = "speech-bubble-forge-export-result";
-            result.target = "_blank";
-            result.rel = "noopener";
-            result.innerHTML = '<img alt="Speech Bubble export"><span></span>';
-            row.insertAdjacentElement("afterend", result);
-        }
-        result.href = imageUrl;
-        result.querySelector("img").src = imageUrl;
-        result.querySelector("span").textContent = filename || "Speech Bubble export";
-
-        const thumbnails = gallery.querySelector(".thumbnails");
-        const alreadyAdded = thumbnails && Array.from(thumbnails.querySelectorAll("[data-speech-bubble-export-url]")).some((item) => item.dataset.speechBubbleExportUrl === imageUrl);
-        if (thumbnails && !alreadyAdded) {
-            const thumbnail = document.createElement("button");
-            thumbnail.type = "button";
-            thumbnail.className = "thumbnail-item thumbnail-small speech-bubble-forge-export-thumb";
-            thumbnail.dataset.speechBubbleExportUrl = imageUrl;
-            thumbnail.title = filename || "Speech Bubble export";
-            const img = document.createElement("img");
-            img.src = imageUrl;
-            img.alt = filename || "Speech Bubble export";
-            thumbnail.appendChild(img);
-            thumbnail.addEventListener("click", () => window.open(imageUrl, "_blank", "noopener"));
-            thumbnails.appendChild(thumbnail);
-        }
-        return true;
+        root.querySelectorAll(
+            "[data-speech-bubble-export-result], [data-speech-bubble-export-url], .speech-bubble-forge-export-result, .speech-bubble-forge-export-thumb",
+        ).forEach((node) => node.remove());
     }
 
     window.addEventListener("message", (event) => {
@@ -490,8 +538,7 @@
                 mode: data.mode || "",
             };
             installEditorCloseMonitor();
-            editorWindow.postMessage({ type: "speech_bubble:request_focus", requestId }, location.origin);
-            editorWindow.focus();
+            requestEditorFocus(editorWindow, requestId);
             if (requested.mode === "image" && requested.imageUrl) {
                 sendSourceToExisting(requested, requestId);
             } else if (
@@ -533,6 +580,7 @@
 
         switch (data.type) {
             case "speech_bubble:editor_ready":
+                requestEditorFocus(event.source, latestOpenRequestId);
                 setPanelStatus(tabName, "Editor: Ready", "success");
                 break;
             case "speech_bubble:source_loaded":
@@ -570,7 +618,7 @@
                 break;
             case "speech_bubble:export_complete": {
                 const compositeUrl = data.composite_url ? apiPath(data.composite_url) : null;
-                if (compositeUrl) bestEffortGalleryInsert(tabName, compositeUrl, data.filename);
+                removeLegacyExportResults();
                 window.focus();
                 setPanelStatus(
                     tabName,
@@ -715,6 +763,7 @@
 
     function installUi() {
         syncTheme();
+        removeLegacyExportResults();
         for (const tabName of ["txt2img", "img2img"]) {
             addGalleryButton(tabName);
             addQuickPanel(tabName);

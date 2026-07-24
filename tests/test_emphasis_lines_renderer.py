@@ -30,8 +30,12 @@ def test_presets_and_determinism():
     normalized = renderer._normalize_emphasis_params({
         **renderer._EMPHASIS_PRESETS["center"],
         "preset": "center",
+        "inner_x": 0.75,
+        "inner_y": 0.75,
         "overshoot": 0.12,
     })
+    assert normalized["inner_x"] == 0.65
+    assert normalized["inner_y"] == 0.65
     assert normalized["overshoot"] == renderer._EMPHASIS_EDGE_OVERSHOOT
 
 

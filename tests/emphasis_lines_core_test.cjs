@@ -33,7 +33,7 @@ const Core = context.EmphasisLinesCore;
 assert.strictEqual(Core.EMPHASIS_PRESETS.length, 4);
 assert.strictEqual(Core.EMPHASIS_EDGE_OVERSHOOT, 0.035);
 assert.strictEqual(Core.EMPHASIS_GAP_MIN, 0.03);
-assert.strictEqual(Core.EMPHASIS_GAP_MAX, 0.48);
+assert.strictEqual(Core.EMPHASIS_GAP_MAX, 0.65);
 for (const key of ["inner_random", "seed", "w", "h"]) {
   assert(Core.EMPHASIS_GEOMETRY_KEYS.has(key));
 }
@@ -116,8 +116,8 @@ const scaledGap = Core.scaleCenterGapPair(0.15, 0.20, initialGap * 1.2);
 assert(Math.abs(scaledGap.inner_x - 0.18) < 1e-12);
 assert(Math.abs(scaledGap.inner_y - 0.24) < 1e-12);
 assert(Math.abs(scaledGap.inner_x / scaledGap.inner_y - 0.75) < 1e-12);
-const clampedGap = Core.scaleCenterGapPair(0.30, 0.40, 0.48);
-assert(clampedGap.inner_x <= 0.48 && clampedGap.inner_y <= 0.48);
+const clampedGap = Core.scaleCenterGapPair(0.30, 0.40, 0.65);
+assert(clampedGap.inner_x <= 0.65 && clampedGap.inner_y <= 0.65);
 assert(Math.abs(clampedGap.inner_x / clampedGap.inner_y - 0.75) < 1e-12);
 assert.strictEqual(
   Core.normalizeEmphasisParams({

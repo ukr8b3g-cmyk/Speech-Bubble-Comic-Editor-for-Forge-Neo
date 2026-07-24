@@ -7,9 +7,11 @@ import json
 import mimetypes
 import re
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse
@@ -20,6 +22,7 @@ from .font_catalog import font_by_id, public_fonts
 from .presets import read_user_presets, update_user_presets
 from .renderer import get_frame_asset_catalog, get_sfx_asset_catalog, render_composite
 from .settings import (
+    allowed_output_roots,
     data_root,
     layout_root,
     output_root,
@@ -37,6 +40,8 @@ _FINGERPRINT_RE = re.compile(r"^[a-f0-9]{64}$")
 _DOCUMENT_ID_RE = re.compile(
     r"^(image:[a-f0-9]{64}|standalone:[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$"
 )
+_CLIENT_EXPORT_TOKEN_RE = re.compile(r"^[a-f0-9]{32}$")
+_CLIENT_EXPORT_MAX_AGE = 60 * 60
 
 
 def preset_path() -> Path:
@@ -99,14 +104,129 @@ def _validate_layout(raw_layout) -> tuple[str, dict]:
     return normalized, parsed
 
 
-def _write_png(image, path):
+def _write_image(image, path, image_format, settings):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        image.save(temporary, format="PNG", compress_level=4)
+        if image_format == "png":
+            image.save(
+                temporary,
+                format="PNG",
+                compress_level=settings.png_compression,
+            )
+        elif image_format == "jpeg":
+            rgba = image.convert("RGBA")
+            flattened = Image.new("RGB", rgba.size, "white")
+            flattened.paste(rgba, mask=rgba.getchannel("A"))
+            flattened.save(
+                temporary,
+                format="JPEG",
+                quality=settings.jpeg_quality,
+                optimize=True,
+            )
+        elif image_format == "webp":
+            image.save(
+                temporary,
+                format="WEBP",
+                quality=settings.webp_quality,
+                lossless=settings.webp_lossless,
+                method=6,
+            )
+        else:
+            raise ValueError("Unsupported output format")
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _write_png(image, path, settings):
+    _write_image(image, path, "png", settings)
+
+
+def _output_extension(image_format: str) -> str:
+    return {"png": ".png", "jpeg": ".jpg", "webp": ".webp"}[image_format]
+
+
+def _dated_output_root(root: Path, now: datetime, mode: str) -> Path:
+    if mode == "year_month":
+        return root / f"{now:%Y-%m}"
+    if mode == "year_month_day":
+        return root / f"{now:%Y-%m-%d}"
+    return root
+
+
+def _export_stem(prefix: str, now: datetime, filename_format: str, root: Path, extension: str) -> str:
+    if filename_format == "source_only":
+        return f"{prefix}_edited"
+    if filename_format == "source_sequence":
+        for sequence in range(1, 1_000_000):
+            stem = f"{prefix}_{sequence:04d}"
+            if not (root / f"{stem}{extension}").exists():
+                return stem
+        raise ValueError("Could not allocate the next output sequence")
+    if filename_format == "speech_bubble_datetime":
+        prefix = "speech_bubble"
+    return f"{prefix}_{now:%Y%m%d_%H%M%S_%f}"
+
+
+def _rotate_backups(path: Path, generations: int) -> None:
+    if not path.exists():
+        return
+    backup_pattern = re.compile(
+        rf"^{re.escape(path.stem)}_backup_(\d+){re.escape(path.suffix)}$"
+    )
+    for candidate in path.parent.glob(f"{path.stem}_backup_*{path.suffix}"):
+        match = backup_pattern.fullmatch(candidate.name)
+        if match and int(match.group(1)) > generations:
+            candidate.unlink(missing_ok=True)
+    for index in range(generations, 1, -1):
+        previous = path.with_name(f"{path.stem}_backup_{index - 1:02d}{path.suffix}")
+        target = path.with_name(f"{path.stem}_backup_{index:02d}{path.suffix}")
+        if previous.exists():
+            target.unlink(missing_ok=True)
+            previous.replace(target)
+    first = path.with_name(f"{path.stem}_backup_01{path.suffix}")
+    first.unlink(missing_ok=True)
+    path.replace(first)
+
+
+def _client_export_root() -> Path:
+    return (data_root() / "config" / "speech-bubble-forge" / "export-temp").resolve()
+
+
+def _client_export_dir(token: str) -> Path:
+    if not _CLIENT_EXPORT_TOKEN_RE.fullmatch(str(token or "")):
+        raise HTTPException(status_code=404, detail="Temporary export not found")
+    return _client_export_root() / token
+
+
+def _remove_client_export(token: str) -> bool:
+    directory = _client_export_dir(token)
+    if not directory.is_dir():
+        return False
+    for child in directory.iterdir():
+        if child.is_file():
+            child.unlink(missing_ok=True)
+    directory.rmdir()
+    return True
+
+
+def _cleanup_stale_client_exports() -> None:
+    root = _client_export_root()
+    if not root.is_dir():
+        return
+    cutoff = time.time() - _CLIENT_EXPORT_MAX_AGE
+    for directory in root.iterdir():
+        if (
+            directory.is_dir()
+            and _CLIENT_EXPORT_TOKEN_RE.fullmatch(directory.name)
+            and directory.stat().st_mtime < cutoff
+        ):
+            _remove_client_export(directory.name)
+
+
+def _output_url(prefix: str, relative_path: Path) -> str:
+    return f"/speech-bubble-forge/{prefix}/{quote(relative_path.as_posix(), safe='/')}"
 
 
 def _write_text_atomic(path: Path, text: str) -> None:
@@ -131,15 +251,15 @@ def _route_exists(app, path, method=None):
 
 
 def _safe_output_file(filename: str) -> Path:
-    root = output_root()
-    candidate = (root / filename).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as error:
-        raise HTTPException(status_code=404, detail="Output file not found") from error
-    if not candidate.is_file():
-        raise HTTPException(status_code=404, detail="Output file not found")
-    return candidate
+    for root in allowed_output_roots():
+        candidate = (root / filename).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            return candidate
+    raise HTTPException(status_code=404, detail="Output file not found")
 
 
 def _layout_file(document_id: str) -> Path:
@@ -159,6 +279,8 @@ def register_routes(app):
 
     output_root().mkdir(parents=True, exist_ok=True)
     layout_root().mkdir(parents=True, exist_ok=True)
+    _client_export_root().mkdir(parents=True, exist_ok=True)
+    _cleanup_stale_client_exports()
 
     if not _route_exists(app, "/speech-bubble-forge/static"):
         app.mount(
@@ -187,6 +309,23 @@ def register_routes(app):
         path = _safe_output_file(filename)
         media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         return FileResponse(path, media_type=media_type)
+
+    async def client_export_file(token: str, kind: str):
+        if kind not in {"composite", "overlay"}:
+            raise HTTPException(status_code=404, detail="Temporary export not found")
+        directory = _client_export_dir(token)
+        candidates = list(directory.glob(f"{kind}.*")) if directory.is_dir() else []
+        if len(candidates) != 1 or not candidates[0].is_file():
+            raise HTTPException(status_code=404, detail="Temporary export not found")
+        path = candidates[0]
+        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        return FileResponse(path, media_type=media_type)
+
+    async def delete_client_export(token: str):
+        try:
+            return {"ok": True, "deleted": _remove_client_export(token)}
+        except OSError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     async def fonts():
         return {"fonts": public_fonts()}
@@ -286,6 +425,7 @@ def register_routes(app):
             raise HTTPException(status_code=400, detail=str(error)) from error
 
     async def export_image(request: Request):
+        client_token = ""
         try:
             payload = await request.json()
             _normalized_layout, parsed_layout = _validate_layout(payload.get("layout_json", "{}"))
@@ -300,41 +440,115 @@ def register_routes(app):
 
             now = datetime.now()
             prefix = _safe_name(payload.get("name") or "speech_bubble")
-            stem = f"{prefix}_{now:%Y%m%d_%H%M%S_%f}_{uuid.uuid4().hex[:8]}"
-            out_root = output_root()
+            extension = _output_extension(settings.output_format)
+            client_save = payload.get("client_save") is True
+            source_tab = str(payload.get("source_tab") or "").strip().lower()
+            if client_save:
+                _cleanup_stale_client_exports()
+                client_token = uuid.uuid4().hex
+                out_root = _client_export_dir(client_token)
+                export_root = out_root
+            else:
+                out_root = output_root(source_tab)
+                export_root = _dated_output_root(
+                    out_root,
+                    now,
+                    settings.date_subfolder,
+                )
+            stem = _export_stem(
+                prefix,
+                now,
+                settings.filename_format,
+                export_root,
+                extension,
+            )
 
             with _SAVE_LOCK:
-                out_root.mkdir(parents=True, exist_ok=True)
-                composite_path = out_root / f"{stem}.png"
-                overlay_path = out_root / f"{stem}_overlay.png"
-                _write_png(composite, composite_path)
+                export_root.mkdir(parents=True, exist_ok=True)
+                composite_path = (
+                    export_root / f"composite{extension}"
+                    if client_save
+                    else export_root / f"{stem}{extension}"
+                )
+                overlay_path = (
+                    export_root / "overlay.png"
+                    if client_save
+                    else export_root / f"{stem}_overlay.png"
+                )
+                if not client_save and settings.backup_enabled:
+                    _rotate_backups(composite_path, settings.backup_generations)
+                    if settings.save_overlay:
+                        _rotate_backups(overlay_path, settings.backup_generations)
+                _write_image(
+                    composite,
+                    composite_path,
+                    settings.output_format,
+                    settings,
+                )
                 if settings.save_overlay:
-                    _write_png(overlay, overlay_path)
+                    _write_png(overlay, overlay_path, settings)
+
+            if client_save:
+                composite_url = (
+                    f"/speech-bubble-forge/client-export/{client_token}/composite"
+                )
+                overlay_url = (
+                    f"/speech-bubble-forge/client-export/{client_token}/overlay"
+                    if settings.save_overlay
+                    else None
+                )
+                relative_path = None
+                filename = f"{stem}{extension}"
+                overlay_filename = f"{stem}_overlay.png"
+            else:
+                relative_path = composite_path.relative_to(out_root)
+                overlay_relative = overlay_path.relative_to(out_root)
+                composite_url = _output_url("view", relative_path)
+                overlay_url = (
+                    _output_url("view", overlay_relative)
+                    if settings.save_overlay
+                    else None
+                )
+                filename = composite_path.name
+                overlay_filename = overlay_path.name
 
             return {
                 "ok": True,
-                "filename": composite_path.name,
-                "composite_url": f"/speech-bubble-forge/view/{composite_path.name}",
-                "download_url": f"/speech-bubble-forge/output/{composite_path.name}",
-                "overlay_url": (
-                    f"/speech-bubble-forge/view/{overlay_path.name}"
-                    if settings.save_overlay
-                    else None
+                "filename": filename,
+                "overlay_filename": overlay_filename if settings.save_overlay else None,
+                "relative_path": relative_path.as_posix() if relative_path else None,
+                "composite_url": composite_url,
+                "download_url": (
+                    composite_url
+                    if client_save
+                    else _output_url("output", relative_path)
                 ),
+                "overlay_url": overlay_url,
                 "overlay_download_url": (
-                    f"/speech-bubble-forge/output/{overlay_path.name}"
-                    if settings.save_overlay
-                    else None
+                    overlay_url
+                    if client_save
+                    else (
+                        _output_url("output", overlay_relative)
+                        if settings.save_overlay
+                        else None
+                    )
                 ),
+                "client_export_token": client_token or None,
+                "client_save": client_save,
                 "width": composite.width,
                 "height": composite.height,
                 "supersample": settings.supersample,
                 "save_overlay": settings.save_overlay,
-                "output_dir": str(out_root),
+                "output_format": settings.output_format,
+                "output_dir": None if client_save else str(export_root),
             }
         except (ValueError, OSError, json.JSONDecodeError) as error:
+            if client_token:
+                _remove_client_export(client_token)
             raise HTTPException(status_code=400, detail=str(error)) from error
         except Exception as error:
+            if client_token:
+                _remove_client_export(client_token)
             raise HTTPException(
                 status_code=500,
                 detail=f"Speech Bubble export failed: {error}",
@@ -345,6 +559,16 @@ def register_routes(app):
         ("/speech-bubble-forge/config", config, ["GET"]),
         ("/speech-bubble-forge/output/{filename:path}", output_file, ["GET"]),
         ("/speech-bubble-forge/view/{filename:path}", view_file, ["GET"]),
+        (
+            "/speech-bubble-forge/client-export/{token}/{kind}",
+            client_export_file,
+            ["GET"],
+        ),
+        (
+            "/speech-bubble-forge/client-export/{token}",
+            delete_client_export,
+            ["DELETE"],
+        ),
         ("/speech-bubble-forge/layout/{fingerprint}", get_layout, ["GET"]),
         ("/speech-bubble-forge/layout/{fingerprint}", put_layout, ["PUT"]),
         ("/speech-bubble-forge/layout/{fingerprint}", delete_layout, ["DELETE"]),
