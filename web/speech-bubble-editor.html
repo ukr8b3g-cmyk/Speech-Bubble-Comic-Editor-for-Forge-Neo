@@ -93,7 +93,7 @@
     .compact-swatch-controls .segmented button { min-height:22px; padding:2px 7px; font-size:10px; }
     .sfx-color-mode .segmented { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .compact-color-swatches { display:grid; grid-template-columns:repeat(auto-fill,16px); gap:3px; margin:3px 0 6px; }
-    .compact-color-swatch { width:16px; min-width:16px; height:16px; padding:0; border:1px solid #59616d; border-radius:2px; background:var(--swatch-color) !important; cursor:pointer; box-sizing:border-box; }
+    .compact-color-swatch { width:16px; min-width:16px; max-width:16px; height:16px; min-height:16px; max-height:16px; aspect-ratio:1; padding:0; border:1px solid #59616d; border-radius:2px; background:var(--swatch-color) !important; cursor:pointer; box-sizing:border-box; }
     .compact-color-swatch::before { content:none; }
     .compact-color-swatch:hover { transform:scale(1.12); z-index:1; }
     .compact-color-swatch.active { outline:2px solid #67aaf9; outline-offset:1px; }

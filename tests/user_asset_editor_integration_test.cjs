@@ -20,6 +20,7 @@ assert.match(editor, /style\?style\.shadow_enabled:false/);
 assert.match(editor, /style\?style\.glow_enabled:false/);
 assert.match(editor, /id="shadowColorSwatches"/);
 assert.match(editor, /id="glowColorSwatches"/);
+assert.match(editor, /\.compact-color-swatch \{ width:16px; min-width:16px; max-width:16px; height:16px; min-height:16px; max-height:16px; aspect-ratio:1;/);
 assert.match(editor, /shadow:"shadow_color"/);
 assert.match(editor, /glow:"glow_color"/);
 assert.match(editor, /type==="glow"\?item\?\.type==="sfx"/);
