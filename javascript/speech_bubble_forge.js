@@ -690,11 +690,17 @@
                 break;
             case "speech_bubble:export_complete": {
                 const compositeUrl = data.composite_url ? apiPath(data.composite_url) : null;
+                const timings = data.timings_ms && typeof data.timings_ms === "object" ? data.timings_ms : null;
+                const seconds = (value) => `${(Math.max(0, Number(value) || 0) / 1000).toFixed(Number(value) < 1000 ? 2 : 1)}s`;
+                const timingText = timings
+                    ? ` / 合計 ${seconds(timings.total)} / PNG ${seconds(timings.canvas_png)} / API ${seconds(timings.api_roundtrip)}${timings.folder_save ? ` / 保存 ${seconds(timings.folder_save)}` : ""}`
+                    : "";
                 removeLegacyExportResults();
                 window.focus();
+                if (timings) console.info("Speech Bubble export timings", timings);
                 setPanelStatus(
                     tabName,
-                    `画像書き出し完了: ${data.width || "?"}×${data.height || "?"} / ${data.render_mode === "browser_canvas_v1" ? "WYSIWYG" : `SS ${data.supersample || runtimeSettings.supersample}`}`,
+                    `画像書き出し完了: ${data.width || "?"}×${data.height || "?"} / ${data.render_mode === "browser_canvas_v1" ? "WYSIWYG" : `SS ${data.supersample || runtimeSettings.supersample}`}${timingText}`,
                     "success",
                     compositeUrl,
                 );

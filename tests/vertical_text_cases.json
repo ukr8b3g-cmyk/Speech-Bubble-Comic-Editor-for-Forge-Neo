@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "writing_modes": [
+    "vertical",
+    "vertical-rl",
+    "vertical-lr"
+  ],
+  "cases": [
+    {"id": "reported", "text": "2おおー"},
+    {"id": "digits", "text": "12345"},
+    {"id": "latin", "text": "ABCabc"},
+    {"id": "hiragana-prolonged", "text": "あいうえおー"},
+    {"id": "katakana-prolonged", "text": "カタカナー"},
+    {"id": "small-kana", "text": "きゃっ！"},
+    {"id": "corner-brackets", "text": "「縦書き」"},
+    {"id": "parentheses", "text": "（テスト）"},
+    {"id": "ellipsis", "text": "……"},
+    {"id": "dakuten-precomposed", "text": "がぎぐげご"},
+    {"id": "handakuten-precomposed", "text": "ぱぴぷぺぽ"},
+    {"id": "small-kana-matrix", "text": "ぁぃぅぇぉゃゅょっ"},
+    {"id": "combining-dakuten", "text": "がぎ"},
+    {"id": "punctuation", "text": "、。！？：；"},
+    {"id": "multicolumn", "text": "右列\n左列"}
+  ]
+}

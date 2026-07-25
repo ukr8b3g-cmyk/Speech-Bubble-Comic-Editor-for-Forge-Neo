@@ -666,10 +666,12 @@ def register_routes(app):
 
     async def export_image(request: Request):
         client_token = ""
+        request_started = time.perf_counter()
         try:
             payload = await _export_request_payload(request)
             _normalized_layout, parsed_layout = _validate_layout(payload.get("layout_json", "{}"))
             settings = public_settings()
+            parsed_at = time.perf_counter()
             browser_canvas = _browser_canvas_export(
                 payload,
                 parsed_layout,
@@ -689,6 +691,7 @@ def register_routes(app):
             else:
                 composite, overlay, composite_png, overlay_png = browser_canvas
                 render_mode = "browser_canvas_v1"
+            rendered_at = time.perf_counter()
 
             now = datetime.now()
             prefix = _safe_name(payload.get("name") or "speech_bubble")
@@ -715,6 +718,7 @@ def register_routes(app):
                 extension,
             )
 
+            save_started = time.perf_counter()
             with _SAVE_LOCK:
                 export_root.mkdir(parents=True, exist_ok=True)
                 composite_path = (
@@ -745,6 +749,7 @@ def register_routes(app):
                         _write_bytes(overlay_png, overlay_path)
                     else:
                         _write_png(overlay, overlay_path, settings)
+            saved_at = time.perf_counter()
 
             if client_save:
                 composite_url = (
@@ -770,6 +775,12 @@ def register_routes(app):
                 filename = composite_path.name
                 overlay_filename = overlay_path.name
 
+            timings_ms = {
+                "request_parse": round((parsed_at - request_started) * 1000, 1),
+                "render_decode": round((rendered_at - parsed_at) * 1000, 1),
+                "save": round((saved_at - save_started) * 1000, 1),
+                "server_total": round((time.perf_counter() - request_started) * 1000, 1),
+            }
             return {
                 "ok": True,
                 "filename": filename,
@@ -797,6 +808,7 @@ def register_routes(app):
                 "height": composite.height,
                 "supersample": settings.supersample,
                 "render_mode": render_mode,
+                "timings_ms": timings_ms,
                 "save_overlay": settings.save_overlay,
                 "output_format": settings.output_format,
                 "output_dir": None if client_save else str(export_root),

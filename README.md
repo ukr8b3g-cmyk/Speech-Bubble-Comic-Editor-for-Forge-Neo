@@ -1,7 +1,13 @@
+[English](#english)
+
 # Speech Bubble Editor for WebUI Forge Neo
 <img width="1176" height="954" alt="{126C6A90-261D-4B95-BE33-5EDC0853064E}" src="https://github.com/user-attachments/assets/e5c8d67d-feb7-4952-a72c-5d7e0560a2be" />
 
 Version: **0.5.0**
+
+<a id="日本語"></a>
+
+## 日本語
 
 ComfyUI **Speech Bubble Layer** のHTMLエディターとPillow描画処理を、WebUI Forge Neoで単独動作するよう移植した拡張です。ComfyUIは不要です。
 
@@ -35,6 +41,17 @@ stable-diffusion-webui-forge/
 ```
 
 Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してください。追加のpipインストールは不要です。
+
+### ダウンロード・セットアップ関連リンク
+
+- [GitHubリポジトリ](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo)
+- [最新版ZIPをダウンロード](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo/archive/refs/heads/main.zip)
+- [インストール補足](docs/INSTALL_USER_PRESETS_V1.md)
+- [User Presets操作マニュアル](docs/USER_PRESETS_V1_MANUAL.md)
+- [変更履歴](docs/CHANGELOG_0.5.0.md)
+- [動作確認項目](VERIFICATION.md)
+
+主要な実装ファイルは、Forge連携の [`scripts/speech_bubble_forge.py`](scripts/speech_bubble_forge.py)、起動・通信処理の [`javascript/speech_bubble_forge.js`](javascript/speech_bubble_forge.js)、Editor本体の [`web/speech-bubble-editor.html`](web/speech-bubble-editor.html)、APIの [`speech_bubble_forge/api.py`](speech_bubble_forge/api.py)、設定定義の [`speech_bubble_forge/settings.py`](speech_bubble_forge/settings.py) です。拡張情報は [`metadata.ini`](metadata.ini)、追加パッケージの有無は [`requirements.txt`](requirements.txt) で確認できます。
 
 ## Forge側UI
 
@@ -99,6 +116,21 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 
 `Export Image`は主要色、`Save Layout`は通常色、`Discard Changes`は警告色です。
 
+### 主要パネル／操作パッド
+
+| パネル／パッド | 役割 |
+|---|---|
+| Forge起動パネル | 選択中の生成画像用または単体編集用のドキュメントを開きます。 |
+| 上部ツールバー | 画像読込、Undo／Redo、表示倍率、レイアウト保存、画像書き出し、終了を操作します。 |
+| 素材パネル | Speech Bubble、SFX、Stamp、Frame、Text、Emphasis Linesを追加します。 |
+| Canvas | レイヤーの選択、移動、拡大縮小、回転、複数選択を行います。 |
+| Properties | 選択レイヤーのサイズ、色、アウトライン、不透明度、影、グローなどを編集します。 |
+| Layers | 重なり順、表示、ロック、名前、グループを管理します。 |
+| Fill／Outlineパッド | 共通スウォッチの適用先をFillまたはOutlineへ切り替えます。 |
+| Drop Shadow方向パッド | 3×3の矢印でShadow X／Yの方向を設定し、中央でオフセットを0へ戻します。X／Y／Blur欄で微調整できます。 |
+| User Presetプレビューパッド | `標準`／`拡大`、背景色／任意画像、全体表示／100%／中央へを切り替えます。 |
+| Settingsパネル | User Presets、保存、Editorレイアウト、キャッシュ、診断を管理します。 |
+
 ## 編集モードと保存領域
 
 素材カタログ、お気に入り、使用回数、フォント、Settingsは共通です。背景画像、配置レイヤー、キャンバスサイズ、Undo / Redo、選択状態、明示保存レイアウト、自動保存下書きは編集モードごとに分離します。
@@ -130,6 +162,17 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 - Properties / Layers間の分割線をドラッグして高さを変更できます。
 - 変更した高さはブラウザーに記憶され、次回も復元されます。
 - 未設定時は1920×1200表示を基準に、Layers領域を広めに確保します。
+
+## 縦書きテキスト
+
+縦書きは文字をgrapheme cluster単位で処理し、各文字を実際の描画範囲（alpha境界）でセル中央へ配置します。半角数字やLatin文字も字形の幅に左右されず中央へ揃い、結合濁点、Variation Selector、ZWJを含む文字列を途中で分割しません。
+
+- 長音記号、横棒、括弧、三点リーダー、コロン／セミコロンは縦組みに合わせて90度時計回りに描画します。
+- 句読点と小書き仮名は縦組み用の右上位置へ補正します。
+- `vertical-rl`は右から左、`vertical-lr`は左から右へ列を配置します。
+- 縦書きでもUnderlineは列の外側、Strikethroughは列の中央へ描画されます。
+- Editor CanvasとPython／Pillow互換レンダラーは同じ文字分類、行送り、列送り、補正方向を使用します。
+- 既存レイアウトJSONへ新しい項目は追加されません。保存済みの縦書きTextレイヤーへそのまま適用されます。
 
 ## Emphasis Lines（集中線）
 
@@ -247,6 +290,8 @@ Export & SavingとEditor & Layoutは横幅を使った2カラム配置で、Drop
 
 Canvas画像はBase64へ変換せずバイナリ送信します。Overlay保存がOFFの場合はOverlay用CanvasとPNGを生成しません。PNGおよびOverlay PNGはサーバーで再エンコードせず、Canvas Blobをそのまま保存します。この高速化による画質劣化はありません。SettingsのPNG圧縮レベルは互換レンダラーからの書き出しにだけ適用されます。
 
+書き出し完了時は、合計、Canvas PNG生成、API往復、選択フォルダー保存の所要時間をEditorとForgeの状態表示へ表示します。詳細なサーバー解析・保存時間、ファイル容量、ダウンロード・書込み時間はブラウザーコンソールの`Speech Bubble export timings`で確認できます。
+
 「Forge Neoの出力先を基準にする」がONの場合、Forgeの共通Output Directoryを優先し、未設定時はtxt2img / img2imgの出力先を使用します。ブラウザーのセキュリティ制限により、OS上のパスを初回から自動選択することはできません。初回だけForge出力先を手動で選択・許可すると、以後はそのフォルダーから開始します。フォルダー選択に非対応のブラウザーでは、Forge出力先（設定OFF時は固定保存先）へ直接保存します。
 
 ```text
@@ -274,3 +319,107 @@ JPEGは透過を持てないため合成画像を白背景のRGBとして保存�
 - `docs/SECURITY_USER_PRESETS_V1.md`
 - `docs/USER_PRESETS_V1_TEST_PLAN.md`
 - `docs/USER_PRESETS_V2_PLAN.md`
+
+---
+
+<a id="english"></a>
+
+## English
+
+[日本語](#日本語)
+
+### Overview
+
+Speech Bubble Editor for WebUI Forge Neo is a standalone Forge Neo extension based on the HTML editor and Pillow renderer from ComfyUI Speech Bubble Layer. ComfyUI is not required.
+
+It provides speech bubbles, text, SFX, comic stamps, frames, emphasis lines, editable user presets, per-image layouts, standalone documents, browser drafts, and WYSIWYG image export.
+
+### Installation
+
+1. Download the [latest source ZIP](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo/archive/refs/heads/main.zip) or clone the [GitHub repository](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo).
+2. Place the extension folder at:
+
+   ```text
+   stable-diffusion-webui-forge/
+   └─ extensions/
+      └─ sd-webui-speech-bubble-forge-neo/
+   ```
+
+3. Restart Forge Neo and refresh the browser with `Ctrl+F5`.
+
+No additional pip packages are required. See [installation notes](docs/INSTALL_USER_PRESETS_V1.md), the [User Presets manual](docs/USER_PRESETS_V1_MANUAL.md), the [changelog](docs/CHANGELOG_0.5.0.md), and [verification checklist](VERIFICATION.md).
+
+### Launch and editing modes
+
+The Speech Bubble Editor panel is available in both txt2img and img2img.
+
+- **Open selected generated image** opens the selected Forge gallery image with a layout stored by image SHA-256.
+- **Open standalone editor** opens a separate `standalone:<UUID>` document. It can start empty or resume the previous standalone edit.
+- Generated-image and standalone documents use the same Editor UI, but their backgrounds, layers, drafts, saved layouts, Undo/Redo state, and selection state remain separate.
+- Both modes open in a separate window. The launcher reuses a live Editor window instead of opening duplicates.
+
+### Main UI and control pads
+
+| Panel / pad | Purpose |
+|---|---|
+| Forge launch panel | Opens the selected generated image or a standalone document. |
+| Top toolbar | Loads images and controls Undo/Redo, zoom, layout saving, image export, and close. |
+| Asset panel | Adds Speech Bubbles, SFX, Stamps, Frames, Text, and Emphasis Lines. |
+| Canvas | Selects, moves, resizes, rotates, and multi-selects layers. |
+| Properties | Edits size, colors, outline, opacity, shadow, glow, and type-specific options. |
+| Layers | Manages stacking order, visibility, locking, names, and groups. |
+| Fill / Outline pad | Selects whether a shared swatch changes Fill or Outline. |
+| Drop Shadow direction pad | Sets Shadow X/Y with a compact 3×3 pad; the center resets the offset. |
+| User Preset preview pad | Switches Standard/Expanded preview, background colors or a temporary image, Fit/100%, and centering. |
+| Settings panel | Manages User Presets, export, Editor layout, cache, and diagnostics. |
+
+Local PNG, JPEG, and WebP images can be loaded by drag-and-drop, file selection, or `Ctrl+V`. The loaded image becomes the background of the current document without merging the generated-image and standalone storage areas.
+
+### Vertical text
+
+Vertical text is processed by grapheme cluster. Each grapheme is rasterized with the selected font, cropped to its real alpha bounds including outline, and centered inside a fixed cell. This keeps narrow ASCII digits and Latin glyphs visually centered and prevents combining marks, variation selectors, and ZWJ sequences from being split.
+
+- Prolonged sound marks, horizontal bars, brackets, ellipses, colons, and semicolons rotate 90 degrees clockwise.
+- Japanese punctuation and small kana receive a top-right vertical-layout offset.
+- `vertical-rl` places columns right-to-left; `vertical-lr` places them left-to-right.
+- Vertical Underline is drawn outside the column, while Strikethrough is drawn through its center.
+- Editor Canvas and the Python/Pillow compatibility renderer use the same orientation classes, cell geometry, and offset direction.
+- Existing layout JSON remains compatible; no migration or new text field is required.
+
+### User Presets
+
+Settings > Speech Bubble Editor can create and manage SFX and Comic Stamp presets from PNG or WebP images. Presets can be renamed, recategorized, replaced, deleted, or edited again.
+
+Initial placement styles include Original/Fill mode, Size, Width, Height, Opacity, Fill Color, Outline Color, Outline Width, Drop Shadow, and Outer Glow. The preview supports transparent, white, gray, black, custom-color, and temporary-image backgrounds. Up to three temporary preview images are retained only for the current page session.
+
+User data is stored under:
+
+```text
+<Forge-Neo package>/config/speech-bubble-forge/user-presets/
+```
+
+Back up the complete folder, including `index.json`, `assets/`, `thumbnails/`, and `archive/`. Archived image generations remain readable so older layouts keep their original asset references.
+
+### Settings and export
+
+Settings > Speech Bubble Editor contains:
+
+- **User Presets**
+- **Export & Saving**
+- **Editor & Layout**
+- **Cache & Diagnostics**
+
+`Export Image` saves the clean Editor Canvas without selection handles. PNG and lossless WebP preserve the Canvas pixels; JPEG and lossy WebP differ only by their selected compression. Canvas data is sent as multipart binary, Overlay generation is skipped when disabled, and PNG data is not re-encoded on the server.
+
+The completion status reports total, Canvas PNG, API, and selected-folder save times. Detailed timing is available in the browser console as `Speech Bubble export timings`.
+
+The original source image is never overwritten. Optional dated subfolders and `_backup_01` style generation backups are available. Overlay is always saved as transparent PNG when enabled.
+
+### Project links
+
+- [Repository](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo)
+- [Latest source ZIP](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo/archive/refs/heads/main.zip)
+- [Installation notes](docs/INSTALL_USER_PRESETS_V1.md)
+- [User Presets manual](docs/USER_PRESETS_V1_MANUAL.md)
+- [Changelog](docs/CHANGELOG_0.5.0.md)
+- [Verification](VERIFICATION.md)

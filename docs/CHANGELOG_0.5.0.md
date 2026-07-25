@@ -32,7 +32,10 @@
 - EditorのMy Presetsとクリック／ドラッグ配置
 - 不変asset IDによるCanvas／Pillow描画
 - Export ImageをEditorの選択枠なしCanvasから直接保存し、文字位置・アウトライン・Bold・アンチエイリアスをWYSIWYG化
+- 縦書きTextをgrapheme cluster単位のalpha境界中央揃えへ変更し、半角数字、結合濁点、ZWJ sequenceの配置を修正
+- 長音記号、括弧、三点リーダーの回転、句読点・小書き仮名の補正、縦書きUnderline／StrikethroughをCanvas／Pillowへ共通実装
 - Exportをmultipartバイナリ送信へ変更し、Overlay OFF時の生成省略とPNGの無再エンコード保存に対応
+- Export完了表示とブラウザーコンソールへCanvas生成・API・サーバー・選択フォルダー保存の工程別時間を追加
 - Settingsの4セクションAccordion
 - Self Diagnosticsとコピー可能なレポート
 - V1 API、セキュリティ、テスト、Codex指示書

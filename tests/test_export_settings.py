@@ -77,6 +77,10 @@ def test_editor_exports_the_rendered_canvas_as_the_canonical_image():
     assert 'if(rendered.overlayBlob)form.append("overlay"' in editor
     assert "snapshotCleanSceneCanvas()" in editor
     assert 'source.toBlob(' in editor
+    assert 'console.info("Speech Bubble export timings",timings)' in editor
+    assert "server_render_decode" in editor
+    assert "folder_composite_download" in editor
+    assert "folder_composite_backup" in editor
 
 
 def test_filename_modes_and_sequence():
@@ -366,6 +370,12 @@ def test_export_routes_fixed_and_client_delivery():
             assert response.status_code == 200
             payload = response.json()
             assert payload["render_mode"] == "browser_canvas_v1"
+            assert set(payload["timings_ms"]) == {
+                "request_parse",
+                "render_decode",
+                "save",
+                "server_total",
+            }
             assert client.get(payload["download_url"]).content == composite_png
             assert client.get(payload["overlay_download_url"]).content == overlay_png
             assert client.delete(

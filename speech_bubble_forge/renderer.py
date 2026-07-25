@@ -3,6 +3,7 @@ import json
 import math
 import os
 import re
+import unicodedata
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 
@@ -1259,6 +1260,236 @@ def _spaced_text_width(draw, text, font, letter_spacing=0):
     return sum(float(draw.textlength(char, font=font)) for char in chars) + letter_spacing * max(0, len(chars) - 1)
 
 
+_VERTICAL_ROTATE_CLOCKWISE = frozenset(
+    "ーｰ―—–‐‑−〜～…‥⋯（）［］｛｝〈〉《》「」『』【】〔〕〖〗〘〙〚〛：；"
+)
+_VERTICAL_TOP_RIGHT = frozenset(
+    "、。，．ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶ"
+)
+_VERTICAL_GLYPH_SPRITE_CACHE = {}
+
+
+def _vertical_variation_selector(character):
+    codepoint = ord(character)
+    return 0xFE00 <= codepoint <= 0xFE0F or 0xE0100 <= codepoint <= 0xE01EF
+
+
+def _segment_vertical_graphemes(text):
+    result = []
+    cluster = ""
+    join_next = False
+    for character in str(text or ""):
+        joins = (
+            unicodedata.combining(character) != 0
+            or unicodedata.category(character).startswith("M")
+            or _vertical_variation_selector(character)
+            or character == "\u200d"
+            or join_next
+        )
+        if not cluster or joins:
+            cluster += character
+        else:
+            result.append(cluster)
+            cluster = character
+        join_next = character == "\u200d"
+    if cluster:
+        result.append(cluster)
+    return result
+
+
+def _vertical_base_character(grapheme):
+    for character in str(grapheme or ""):
+        if (
+            unicodedata.combining(character) == 0
+            and not unicodedata.category(character).startswith("M")
+            and not _vertical_variation_selector(character)
+            and character != "\u200d"
+        ):
+            return character
+    return str(grapheme or "")[:1]
+
+
+def _vertical_grapheme_policy(grapheme):
+    base = _vertical_base_character(grapheme)
+    if base in _VERTICAL_ROTATE_CLOCKWISE:
+        return "rotate-clockwise", 0.0, 0.0
+    if base in _VERTICAL_TOP_RIGHT:
+        return "upright-top-right", 0.16, -0.14
+    return "upright-center", 0.0, 0.0
+
+
+def _vertical_text_content_metrics(text, font_size, letter_spacing):
+    columns = [
+        _segment_vertical_graphemes(line)
+        for line in str(text or "").split("\n")
+    ]
+    column_width = font_size * 1.2
+    row_advance = max(font_size * 0.25, font_size * 1.15 + letter_spacing)
+    return (
+        columns,
+        column_width,
+        row_advance,
+        max(1, len(columns)) * column_width,
+        max([len(column) for column in columns] or [1]) * row_advance,
+    )
+
+
+def _render_vertical_glyph_sprite(
+    grapheme,
+    policy_kind,
+    font,
+    font_identity,
+    font_size,
+    fill,
+    stroke_fill,
+    stroke_width,
+    bold=False,
+):
+    if not grapheme or grapheme.isspace():
+        return None
+    cache_key = (
+        grapheme,
+        policy_kind,
+        str(font_identity or ""),
+        int(font_size),
+        tuple(fill),
+        tuple(stroke_fill),
+        int(stroke_width),
+        bool(bold),
+    )
+    cached = _VERTICAL_GLYPH_SPRITE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    measure = ImageDraw.Draw(Image.new("RGBA", (1, 1), (0, 0, 0, 0)))
+    bbox = measure.textbbox(
+        (0, 0),
+        grapheme,
+        font=font,
+        stroke_width=stroke_width,
+    )
+    width = max(1, bbox[2] - bbox[0])
+    height = max(1, bbox[3] - bbox[1])
+    bold_strength = max(1, round(font_size * 0.035)) if bold else 0
+    padding = max(4, stroke_width * 2 + bold_strength + 3)
+    sprite = Image.new(
+        "RGBA",
+        (width + padding * 2 + bold_strength, height + padding * 2 + bold_strength),
+        (0, 0, 0, 0),
+    )
+    target = ImageDraw.Draw(sprite)
+    origin_x = padding - bbox[0]
+    origin_y = padding - bbox[1]
+    offsets = ((0, 0),)
+    if bold:
+        offsets = tuple(
+            (offset_x, offset_y)
+            for offset_y in range(max(1, bold_strength // 2) + 1)
+            for offset_x in range(bold_strength + 1)
+        )
+    for offset_x, offset_y in offsets:
+        target.text(
+            (origin_x + offset_x, origin_y + offset_y),
+            grapheme,
+            font=font,
+            fill=fill,
+            stroke_width=stroke_width,
+            stroke_fill=stroke_fill,
+        )
+
+    alpha_bounds = sprite.getchannel("A").getbbox()
+    if not alpha_bounds:
+        return None
+    sprite = sprite.crop(alpha_bounds)
+    if policy_kind == "rotate-clockwise":
+        sprite = sprite.rotate(
+            -90,
+            expand=True,
+            resample=Image.Resampling.BICUBIC,
+        )
+
+    _VERTICAL_GLYPH_SPRITE_CACHE[cache_key] = sprite
+    if len(_VERTICAL_GLYPH_SPRITE_CACHE) > 512:
+        _VERTICAL_GLYPH_SPRITE_CACHE.pop(next(iter(_VERTICAL_GLYPH_SPRITE_CACHE)))
+    return sprite
+
+
+def _draw_vertical_text_columns(
+    local,
+    element,
+    font,
+    font_identity,
+    font_size,
+    padding_x,
+    padding_y,
+    letter_spacing,
+    fill,
+    stroke_width,
+    stroke_fill,
+    bold=False,
+):
+    columns, column_width, row_advance, _, _ = _vertical_text_content_metrics(
+        element.get("text"),
+        font_size,
+        letter_spacing,
+    )
+    right_to_left = str(element.get("writing") or "vertical") != "vertical-lr"
+    decoration = ImageDraw.Draw(local)
+    for column_index, graphemes in enumerate(columns):
+        column_left = (
+            local.width - padding_x - (column_index + 1) * column_width
+            if right_to_left
+            else padding_x + column_index * column_width
+        )
+        for row_index, grapheme in enumerate(graphemes):
+            policy_kind, offset_x, offset_y = _vertical_grapheme_policy(grapheme)
+            sprite = _render_vertical_glyph_sprite(
+                grapheme,
+                policy_kind,
+                font,
+                font_identity,
+                font_size,
+                fill,
+                stroke_fill,
+                stroke_width,
+                bold,
+            )
+            if sprite is None:
+                continue
+            center_x = column_left + column_width / 2
+            center_y = padding_y + row_index * row_advance + row_advance / 2
+            draw_x = round(
+                center_x - sprite.width / 2 + offset_x * column_width
+            )
+            draw_y = round(
+                center_y - sprite.height / 2 + offset_y * row_advance
+            )
+            _paste_clipped(local, sprite, draw_x, draw_y)
+
+        content_height = max(1, len(graphemes)) * row_advance
+        top = padding_y
+        bottom = padding_y + content_height
+        line_width = max(1, round(font_size / 18))
+        if element.get("underline"):
+            underline_x = (
+                column_left + column_width * 0.88
+                if right_to_left
+                else column_left + column_width * 0.12
+            )
+            decoration.line(
+                (underline_x, top, underline_x, bottom),
+                fill=fill,
+                width=line_width,
+            )
+        if element.get("strikethrough"):
+            strike_x = column_left + column_width * 0.5
+            decoration.line(
+                (strike_x, top, strike_x, bottom),
+                fill=fill,
+                width=line_width,
+            )
+
+
 def _paste_clipped(target, source, x, y):
     left = max(0, int(x))
     top = max(0, int(y))
@@ -1762,7 +1993,8 @@ def _draw_text_layer(layer, element, default_font_path, scale):
     logical_box_w = box_w / font_scale_x
     logical_box_h = box_h / font_scale_y
     size = max(1, int(float(element.get("font_size", 48)) * scale))
-    font = _font(element.get("font_path") or _font_path_from_id(str(element.get("font_id") or "")) or default_font_path, size)
+    font_identity = element.get("font_path") or _font_path_from_id(str(element.get("font_id") or "")) or default_font_path
+    font = _font(font_identity, size)
     text = str(element.get("text") or "")
     writing = str(element.get("writing") or "horizontal")
     color = _rgba(element.get("color"), "#111111")
@@ -1798,11 +2030,11 @@ def _draw_text_layer(layer, element, default_font_path, scale):
     )
 
     if writing.startswith("vertical"):
-        columns = [list(line) for line in text.split("\n")]
-        char_w = max(1, int(round(size * 1.2)))
-        char_h = max(1, int(round(max(size * 0.25, size * 1.15 + letter_spacing))))
-        content_w = max(char_w, char_w * max(1, len(columns)))
-        content_h = max(char_h, char_h * max([len(line) for line in columns] or [1]))
+        _, _, _, content_w, content_h = _vertical_text_content_metrics(
+            text,
+            size,
+            letter_spacing,
+        )
         local = Image.new(
             "RGBA",
             (
@@ -1811,15 +2043,20 @@ def _draw_text_layer(layer, element, default_font_path, scale):
             ),
             (0, 0, 0, 0),
         )
-        draw = ImageDraw.Draw(local)
-        for column_index, chars in enumerate(columns):
-            if writing == "vertical-lr":
-                cx = padding_x + column_index * char_w
-            else:
-                cx = local.width - padding_x - (column_index + 1) * char_w
-            for char_index, char in enumerate(chars):
-                cy = padding_y + char_index * char_h
-                _draw_spaced_text(draw, cx, cy, char, font, color, stroke_width, stroke_color, 0, bold)
+        _draw_vertical_text_columns(
+            local,
+            element,
+            font,
+            font_identity,
+            size,
+            padding_x,
+            padding_y,
+            letter_spacing,
+            color,
+            stroke_width,
+            stroke_color,
+            bold,
+        )
     else:
         wrap = bool(element.get("wrap", False))
         lines = _wrap_lines(measure, text, font, max(1, logical_box_w - padding_x * 2), letter_spacing) if wrap else text.split("\n")
