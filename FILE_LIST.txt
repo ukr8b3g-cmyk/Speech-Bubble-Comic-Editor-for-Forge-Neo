@@ -1,4 +1,5 @@
 .gitignore
+CHANGELOG.md
 CODEX_INSTRUCTIONS.md
 docs/API_USER_PRESETS_V1.md
 docs/CHANGELOG_0.5.0.md
@@ -27,9 +28,13 @@ FILE_LIST.txt
 javascript/speech_bubble_cache.js
 javascript/speech_bubble_forge.js
 javascript/speech_bubble_settings.js
+LICENSE
 metadata.ini
+PRIVACY.md
 README.md
+RELEASE_NOTES_v0.5.0_DRAFT.md
 requirements.txt
+SECURITY.md
 scripts/speech_bubble_forge.py
 speech_bubble_forge/__init__.py
 speech_bubble_forge/api.py
@@ -40,6 +45,7 @@ speech_bubble_forge/renderer.py
 speech_bubble_forge/settings.py
 speech_bubble_forge/user_assets.py
 style.css
+THIRD-PARTY-NOTICES.md
 tests/browser_cache_core_test.cjs
 tests/editor_launch_focus_test.cjs
 tests/emphasis_lines_core_test.cjs

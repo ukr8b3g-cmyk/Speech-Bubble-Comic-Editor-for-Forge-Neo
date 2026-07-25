@@ -1,5 +1,43 @@
 # Verification
 
+## Stable release verification matrix
+
+Only completed checks may be marked `PASS`. The host commits and full Windows 11 x64 acceptance run have not yet been recorded.
+
+| Item | WebUI ReForge | WebUI Forge Neo |
+|---|---|---|
+| Windows 11 x64 / exact host version or commit | NOT TESTED | NOT TESTED |
+| Clean installation and load after restart | NOT TESTED | NOT TESTED |
+| txt2img / img2img integration | NOT TESTED | NOT TESTED |
+| Open selected generated image | NOT TESTED | NOT TESTED |
+| Standalone editor and local image loading | NOT TESTED | NOT TESTED |
+| PNG / JPEG / WebP export | NOT TESTED | NOT TESTED |
+| Transparent Overlay PNG | NOT TESTED | NOT TESTED |
+| Save Layout / Discard Changes | NOT TESTED | NOT TESTED |
+| Autosave and resume | NOT TESTED | NOT TESTED |
+| User Presets | NOT TESTED | NOT TESTED |
+| Self Diagnostics report | NOT TESTED | NOT TESTED |
+| Japanese / English UI | NOT TESTED | NOT TESTED |
+| Light / dark theme | NOT TESTED | NOT TESTED |
+| Uninstall | NOT TESTED | NOT TESTED |
+| No additional mandatory pip install | PASS (code/dependency audit) | PASS (code/dependency audit) |
+| No unexpected extension-originated external communication | PASS (static audit) | PASS (static audit) |
+
+Verification status: Pending.
+
+## Documentation and release-preparation check (2026-07-26)
+
+- PASS: Python 9ファイルの`py_compile`
+- PASS: JavaScript 3ファイルの`node --check`
+- PASS: Nodeテスト5件
+- PASS: `git diff --check`
+- PASS: 文書内のローカル相対リンク確認
+- PASS: バージョン表記（0.5.0）とメタデータの整合
+- FAIL: Python `pytest`は30件合格、1件失敗。`tests/test_export_settings.py::test_export_routes_fixed_and_client_delivery`のmultipart Export APIで、期待値200に対してHTTP 500
+- NOT TESTED: WebUI ReForge / Forge Neo実機受け入れテスト
+
+## Automated and historical checks
+
 実施済み:
 
 - Python構文確認（`py_compile`）

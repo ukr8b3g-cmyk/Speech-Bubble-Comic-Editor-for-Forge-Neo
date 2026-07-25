@@ -1,6 +1,6 @@
 [English](#english)
 
-# Speech Bubble Editor for WebUI Forge Neo
+# Speech Bubble Editor for WebUI ReForge / Forge Neo
 <img width="1176" height="954" alt="{126C6A90-261D-4B95-BE33-5EDC0853064E}" src="https://github.com/user-attachments/assets/e5c8d67d-feb7-4952-a72c-5d7e0560a2be" />
 
 Version: **0.5.0**
@@ -9,10 +9,10 @@ Version: **0.5.0**
 
 ## 日本語
 
-ComfyUI **Speech Bubble Layer** のHTMLエディターとPillow描画処理を、WebUI Forge Neoで単独動作するよう移植した拡張です。ComfyUIは不要です。
+ComfyUI **Speech Bubble Layer** のHTMLエディターとPillow描画処理を、WebUI ReForge / Forge Neoで単独動作するよう移植した拡張です。本拡張はComfyUI custom nodeではなく、ComfyUIは不要です。
 
 > [!IMPORTANT]
-> 現在は開発版です。UI、保存形式、機能構成は今後変更される可能性があります。
+> 現在の安定公開版は0.5.0です。機能追加に伴い、将来の版でUIや保存形式が変更される場合があります。WebUI ReForge / Forge Neoでの正確な検証版は現在記録待ちです。A1111、ComfyUI、その他のWebUIは、明示的に記載がない限り対応対象外です。
 
 ## 主な機能
 
@@ -26,7 +26,7 @@ ComfyUI **Speech Bubble Layer** のHTMLエディターとPillow描画処理を�
 
 ## インストール
 
-Forge Neoの `extensions` フォルダーで次を実行します。
+WebUI ReForgeまたはForge Neoの `extensions` フォルダーで次を実行します。
 
 ```powershell
 git clone https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo.git
@@ -40,7 +40,7 @@ stable-diffusion-webui-forge/
    └─ sd-webui-speech-bubble-forge-neo/
 ```
 
-Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してください。追加のpipインストールは不要です。
+ホストを再起動し、ブラウザーを `Ctrl+F5` で更新してください。追加のpipインストールは不要です。
 
 ### ダウンロード・セットアップ関連リンク
 
@@ -50,6 +50,12 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 - [User Presets操作マニュアル](docs/USER_PRESETS_V1_MANUAL.md)
 - [変更履歴](docs/CHANGELOG_0.5.0.md)
 - [動作確認項目](VERIFICATION.md)
+- [Releases](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo/releases)
+- [MIT License](LICENSE)
+- [セキュリティ方針](SECURITY.md)
+- [プライバシー方針](PRIVACY.md)
+- [第三者通知](THIRD-PARTY-NOTICES.md)
+- [トップレベル変更履歴](CHANGELOG.md)
 
 主要な実装ファイルは、Forge連携の [`scripts/speech_bubble_forge.py`](scripts/speech_bubble_forge.py)、起動・通信処理の [`javascript/speech_bubble_forge.js`](javascript/speech_bubble_forge.js)、Editor本体の [`web/speech-bubble-editor.html`](web/speech-bubble-editor.html)、APIの [`speech_bubble_forge/api.py`](speech_bubble_forge/api.py)、設定定義の [`speech_bubble_forge/settings.py`](speech_bubble_forge/settings.py) です。拡張情報は [`metadata.ini`](metadata.ini)、追加パッケージの有無は [`requirements.txt`](requirements.txt) で確認できます。
 
@@ -150,6 +156,14 @@ Forge Neoを再起動し、ブラウザーを `Ctrl+F5` で更新してくださ
 - 同じ画像の保存済みレイアウトが見つかった場合だけ、単体編集側へコピーして復元できます。
 
 明示保存レイアウトはForgeの `config/speech-bubble-forge/layouts`、編集中の下書きはブラウザーのlocalStorageへ保存します。
+
+## ローカル保存・通信・アンインストール
+
+レイアウト、User Presets、素材、サムネイル、アーカイブ、保存先記憶用情報は、ホストパッケージの`config/speech-bubble-forge/`へ保存します。設定値はホストの設定ファイル、下書き・単体画像・再表示用画像・UI状態・お気に入り・使用回数・診断結果はブラウザーのlocalStorage／IndexedDBへ保存します。書き出し画像は設定したローカル出力先へ保存します。
+
+本拡張にはテレメトリー、利用解析、広告、開発者運営サーバー、クラウド同期、自動アップロードはありません。GitHubや文書リンクはユーザー操作時のみ開きます。ホストやブラウザー自体の通信は対象外です。
+
+アンインストールするにはホストを終了し、`extensions/sd-webui-speech-bubble-forge-neo/`を削除します。ユーザーデータも削除する場合は、別途`config/speech-bubble-forge/`とブラウザーに保存された本拡張のサイトデータを削除してください。
 
 ## レイヤーパネル
 
@@ -330,7 +344,9 @@ JPEGは透過を持てないため合成画像を白背景のRGBとして保存�
 
 ### Overview
 
-Speech Bubble Editor for WebUI Forge Neo is a standalone Forge Neo extension based on the HTML editor and Pillow renderer from ComfyUI Speech Bubble Layer. ComfyUI is not required.
+Speech Bubble Editor for WebUI ReForge / Forge Neo is a standalone extension based on the HTML editor and Pillow renderer from ComfyUI Speech Bubble Layer. This extension is not a ComfyUI custom node. ComfyUI is not required.
+
+The current stable release is version 0.5.0. Future versions may change the UI or saved-data format as features evolve. Exact tested ReForge / Forge Neo versions are pending documentation. A1111, ComfyUI, and other WebUIs are unsupported unless explicitly listed.
 
 It provides speech bubbles, text, SFX, comic stamps, frames, emphasis lines, editable user presets, per-image layouts, standalone documents, browser drafts, and WYSIWYG image export.
 
@@ -345,9 +361,17 @@ It provides speech bubbles, text, SFX, comic stamps, frames, emphasis lines, edi
       └─ sd-webui-speech-bubble-forge-neo/
    ```
 
-3. Restart Forge Neo and refresh the browser with `Ctrl+F5`.
+3. Restart the host and refresh the browser with `Ctrl+F5`.
 
 No additional pip packages are required. See [installation notes](docs/INSTALL_USER_PRESETS_V1.md), the [User Presets manual](docs/USER_PRESETS_V1_MANUAL.md), the [changelog](docs/CHANGELOG_0.5.0.md), and [verification checklist](VERIFICATION.md).
+
+### Local data, network behavior, and uninstall
+
+Layouts, user presets, assets, thumbnails, archives, and export-directory memory are stored under the host package's `config/speech-bubble-forge/`. Host settings store extension options. Browser localStorage/IndexedDB stores drafts, standalone and retained images, UI state, favorites, usage counts, and diagnostics. Exports are written to the configured local output location.
+
+The extension includes no telemetry, analytics, advertising, developer-operated server, cloud synchronization, or automatic upload. GitHub and documentation links open only after a user action. Host and browser network behavior is outside this extension's scope.
+
+To uninstall, stop the host and delete `extensions/sd-webui-speech-bubble-forge-neo/`. To remove user data too, separately delete `config/speech-bubble-forge/` and clear this extension's site data in the browser.
 
 ### Launch and editing modes
 
@@ -423,3 +447,9 @@ The original source image is never overwritten. Optional dated subfolders and `_
 - [User Presets manual](docs/USER_PRESETS_V1_MANUAL.md)
 - [Changelog](docs/CHANGELOG_0.5.0.md)
 - [Verification](VERIFICATION.md)
+- [Releases](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo/releases)
+- [MIT License](LICENSE)
+- [Security](SECURITY.md)
+- [Privacy](PRIVACY.md)
+- [Third-party notices](THIRD-PARTY-NOTICES.md)
+- [Top-level changelog](CHANGELOG.md)
