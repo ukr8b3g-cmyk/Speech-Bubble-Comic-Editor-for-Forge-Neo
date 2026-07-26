@@ -372,7 +372,7 @@
         editor.searchParams.set("mode", session.mode || (session.imageUrl ? "image" : "standalone"));
         if (session.standaloneId) editor.searchParams.set("standaloneId", session.standaloneId);
         if (session.imageUrl) editor.searchParams.set("imageUrl", session.imageUrl);
-        editor.searchParams.set("v", "20260724-10");
+        editor.searchParams.set("v", "20260726-01");
         return editor.toString();
     }
 

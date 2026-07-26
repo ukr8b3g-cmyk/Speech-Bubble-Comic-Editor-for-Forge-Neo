@@ -48,10 +48,12 @@ style.css
 THIRD-PARTY-NOTICES.md
 tests/browser_cache_core_test.cjs
 tests/editor_launch_focus_test.cjs
+tests/editor_stability_regression_test.cjs
 tests/emphasis_lines_core_test.cjs
 tests/speech_bubble_settings_core_test.cjs
 tests/test_emphasis_lines_renderer.py
 tests/test_export_settings.py
+tests/test_stability_regressions.py
 tests/test_user_assets.py
 tests/user_asset_editor_integration_test.cjs
 UPSTREAM.md

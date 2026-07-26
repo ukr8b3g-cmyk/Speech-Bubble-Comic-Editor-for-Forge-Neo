@@ -4,12 +4,16 @@ import base64
 import binascii
 import io
 import json
+import math
 import mimetypes
 import re
 import threading
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timezone
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 from urllib.parse import quote
 
@@ -43,6 +47,29 @@ EXTENSION_ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = EXTENSION_ROOT / "web"
 _MAX_IMAGE_BYTES = 96 * 1024 * 1024
 _MAX_LAYOUT_CHARS = 8 * 1024 * 1024
+_MAX_EXPORT_MULTIPART_BYTES = _MAX_LAYOUT_CHARS + (_MAX_IMAGE_BYTES * 2) + 512 * 1024
+_MAX_LAYOUT_ELEMENTS = 2000
+_MAX_LAYOUT_COLLECTION_ITEMS = 10000
+_MAX_LAYOUT_STRING_CHARS = 1_000_000
+_MAX_LAYOUT_DEPTH = 32
+_ALLOWED_LAYOUT_ELEMENT_TYPES = {
+    "text",
+    "sfx",
+    "sfx_stamp",
+    "bubble",
+    "shape",
+    "frame",
+    "emphasis_lines",
+    "image",
+}
+_WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
 _EXPORT_TRANSPORT = "multipart_canvas_v1"
 _SAVE_LOCK = threading.RLock()
 _LAYOUT_LOCK = threading.RLock()
@@ -138,27 +165,72 @@ def _browser_canvas_export(payload, layout, save_overlay):
     return composite, overlay, composite_png, overlay_png
 
 
-async def _read_export_upload(form, name, limit, required=True):
-    upload = form.get(name)
-    if upload is None:
+async def _read_bounded_request_body(request: Request, maximum_bytes: int) -> bytes:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError as error:
+            raise ValueError("Invalid Content-Length header") from error
+        if declared_length < 0:
+            raise ValueError("Invalid Content-Length header")
+        if declared_length > maximum_bytes:
+            raise ValueError("Export request body is too large")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > maximum_bytes:
+            raise ValueError("Export request body is too large")
+    if not body:
+        raise ValueError("Export request body is empty")
+    return bytes(body)
+
+
+def _parse_export_multipart(content_type: str, raw: bytes) -> dict[str, bytes]:
+    try:
+        mime_header = (
+            b"Content-Type: "
+            + content_type.encode("latin-1", "strict")
+            + b"\r\nMIME-Version: 1.0\r\n\r\n"
+        )
+        message = BytesParser(policy=policy.default).parsebytes(mime_header + raw)
+    except Exception as error:
+        raise ValueError("Export multipart body is invalid") from error
+    if not message.is_multipart():
+        raise ValueError("Export multipart body is invalid")
+    parts: dict[str, bytes] = {}
+    for part in message.iter_parts():
+        if part.get_content_disposition() != "form-data":
+            continue
+        name = str(part.get_param("name", header="content-disposition") or "")
+        if name not in {"metadata", "composite", "overlay"}:
+            continue
+        if name in parts:
+            raise ValueError(f"Duplicate multipart field: {name}")
+        value = part.get_payload(decode=True)
+        parts[name] = value if isinstance(value, bytes) else b""
+    return parts
+
+
+def _multipart_part(parts: dict[str, bytes], name: str, limit: int, required: bool = True):
+    value = parts.get(name)
+    if value is None:
         if required:
             raise ValueError(f"{name} is required")
         return None
-    if not hasattr(upload, "read"):
-        raise ValueError(f"{name} must be a file upload")
-    raw = await upload.read(limit + 1)
-    if not raw or len(raw) > limit:
+    if not value or len(value) > limit:
         raise ValueError(f"{name} is empty or too large")
-    return raw
+    return value
 
 
 async def _export_request_payload(request):
-    content_type = str(request.headers.get("content-type") or "").lower()
-    if not content_type.startswith("multipart/form-data"):
+    content_type = str(request.headers.get("content-type") or "")
+    if not content_type.lower().startswith("multipart/form-data"):
         return await request.json()
-    form = await request.form()
-    metadata_raw = await _read_export_upload(
-        form,
+    raw = await _read_bounded_request_body(request, _MAX_EXPORT_MULTIPART_BYTES)
+    parts = _parse_export_multipart(content_type, raw)
+    metadata_raw = _multipart_part(
+        parts,
         "metadata",
         _MAX_LAYOUT_CHARS + 64 * 1024,
     )
@@ -168,13 +240,9 @@ async def _export_request_payload(request):
         raise ValueError("Export metadata is invalid") from error
     if not isinstance(payload, dict):
         raise ValueError("Export metadata must be an object")
-    payload["_composite_png"] = await _read_export_upload(
-        form,
-        "composite",
-        _MAX_IMAGE_BYTES,
-    )
-    payload["_overlay_png"] = await _read_export_upload(
-        form,
+    payload["_composite_png"] = _multipart_part(parts, "composite", _MAX_IMAGE_BYTES)
+    payload["_overlay_png"] = _multipart_part(
+        parts,
         "overlay",
         _MAX_IMAGE_BYTES,
         required=False,
@@ -183,8 +251,21 @@ async def _export_request_payload(request):
 
 
 def _safe_name(value):
-    value = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value or "")).strip("._")
-    return value[:80] or "speech_bubble"
+    text = unicodedata.normalize("NFKC", str(value or ""))
+    text = "".join(
+        character
+        for character in text
+        if not unicodedata.category(character).startswith("C")
+    )
+    text = re.sub(r'[<>:"/\\|?*]+', "_", text)
+    text = re.sub(r"\s+", " ", text).strip(" ._")
+    text = re.sub(r"_+", "_", text)
+    if not text or text in {".", ".."}:
+        return "speech_bubble"
+    stem = text.split(".", 1)[0].rstrip(" .").upper()
+    if stem in _WINDOWS_RESERVED_NAMES:
+        text = f"_{text}"
+    return text[:80].rstrip(" .") or "speech_bubble"
 
 
 def _safe_document_id(value: str) -> str:
@@ -196,16 +277,119 @@ def _safe_document_id(value: str) -> str:
     return document_id
 
 
+def _reject_json_constant(value):
+    raise ValueError(f"Layout JSON contains a non-finite number: {value}")
+
+
+def _validate_layout_value(value, path="$", depth=0):
+    if depth > _MAX_LAYOUT_DEPTH:
+        raise ValueError(f"Layout JSON is nested too deeply at {path}")
+    if value is None or isinstance(value, (bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"Layout JSON contains a non-finite number at {path}")
+        return
+    if isinstance(value, str):
+        if len(value) > _MAX_LAYOUT_STRING_CHARS:
+            raise ValueError(f"Layout string is too long at {path}")
+        return
+    if isinstance(value, list):
+        if len(value) > _MAX_LAYOUT_COLLECTION_ITEMS:
+            raise ValueError(f"Layout array is too large at {path}")
+        for index, item in enumerate(value):
+            _validate_layout_value(item, f"{path}[{index}]", depth + 1)
+        return
+    if isinstance(value, dict):
+        if len(value) > _MAX_LAYOUT_COLLECTION_ITEMS:
+            raise ValueError(f"Layout object is too large at {path}")
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError(f"Layout object key is invalid at {path}")
+            _validate_layout_value(item, f"{path}.{key}", depth + 1)
+        return
+    raise ValueError(f"Layout JSON contains an unsupported value at {path}")
+
+
 def _validate_layout(raw_layout) -> tuple[str, dict]:
     if isinstance(raw_layout, dict):
         parsed = raw_layout
     elif isinstance(raw_layout, str) and len(raw_layout) <= _MAX_LAYOUT_CHARS:
-        parsed = json.loads(raw_layout or "{}")
+        parsed = json.loads(raw_layout or "{}", parse_constant=_reject_json_constant)
     else:
         raise ValueError("Layout JSON is invalid or too large")
     if not isinstance(parsed, dict):
         raise ValueError("Layout JSON must be an object")
-    normalized = json.dumps(parsed, ensure_ascii=False, indent=2)
+    _validate_layout_value(parsed)
+    canvas = parsed.get("canvas")
+    if canvas is not None:
+        if not isinstance(canvas, dict):
+            raise ValueError("Layout canvas must be an object")
+        for key in ("width", "height"):
+            if key not in canvas:
+                continue
+            value = canvas[key]
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or not 1 <= float(value) <= 65535
+            ):
+                raise ValueError(f"Layout canvas {key} is invalid")
+    elements = parsed.get("elements", [])
+    if not isinstance(elements, list):
+        raise ValueError("Layout elements must be an array")
+    if len(elements) > _MAX_LAYOUT_ELEMENTS:
+        raise ValueError("Layout contains too many elements")
+    for index, element in enumerate(elements):
+        if not isinstance(element, dict):
+            raise ValueError(f"Layout element {index} must be an object")
+        element_type = str(element.get("type") or "")
+        if element_type not in _ALLOWED_LAYOUT_ELEMENT_TYPES:
+            raise ValueError(f"Layout element {index} has an unsupported type")
+        path_points = element.get("path_points")
+        if path_points is not None:
+            if not isinstance(path_points, list) or not 3 <= len(path_points) <= 256:
+                raise ValueError(f"Layout element {index} has invalid path points")
+            for point_index, point in enumerate(path_points):
+                if not isinstance(point, dict):
+                    raise ValueError(
+                        f"Layout element {index} path point {point_index} must be an object"
+                    )
+                for coordinate in ("x", "y"):
+                    value = point.get(coordinate)
+                    if (
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not math.isfinite(float(value))
+                    ):
+                        raise ValueError(
+                            f"Layout element {index} path point {point_index} is invalid"
+                        )
+        rays = element.get("rays")
+        if rays is not None:
+            if not isinstance(rays, list) or len(rays) > 1000:
+                raise ValueError(f"Layout element {index} has invalid emphasis rays")
+            for ray_index, polygon in enumerate(rays):
+                if not isinstance(polygon, list) or len(polygon) != 4:
+                    raise ValueError(
+                        f"Layout element {index} emphasis ray {ray_index} is invalid"
+                    )
+                for point in polygon:
+                    if (
+                        not isinstance(point, list)
+                        or len(point) != 2
+                        or any(
+                            isinstance(value, bool)
+                            or not isinstance(value, (int, float))
+                            or not math.isfinite(float(value))
+                            for value in point
+                        )
+                    ):
+                        raise ValueError(
+                            f"Layout element {index} emphasis ray {ray_index} is invalid"
+                        )
+    normalized = json.dumps(parsed, ensure_ascii=False, indent=2, allow_nan=False)
     if len(normalized) > _MAX_LAYOUT_CHARS:
         raise ValueError("Layout JSON is too large")
     return normalized, parsed
