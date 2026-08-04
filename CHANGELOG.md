@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0] - Unreleased
+
+### Added
+
+- Speech Bubble Comic Editor project window with Single Image, 4-Panel Manga, and Comic workspaces
+- Shared or per-workspace Image Tray with Forge gallery and local-file import
+- Opt-in isnet-anime background-removal model download and Forge-hosted inference API
+- Built-in kawaii and corner stamp assets used by the common material drawer
+
+### Changed
+
+- Forge launch branding now uses Speech Bubble Comic Editor for Forge Neo, with Comic Panel Editor as the short UI name
+- Background-removal and comic-conversion results are stored through the common project image route
+
 ## [0.5.0] - Unreleased
 
 ### Added
@@ -7,6 +21,7 @@
 - Layer-based Speech Bubble, Text, SFX, Comic Stamp, Frame, and Emphasis Lines editing
 - Standalone local-image editing and per-image layout storage
 - User Presets for PNG and static WebP assets
+- Comic-page templates, split/merge dividers, a persistent multi-image tray, and dynamic dot halftone
 - PNG, JPEG, WebP, and transparent Overlay PNG export
 - Local Self Diagnostics
 

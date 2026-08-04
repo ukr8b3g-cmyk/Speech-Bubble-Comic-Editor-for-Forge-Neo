@@ -1,25 +1,28 @@
 [English](#english)
 
-# Speech Bubble Editor for WebUI ReForge / Forge Neo
+# Speech Bubble Comic Editor for Forge Neo
 <img width="1176" height="954" alt="{126C6A90-261D-4B95-BE33-5EDC0853064E}" src="https://github.com/user-attachments/assets/e5c8d67d-feb7-4952-a72c-5d7e0560a2be" />
 
-Version: **0.5.0**
+Development version: **0.6.0**
 
 <a id="日本語"></a>
 
 ## 日本語
 
-ComfyUI **Speech Bubble Layer** のHTMLエディターとPillow描画処理を、WebUI ReForge / Forge Neoで単独動作するよう移植した拡張です。本拡張はComfyUI custom nodeではなく、ComfyUIは不要です。
+Forgeの生成画像や既存画像を、一枚画像・4コマ漫画・コミックへ編集するローカル漫画プロジェクトエディターです。ComfyUI **Speech Bubble Layer** のHTMLエディターとPillow描画処理をForge Neo向けに発展させた拡張で、ComfyUI custom nodeではなく、ComfyUIは不要です。
 
 > [!IMPORTANT]
-> 現在の安定公開版は0.5.0です。機能追加に伴い、将来の版でUIや保存形式が変更される場合があります。WebUI ReForge / Forge Neoでの正確な検証版は現在記録待ちです。A1111、ComfyUI、その他のWebUIは、明示的に記載がない限り対応対象外です。
+> 現在の安定公開版は0.5.0、次期開発版は0.6.0です。機能追加に伴い、将来の版でUIや保存形式が変更される場合があります。WebUI ReForge / Forge Neoでの正確な検証版は現在記録待ちです。A1111、ComfyUI、その他のWebUIは、明示的に記載がない限り対応対象外です。
 
 ## 主な機能
 
 - Speech Bubble、SFX、Comic Stamp、Frame、Text、Emphasis Linesをレイヤーとして配置
+- 一枚画像・4コマ漫画・コミックの3ワークスペースと、共有／個別を切り替えられる「ページ画像」
+- Forge生成画像の直接取込、Project保存、コミック変換、isnet-animeによる背景削除
 - 移動、拡大縮小、回転、複数選択、グループ化、表示切替、ロック、Undo / Redo
 - 素材のお気に入り表示と、検索・カテゴリ・並べ替えに対応した素材ブラウザー
 - SFX／Comic StampのUser Presetsを作成・再編集し、Fill／Outline、Drop Shadow、Outer Glow、標準／拡大プレビューを設定
+- 漫画ページ用の縦4コマ／2列変則／ブランク、コマ分割・結合、複数のページ画像、円形網点
 - Settings内の非破壊Self Diagnosticsとコピー可能な診断レポート
 - 画像ごとのレイアウト保存、単体編集用の独立した保存領域、自動保存下書き
 - 背景込みの合成画像（PNG / JPEG / WebP）と、透過Overlay PNGを書き出し
@@ -63,30 +66,39 @@ stable-diffusion-webui-forge/
 
 ![Forge NeoのSpeech Bubble Editor起動パネル](docs/images/forge-editor-launch-panel.png)
 
-2つのボタンは同じEditor UIを開きますが、開く編集ドキュメントと保存領域は別々です。青いボタンはForgeの選択画像を画像ごとの編集領域で開き、緑のボタンは生成画像から独立した単体編集領域を開きます。片方の編集内容が、もう片方へ自動的に混ざることはありません。
+青い `コミックパネルエディターを開く ↗` から、3つの編集モードを備えた共通プロジェクト画面を開きます。Forgeギャラリーの画像は、Editor上部の `Forge選択画像を追加` から「ページ画像」へ取り込めます。
 
 - `Speech Bubble Editor` パネルをtxt2img / img2imgの **Script欄の直前**へ表示します。
-- 上段の `選択中の生成画像を開く ↗` は、Forgeギャラリーで選択中の画像を、その画像専用の編集状態で開きます。
-- 下段の `単体エディターを開く ↗` は、生成画像とは独立した新規または前回の単体編集を開きます。ローカル画像の編集はこちらを使用します。
+- `コミックパネルエディターを開く ↗` は、既存のプロジェクト画面を開くか、新しいプロジェクトを作成します。
+- 選択中のForge画像、ローカルファイル、キャンバスへのドラッグ＆ドロップは、同じ「ページ画像」へ集約されます。
+- 取り込んだ画像は一枚画像・4コマ漫画・コミックで共有でき、Settingsでモード別トレイへ切り替えられます。
 - ギャラリー下へ **吹き出し＋斜めペン** アイコンを追加します。
 - Editorは常に1ウィンドウだけです。再度押すと既存ウィンドウへフォーカスします。
 - Forgeのライト／ダークテーマを自動検出してEditorへ反映します。
 
-### 単体エディターの開始方法
-
-![単体エディターの新規開始と前回編集の再開](docs/images/standalone-editor-start-choice.png)
-
-前回の単体編集が残っている場合は、空の編集領域を作る `新規で開く` と、背景画像や配置レイヤーを復元する `前回の単体編集を再開` を選択できます。保存済みの単体編集がない場合は、この選択画面を表示せず新規状態で開きます。
-
 ## ローカル画像
 
-`単体エディターを開く ↗` から開いたEditorへ、次の方法でローカル画像を読み込めます。
+`コミックパネルエディターを開く ↗` から開いたEditorへ、次の方法でローカル画像を読み込めます。
 
 - `Open Image…` / `画像ファイルを選択`
 - キャンバスへのドラッグ＆ドロップ
 - `Ctrl+V` によるクリップボード画像の貼り付け
 
 対応形式はPNG / JPEG / WebPです。ファイル選択後にポップアップを開かないため、ブラウザーが誤ってポップアップを遮断する問題を回避します。
+
+## 漫画ページ編集
+
+Editor上部の `漫画レイヤー` または `コマ編集` から、通常画像とは独立した漫画ページ下地を有効化できます。
+
+- `縦4コマ`、`2列変則`、`ブランク`の3テンプレート
+- 選択コマの上下／左右分割と、同じ仕切りに属する兄弟コマの結合
+- 仕切りのドラッグ移動。`Shift`を押しながら動かすと25%、33.3%、50%、66.7%、75%へスナップ
+- PNG／JPEG／WebPの複数読み込み、「ページ画像」からコマへのドラッグ＆ドロップ
+- Cover／Contain、画像倍率、Offset X／Y、コマ背景色
+- 円形網点の丸サイズ、密度、不透明度、色
+- コマ上の右クリックメニューと、書き出し前の空コマ・読込不能画像チェック
+
+`通常画像`は従来の単一背景編集へ戻り、`漫画レイヤー`は漫画下地の上で既存レイヤーを編集します。`コマ編集`ではコマと仕切りを操作します。読み込んだ追加画像はブラウザーのIndexedDBへドキュメント単位で保持し、レイアウトJSONには画像本体を埋め込みません。
 
 ## 素材ブラウザー
 
@@ -100,13 +112,13 @@ stable-diffusion-webui-forge/
 - 各カード右上の星を押すと、お気に入りの登録／解除ができます。
 - お気に入り素材はEditor左側の簡易一覧へ優先的に表示されます。
 - 素材カードをクリックすると、現在のキャンバスへ新しいレイヤーとして追加され、使用回数にも反映されます。
-- お気に入りと使用回数は、選択中の生成画像と単体エディターで共通です。
+- お気に入りと使用回数は、3つのワークスペースで共通です。
 
 ## Editorの共通UI
 
 ![Editor上部ボタンとProperties](docs/images/editor-common-ui-properties.png)
 
-選択中の生成画像と単体エディターは編集ドキュメントと保存領域が別ですが、Editorの基本UIと操作方法は共通です。選択しているレイヤーの種類によって、Propertiesに表示される項目だけが切り替わります。
+一枚画像・4コマ漫画・コミックは同じプロジェクト内で切り替えます。基本UIと素材操作は共通で、選択しているレイヤーの種類によってPropertiesの項目だけが切り替わります。
 
 - 中央のキャンバスでレイヤーの移動、拡大縮小、回転、複数選択を行います。
 - `Properties` ではサイズ、幅、高さ、不透明度、塗り色、アウトライン色などを調整できます。設定項目はText、Speech Bubble、SFX、Stamp、Frame、Emphasis Linesごとに異なります。
@@ -126,7 +138,7 @@ stable-diffusion-webui-forge/
 
 | パネル／パッド | 役割 |
 |---|---|
-| Forge起動パネル | 選択中の生成画像用または単体編集用のドキュメントを開きます。 |
+| Forge起動パネル | 一枚画像・4コマ漫画・コミックを扱う共通のComic Panel Editorを開きます。 |
 | 上部ツールバー | 画像読込、Undo／Redo、表示倍率、レイアウト保存、画像書き出し、終了を操作します。 |
 | 素材パネル | Speech Bubble、SFX、Stamp、Frame、Text、Emphasis Linesを追加します。 |
 | Canvas | レイヤーの選択、移動、拡大縮小、回転、複数選択を行います。 |
@@ -139,29 +151,15 @@ stable-diffusion-webui-forge/
 
 ## 編集モードと保存領域
 
-素材カタログ、お気に入り、使用回数、フォント、Settingsは共通です。背景画像、配置レイヤー、キャンバスサイズ、Undo / Redo、選択状態、明示保存レイアウト、自動保存下書きは編集モードごとに分離します。
+一枚画像・4コマ漫画・コミックは、1つのプロジェクト内にある独立ワークスペースです。キャンバス、配置レイヤー、Undo / Redo、選択状態はモードごとに維持し、素材カタログ、フォント、Settingsと「ページ画像」は共通です。「ページ画像」をモード別に分ける設定も選択できます。
 
-### 選択中の生成画像を開く
-
-- 画像内容のSHA-256を識別子として使用します。
-- 同じ画像はForge再起動後やtxt2img / img2img切替後も復元します。
-- 新しい画像へ別画像のレイアウトを自動適用しません。
-
-### 単体エディターを開く
-
-- 新しい単体編集ドキュメントとして、画像・配置レイヤーとも空の状態で開きます。
-- 前回の単体編集がある場合は、新規で開くか再開するかを選択できます。
-- 生成画像側の吹き出し、SFX、Stamp、Frameを引き継ぎません。
-- ローカル画像を読み込んでも単体編集側の保存領域を維持します。
-- 同じ画像の保存済みレイアウトが見つかった場合だけ、単体編集側へコピーして復元できます。
-
-明示保存レイアウトはForgeの `config/speech-bubble-forge/layouts`、編集中の下書きはブラウザーのlocalStorageへ保存します。
+プロジェクトのメタデータと画像本体はForgeの `config/speech-bubble-forge/projects`へ保存し、表示言語・テーマなどの画面設定はブラウザーのlocalStorageへ保存します。
 
 ## ローカル保存・通信・アンインストール
 
 レイアウト、User Presets、素材、サムネイル、アーカイブ、保存先記憶用情報は、ホストパッケージの`config/speech-bubble-forge/`へ保存します。設定値はホストの設定ファイル、下書き・単体画像・再表示用画像・UI状態・お気に入り・使用回数・診断結果はブラウザーのlocalStorage／IndexedDBへ保存します。書き出し画像は設定したローカル出力先へ保存します。
 
-本拡張にはテレメトリー、利用解析、広告、開発者運営サーバー、クラウド同期、自動アップロードはありません。GitHubや文書リンクはユーザー操作時のみ開きます。ホストやブラウザー自体の通信は対象外です。
+本拡張にはテレメトリー、利用解析、広告、開発者運営サーバー、クラウド同期、自動アップロードはありません。GitHubや文書リンクはユーザー操作時のみ開きます。背景削除モデル`isnet-anime`（約168 MB）が未取得の場合は、背景削除の実行時に確認を表示し、利用者が「取得する」を選んだ場合だけrembgのGitHub Releaseからアプリ内でダウンロードします。画面を開いただけでは取得しません。ホストやブラウザー自体の通信は対象外です。
 
 アンインストールするにはホストを終了し、`extensions/sd-webui-speech-bubble-forge-neo/`を削除します。ユーザーデータも削除する場合は、別途`config/speech-bubble-forge/`とブラウザーに保存された本拡張のサイトデータを削除してください。
 
@@ -344,11 +342,11 @@ JPEGは透過を持てないため合成画像を白背景のRGBとして保存�
 
 ### Overview
 
-Speech Bubble Editor for WebUI ReForge / Forge Neo is a standalone extension based on the HTML editor and Pillow renderer from ComfyUI Speech Bubble Layer. This extension is not a ComfyUI custom node. ComfyUI is not required.
+Speech Bubble Comic Editor for Forge Neo is a local comic project editor for Forge-generated and imported images. It provides independent Single Image, 4-Panel Manga, and Comic workspaces. The Forge UI opens it as **Comic Panel Editor**. This extension is not a ComfyUI custom node. ComfyUI is not required.
 
-The current stable release is version 0.5.0. Future versions may change the UI or saved-data format as features evolve. Exact tested ReForge / Forge Neo versions are pending documentation. A1111, ComfyUI, and other WebUIs are unsupported unless explicitly listed.
+The current stable release is version 0.5.0, while 0.6.0 is the next development version. Future versions may change the UI or saved-data format as features evolve. Exact tested ReForge / Forge Neo versions are pending documentation. A1111, ComfyUI, and other WebUIs are unsupported unless explicitly listed.
 
-It provides speech bubbles, text, SFX, comic stamps, frames, emphasis lines, editable user presets, per-image layouts, standalone documents, browser drafts, and WYSIWYG image export.
+It provides speech bubbles, text, SFX, comic stamps, frames, emphasis lines, editable user presets, project saving, comic conversion, isnet-anime background removal, a shared or per-workspace Image Tray, and WYSIWYG export.
 
 ### Installation
 
@@ -369,7 +367,7 @@ No additional pip packages are required. See [installation notes](docs/INSTALL_U
 
 Layouts, user presets, assets, thumbnails, archives, and export-directory memory are stored under the host package's `config/speech-bubble-forge/`. Host settings store extension options. Browser localStorage/IndexedDB stores drafts, standalone and retained images, UI state, favorites, usage counts, and diagnostics. Exports are written to the configured local output location.
 
-The extension includes no telemetry, analytics, advertising, developer-operated server, cloud synchronization, or automatic upload. GitHub and documentation links open only after a user action. Host and browser network behavior is outside this extension's scope.
+The extension includes no telemetry, analytics, advertising, developer-operated server, cloud synchronization, or automatic upload. GitHub and documentation links open only after a user action. If the approximately 168 MB `isnet-anime` background-removal model is missing, the editor asks for confirmation when background removal is run and downloads it in-app from the rembg GitHub Release only after the user chooses Download. Merely opening the editor does not download it. Host and browser network behavior is outside this extension's scope.
 
 To uninstall, stop the host and delete `extensions/sd-webui-speech-bubble-forge-neo/`. To remove user data too, separately delete `config/speech-bubble-forge/` and clear this extension's site data in the browser.
 
@@ -397,7 +395,11 @@ The Speech Bubble Editor panel is available in both txt2img and img2img.
 | User Preset preview pad | Switches Standard/Expanded preview, background colors or a temporary image, Fit/100%, and centering. |
 | Settings panel | Manages User Presets, export, Editor layout, cache, and diagnostics. |
 
-Local PNG, JPEG, and WebP images can be loaded by drag-and-drop, file selection, or `Ctrl+V`. The loaded image becomes the background of the current document without merging the generated-image and standalone storage areas.
+Local PNG, JPEG, and WebP images can be loaded by drag-and-drop, file selection, or `Ctrl+V` and retained in the project Page Images tray.
+
+### Comic-page editing
+
+The top mode control switches among Single Image, 4-Panel Manga, and Comic workspaces. Comic editing provides templates, horizontal or vertical split, sibling merge, draggable dividers, Cover/Contain image placement, and dynamic dot halftone. Multiple PNG, JPEG, or WebP files are retained by the Forge project store and appear in the horizontal Page Images tray.
 
 ### Vertical text
 

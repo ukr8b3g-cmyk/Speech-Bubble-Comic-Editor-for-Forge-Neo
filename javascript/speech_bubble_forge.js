@@ -794,7 +794,7 @@
             details.dataset.speechBubblePanel = tabName;
             details.open = quickPanelOpenState(tabName);
             details.innerHTML = `
-              <summary>Speech Bubble Editor</summary>
+              <summary>Comic Panel Editor</summary>
               <div class="speech-bubble-forge-panel-body">
                 <div class="speech-bubble-forge-actions">
                   <div class="speech-bubble-forge-action-row">

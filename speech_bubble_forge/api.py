@@ -23,9 +23,11 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 
 from . import __version__
+from .background_removal_routes import register_background_removal_routes
 from .diagnostics import run_self_diagnostics
 from .font_catalog import font_by_id, public_fonts
 from .presets import read_user_presets, update_user_presets
+from .project_api import register_project_routes
 from .renderer import get_frame_asset_catalog, get_sfx_asset_catalog, render_composite
 from .settings import (
     allowed_output_roots,
@@ -1076,6 +1078,10 @@ def register_routes(app):
         if not _route_exists(app, path, method):
             app.add_api_route(path, endpoint, methods=methods)
 
+    register_project_routes(app)
+    register_background_removal_routes(app)
+
     print("[Speech Bubble Forge] Editor: /speech-bubble-forge/static/speech-bubble-editor.html")
+    print("[Speech Bubble Forge] Project Editor: /speech-bubble-forge/static/project-editor.html")
     print(f"[Speech Bubble Forge] Output: {output_root()}")
     print(f"[Speech Bubble Forge] Layouts: {layout_root()}")

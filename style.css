@@ -51,6 +51,14 @@
     font-size: 0.8rem;
     line-height: 1.4;
 }
+[data-project-editor-status] {
+    grid-column: 1 / -1;
+    min-height: 1rem;
+    color: var(--body-text-color-subdued, #9aa6b6);
+}
+[data-project-editor-status]:empty {
+    display: none;
+}
 .speech-bubble-forge-panel-body button {
     box-sizing: border-box;
     min-height: 2.4rem;
@@ -63,13 +71,15 @@
     font: inherit;
     transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-.speech-bubble-forge-panel-body button[data-action="gallery"] {
+.speech-bubble-forge-panel-body button[data-action="gallery"],
+.speech-bubble-forge-panel-body button[data-action-project-editor] {
     border-color: #5aa2ff;
     color: #fff;
     background: #0d6efd;
     transition: none;
 }
-.speech-bubble-forge-panel-body button[data-action="gallery"]:hover:not(:disabled) {
+.speech-bubble-forge-panel-body button[data-action="gallery"]:hover:not(:disabled),
+.speech-bubble-forge-panel-body button[data-action-project-editor]:hover:not(:disabled) {
     border-color: #5aa2ff;
     color: #fff;
     background: #0d6efd;
@@ -95,7 +105,8 @@
     cursor: not-allowed;
     opacity: 0.45;
 }
-.speech-bubble-forge-panel-body button[data-action="gallery"]:disabled {
+.speech-bubble-forge-panel-body button[data-action="gallery"]:disabled,
+.speech-bubble-forge-panel-body button[data-action-project-editor]:disabled {
     border-color: #6c757d;
     color: #adb5bd;
     background: #495057;

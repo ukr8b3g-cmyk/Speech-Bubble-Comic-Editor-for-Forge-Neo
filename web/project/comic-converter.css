@@ -1,0 +1,379 @@
+.comic-converter-launcher {
+  border: 1px solid #38536c;
+  border-radius: 5px;
+  padding: 0 6px 6px;
+  margin-bottom: 5px;
+  background: linear-gradient(180deg, #233343, #20262d);
+}
+.comic-converter-launcher > summary {
+  color: #dceeff;
+}
+.comic-converter-launcher label {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 5px;
+}
+.comic-converter-launcher select,
+.comic-converter-launcher button,
+.background-removal-launcher button {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 6px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.comic-converter-source-summary {
+  min-height: 26px;
+  padding: 5px 6px;
+  border: 1px solid #3b4652;
+  border-radius: 4px;
+  color: var(--muted);
+  background: var(--field);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+dialog.comic-converter-dialog {
+  position: fixed;
+  inset: auto;
+  width: min(1120px, calc(100vw - 24px));
+  height: min(720px, calc(100vh - 24px));
+  min-width: min(720px, calc(100vw - 16px));
+  min-height: min(500px, calc(100vh - 16px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid #596675;
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: 0 18px 60px #000c;
+  resize: both;
+  overflow: hidden;
+}
+dialog.comic-converter-dialog::backdrop {
+  background: #000a;
+}
+dialog.comic-converter-dialog.maximized {
+  inset: 8px !important;
+  width: calc(100vw - 16px) !important;
+  height: calc(100vh - 16px) !important;
+  max-width: none;
+  max-height: none;
+  margin: 0 !important;
+  resize: none;
+}
+.comic-converter-window {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 42px auto auto minmax(0, 1fr) 52px;
+}
+.comic-converter-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--line);
+  background: var(--header);
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+.comic-converter-head strong {
+  font-size: 15px;
+}
+.comic-converter-head span {
+  flex: 1;
+  color: var(--muted);
+}
+.comic-converter-head button {
+  width: 29px;
+  height: 29px;
+  padding: 0;
+}
+.comic-converter-source-bar {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.comic-converter-source-bar > div:nth-child(2) {
+  min-width: 0;
+}
+.comic-converter-source-bar strong,
+.comic-converter-source-bar small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comic-converter-source-bar small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+.comic-converter-source-thumb {
+  width: 44px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--field) center / contain no-repeat;
+}
+.comic-converter-source-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 10px;
+  max-height: 190px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: #1b2027;
+}
+.comic-converter-source-bar { cursor: pointer; }
+.comic-converter-source-picker[hidden] {
+  display: none;
+}
+.comic-converter-candidates {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  min-width: 0;
+}
+.comic-converter-candidate {
+  flex: 0 0 92px;
+  display: grid;
+  grid-template-rows: 76px auto auto;
+  gap: 2px;
+  padding: 4px;
+  text-align: left;
+}
+.comic-converter-candidate img {
+  width: 100%;
+  height: 76px;
+  object-fit: contain;
+  background: repeating-conic-gradient(#c8c8c8 0 25%, #fff 0 50%) 0 / 12px 12px;
+}
+.comic-converter-candidate span,
+.comic-converter-candidate small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comic-converter-candidate small {
+  color: var(--muted);
+}
+.comic-converter-drop {
+  min-height: 100px;
+  display: grid;
+  place-content: center;
+  place-items: center;
+  gap: 7px;
+  padding: 10px;
+  border: 1px dashed #526274;
+  border-radius: 5px;
+  text-align: center;
+}
+.comic-converter-drop span {
+  color: var(--muted);
+}
+.comic-converter-drop.drag-active {
+  border-color: var(--accent);
+  background: #4fa3ff18;
+}
+.comic-converter-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+}
+.comic-converter-previews {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px;
+  background: #11151a;
+}
+.comic-converter-previews figure {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 24px minmax(0, 1fr);
+  margin: 0;
+}
+.comic-converter-previews figcaption {
+  color: #d6dee8;
+  font-weight: 600;
+}
+.comic-converter-previews figcaption small {
+  color: var(--muted);
+  font-weight: 400;
+}
+.comic-converter-previews canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  border: 1px solid #39434f;
+  background: repeating-conic-gradient(#2b3038 0 25%, #20242a 0 50%) 0 / 16px 16px;
+}
+.comic-converter-settings {
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  border-left: 1px solid var(--line);
+}
+.comic-converter-settings > label {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 7px;
+}
+.comic-converter-settings select {
+  width: 100%;
+}
+.comic-converter-field {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 5px;
+}
+.comic-converter-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 6px;
+}
+.comic-converter-control input[type="range"] {
+  min-width: 0;
+}
+.comic-converter-control input[type="number"] {
+  width: 72px;
+  min-height: 27px;
+}
+.comic-converter-checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 7px 0;
+}
+.comic-converter-checks label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.comic-converter-checks input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+}
+.comic-converter-xdog {
+  margin: 7px 0;
+  padding-top: 5px;
+}
+.comic-converter-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-top: 1px solid var(--line);
+  background: var(--header);
+}
+.comic-converter-footer span {
+  min-width: 0;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comic-converter-footer span[data-level="error"] {
+  color: #ff8b8b;
+}
+.comic-converter-footer span[data-level="ready"] {
+  color: #74d69c;
+}
+.comic-converter-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: max-content;
+}
+.comic-converter-footer button {
+  min-width: 96px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+:root[data-theme="light"] .comic-converter-launcher {
+  background: linear-gradient(180deg, #edf5fc, #f7f9fb);
+}
+:root[data-theme="light"] .comic-converter-source-picker,
+:root[data-theme="light"] .comic-converter-previews {
+  background: #e8edf2;
+}
+
+@media (max-width: 840px) {
+  dialog.comic-converter-dialog {
+    min-width: min(600px, calc(100vw - 16px));
+  }
+  .comic-converter-body {
+    grid-template-columns: 1fr 260px;
+  }
+}
+
+@media (max-width: 680px) {
+  .comic-converter-window {
+    grid-template-rows: 38px auto auto minmax(0, 1fr) auto;
+  }
+  .comic-converter-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(180px, 1fr) minmax(150px, 42%);
+  }
+  .comic-converter-settings {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+  .comic-converter-footer {
+    grid-template-columns: 1fr;
+  }
+  .comic-converter-footer span {
+    width: 100%;
+  }
+  .comic-converter-footer-actions {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-height: 620px) {
+  dialog.comic-converter-dialog {
+    height: calc(100vh - 16px);
+  }
+  .comic-converter-window {
+    grid-template-rows: 36px auto auto minmax(0, 1fr) 44px;
+  }
+  .comic-converter-head,
+  .comic-converter-source-bar,
+  .comic-converter-footer {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .comic-converter-source-bar {
+    min-height: 46px;
+  }
+  .comic-converter-previews {
+    padding: 5px;
+    gap: 5px;
+  }
+}

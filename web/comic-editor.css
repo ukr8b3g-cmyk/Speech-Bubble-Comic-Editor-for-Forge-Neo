@@ -1,0 +1,208 @@
+.comic-mode-toggle {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.comic-mode-toggle button.active,
+.comic-panel-tools button.active {
+  background: #2f8f59;
+  border-color: #55bb7d;
+  color: #fff;
+}
+
+.comic-panel-tools[hidden] {
+  display: none;
+}
+
+.comic-template-grid,
+.comic-operation-grid,
+.comic-page-settings,
+.comic-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin: 5px 0;
+}
+
+.comic-template-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.comic-template-grid button,
+.comic-operation-grid button {
+  min-width: 0;
+  padding-inline: 4px;
+}
+
+.comic-page-settings label,
+.comic-properties label {
+  display: grid;
+  gap: 3px;
+}
+
+.comic-image-tray {
+  position: absolute;
+  z-index: 8;
+  right: 8px;
+  bottom: 29px;
+  left: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  box-shadow: 0 -4px 14px #0005;
+}
+
+.comic-image-tray.collapsed .comic-tray-list {
+  display: none;
+}
+
+.comic-tray-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comic-tray-heading .spacer {
+  flex: 1;
+}
+
+.comic-tray-list {
+  display: flex;
+  gap: 6px;
+  min-height: 76px;
+  margin-top: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.comic-image-card {
+  position: relative;
+  display: grid;
+  flex: 0 0 76px;
+  grid-template-rows: 54px 18px;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel2);
+  cursor: grab;
+}
+
+.comic-image-card.used {
+  border-color: #55bb7d;
+}
+
+.comic-image-card > span {
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comic-image-card > button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.comic-image-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 3px;
+  background:
+    linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%),
+    linear-gradient(45deg, #bbb 25%, #eee 25%, #eee 75%, #bbb 75%);
+  background-position: 0 0, 5px 5px;
+  background-size: 10px 10px;
+  color: #555;
+  font-size: 9px;
+}
+
+.comic-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.comic-properties {
+  padding: 7px;
+  border-bottom: 1px solid var(--line);
+}
+
+.comic-properties-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.comic-properties-title span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.comic-properties > label,
+.comic-properties > button,
+.comic-properties > div,
+.comic-properties > details {
+  margin-bottom: 6px;
+}
+
+.comic-properties output {
+  min-width: 42px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.comic-properties label:has(input[type="range"]) {
+  grid-template-columns: 1fr auto;
+}
+
+.comic-properties label:has(input[type="range"]) input {
+  grid-column: 1 / -1;
+}
+
+.comic-properties .comic-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comic-context-menu {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  min-width: 180px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px #0008;
+}
+
+.comic-context-menu[hidden] {
+  display: none;
+}
+
+.comic-context-menu button {
+  border-color: transparent;
+  text-align: left;
+}
+
+@media (max-width: 1050px) {
+  .comic-mode-toggle button {
+    padding-inline: 6px;
+  }
+
+  .comic-tray-heading [data-comic-action="sequential"] {
+    display: none;
+  }
+}

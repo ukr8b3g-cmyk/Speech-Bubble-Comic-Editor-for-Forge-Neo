@@ -1,0 +1,519 @@
+.comic-mode-toggle {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.comic-template-grid button.active,
+.comic-frame-style button.active {
+  background: #2f8f59;
+  border-color: #55bb7d;
+  color: #fff;
+}
+
+.comic-mode-toggle [data-comic-mode="single"] {
+  border-color: #3f79a8;
+  background: #172a3b;
+  color: #b9dcf8;
+}
+
+.comic-mode-toggle [data-comic-mode="single"].active {
+  border-color: #65b9ff;
+  background: #2e79bc;
+  color: #fff;
+}
+
+.comic-mode-toggle [data-comic-mode="comic"] {
+  border-color: #3f7857;
+  background: #183326;
+  color: #bce7cd;
+}
+
+.comic-mode-toggle [data-comic-mode="comic"].active {
+  border-color: #62c88c;
+  background: #2f8f59;
+  color: #fff;
+}
+
+.comic-template-grid,
+.comic-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin: 5px 0;
+}
+
+.comic-template-grid {
+  grid-template-columns: 1fr;
+}
+
+.comic-heading-gap-control {
+  margin: 5px 0;
+}
+
+.comic-range-number {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 7px;
+}
+
+.comic-range-number input[type="range"] {
+  width: 100%;
+}
+
+.comic-margin-row {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: 5px;
+  margin: 5px 0;
+}
+
+.comic-margin-row .comic-check {
+  align-self: center;
+  white-space: nowrap;
+}
+
+.comic-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 16px);
+  gap: 3px;
+}
+
+.comic-color-swatches button {
+  width: 16px;
+  min-width: 16px;
+  max-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  max-height: 16px;
+  padding: 0;
+  border: 1px solid #657181;
+  border-radius: 3px;
+  background: var(--comic-swatch);
+}
+
+.comic-color-swatches button.active {
+  outline: 2px solid #3fa7ff;
+  outline-offset: 1px;
+}
+
+.comic-page-checks {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 5px 0;
+}
+
+.comic-page-checks .comic-check {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.comic-page-checks-primary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.comic-heading-visibility-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.comic-heading-visibility-row .comic-check {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.comic-property-hint {
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.comic-canvas-reset {
+  width: 100%;
+  margin: 0 0 5px;
+}
+
+.comic-template-grid button {
+  min-width: 0;
+  padding-inline: 4px;
+}
+
+.comic-properties label {
+  display: grid;
+  gap: 3px;
+}
+
+.comic-image-tray {
+  position: absolute;
+  z-index: 8;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 6px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--panel);
+  box-shadow: 0 -4px 14px #0005;
+}
+
+.canvas-panel.comic-tray-visible #viewport {
+  bottom: var(--comic-tray-height, 38px);
+}
+
+.canvas-panel.comic-active .footer {
+  display: none;
+}
+
+.comic-image-tray.collapsed .comic-tray-list {
+  display: none;
+}
+
+.comic-tray-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.comic-tray-heading button {
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding-block: 3px;
+  white-space: nowrap;
+}
+
+.comic-tray-heading .comic-tray-toggle {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.comic-tray-heading .comic-tray-toggle:hover,
+.comic-tray-heading .comic-tray-toggle:focus-visible {
+  border-color: var(--line);
+  background: var(--panel2);
+}
+
+.comic-tray-heading .comic-tray-toggle [data-comic-image-count] {
+  color: var(--muted);
+}
+
+.comic-tray-list {
+  display: flex;
+  gap: 6px;
+  min-height: 76px;
+  margin-top: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.comic-image-card {
+  position: relative;
+  display: grid;
+  flex: 0 0 76px;
+  grid-template-rows: 54px 18px;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel2);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.comic-image-card:active {
+  cursor: grabbing;
+}
+
+.comic-image-card.dragging {
+  opacity: .72;
+  cursor: grabbing;
+}
+
+.comic-image-drag-ghost {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  z-index: 99999;
+  max-width: 220px;
+  padding: 7px 10px;
+  overflow: hidden;
+  border: 1px solid #68a8ff;
+  border-radius: 6px;
+  background: #182536;
+  color: #f4f8ff;
+  font: 600 12px/1.25 system-ui, sans-serif;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.comic-image-card .comic-image-preview,
+.comic-image-card img {
+  pointer-events: none;
+}
+
+.comic-image-card.selected {
+  border: 3px solid #e54b4b;
+  padding: 1px;
+  box-shadow: inset 0 0 0 1px #fff;
+}
+
+.comic-image-card.selected::before,
+.comic-image-card.used::after {
+  position: absolute;
+  z-index: 2;
+  padding: 1px 3px;
+  border-radius: 2px;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  pointer-events: none;
+}
+
+.comic-image-card.selected::before {
+  content: "SELECTED";
+  top: 2px;
+  left: 2px;
+  background: #b92323e8;
+}
+
+.comic-image-card.used::after {
+  content: "使用中";
+  right: 2px;
+  bottom: 20px;
+  background: #23894fe8;
+}
+
+.comic-image-card > span {
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comic-image-card > button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.comic-image-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 3px;
+  background:
+    linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%),
+    linear-gradient(45deg, #bbb 25%, #eee 25%, #eee 75%, #bbb 75%);
+  background-position: 0 0, 5px 5px;
+  background-size: 10px 10px;
+  color: #555;
+  font-size: 9px;
+}
+
+.comic-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.comic-properties {
+  padding: 7px;
+  border-bottom: 1px solid var(--line);
+}
+
+.comic-properties-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.comic-properties-title-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.comic-heading-title-toggle {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* Keep the page/header title checkbox on one row.  This must override the
+   generic .comic-properties label grid rule below. */
+.comic-properties-title .comic-heading-title-toggle {
+  display: inline-flex;
+}
+
+.comic-heading-title-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.comic-heading-title-toggle[hidden] {
+  display: none;
+}
+
+.comic-properties-title span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.comic-properties-title .comic-heading-title-toggle span {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.comic-properties-title > [data-comic-selection-kind][hidden] {
+  display: none;
+}
+
+.comic-properties > label,
+.comic-properties > button,
+.comic-properties > div,
+.comic-properties > section,
+.comic-properties section > label,
+.comic-properties section > button,
+.comic-properties section > div {
+  margin-bottom: 6px;
+}
+
+.comic-properties [data-comic-properties][hidden] {
+  display: none;
+}
+
+.comic-panel-collapse-action:not(:disabled) {
+  border-color: #f1ad68;
+  background: #b96f24;
+  color: #fff;
+}
+
+.comic-panel-collapse-action:not(:disabled):hover {
+  border-color: #ffd09c;
+  background: #cf7c2b;
+}
+
+.comic-panel-collapse-action.is-restoring:not(:disabled) {
+  border-color: #70cf91;
+  background: #2f8654;
+}
+
+.comic-panel-collapse-action.is-restoring:not(:disabled):hover {
+  border-color: #a2e6b5;
+  background: #389b63;
+}
+
+.comic-properties output {
+  min-width: 42px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.comic-properties label:has(input[type="range"]) {
+  grid-template-columns: 1fr auto;
+}
+
+.comic-properties label:has(input[type="range"]) input {
+  grid-column: 1 / -1;
+}
+
+.comic-properties .comic-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comic-frame-style {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.comic-image-property-summary {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+
+.comic-image-property-summary .comic-image-preview {
+  height: 48px;
+}
+
+.comic-image-property-summary > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comic-layer-nested {
+  margin-left: 14px;
+}
+
+.comic-layer-nested[data-comic-layer="image"] {
+  margin-left: 28px;
+}
+
+.comic-context-menu {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  min-width: 180px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px #0008;
+}
+
+.comic-context-menu[hidden] {
+  display: none;
+}
+
+.comic-context-menu button {
+  border-color: transparent;
+  text-align: left;
+}
+
+@media (max-width: 1050px) {
+  .comic-mode-toggle button {
+    padding-inline: 6px;
+  }
+
+  .comic-tray-heading [data-comic-action="sequential"] {
+    display: none;
+  }
+}
