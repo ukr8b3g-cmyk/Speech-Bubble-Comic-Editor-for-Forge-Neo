@@ -30,6 +30,14 @@
       return `${this.base}/projects/${encodeURIComponent(normalizeProjectId(projectId))}`;
     }
 
+    async settings() {
+      const response = await fetch(`${this.base}/config`, { cache: "no-store" });
+      const payload = await responsePayload(response);
+      return payload.settings && typeof payload.settings === "object"
+        ? payload.settings
+        : payload;
+    }
+
     async list() {
       const response = await fetch(`${this.base}/projects`, {
         cache: "no-store",

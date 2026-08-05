@@ -5,6 +5,7 @@
     const API_ROOT = "/speech-bubble-forge";
     const USER_ASSET_ENDPOINT = `${API_ROOT}/user-assets`;
     const DIAGNOSTIC_ENDPOINT = `${API_ROOT}/diagnostics`;
+    const MODEL_ENDPOINT = `${API_ROOT}/background-removal/model`;
     const SETTINGS_STATE_KEY = "speech-bubble/settings-groups:v1";
     const LAST_DIAGNOSTIC_KEY = "speech-bubble/diagnostics:last:v1";
     const USER_ASSET_CHANNEL = "speech-bubble-forge:user-assets:v1";
@@ -28,6 +29,12 @@
     ];
 
     const GROUP_OPTIONS = {
+        appearance: [
+            "speech_bubble_forge_language",
+            "speech_bubble_forge_show_empty_guide",
+            "speech_bubble_forge_shared_project_images",
+            "speech_bubble_forge_import_behavior",
+        ],
         export: [
             "speech_bubble_forge_output_format",
             "speech_bubble_forge_png_compression",
@@ -162,6 +169,51 @@
             throw new ApiError(String(message), detail, response.status);
         }
         return payload || {};
+    }
+
+    let modelPollTimer = 0;
+    function displayModelStatus(model = {}) {
+        const panel = state.panel;
+        if (!panel) return;
+        const output = panel.querySelector("[data-speech-bubble-model-status]");
+        const progress = panel.querySelector("[data-speech-bubble-model-progress]");
+        const download = panel.querySelector("[data-speech-bubble-model-download]");
+        const cancel = panel.querySelector("[data-speech-bubble-model-cancel]");
+        const remove = panel.querySelector("[data-speech-bubble-model-delete]");
+        const downloading = model.state === "downloading";
+        progress.value = Math.max(0, Math.min(1, Number(model.progress) || 0));
+        output.textContent = model.ready
+            ? "isnet-anime：準備完了"
+            : downloading
+                ? `取得中 ${Math.round(progress.value * 100)}%`
+                : model.error || "未取得（約168 MB）";
+        download.hidden = downloading || model.ready === true;
+        cancel.hidden = !downloading;
+        remove.disabled = downloading || model.ready !== true;
+        clearTimeout(modelPollTimer);
+        if (downloading) modelPollTimer = setTimeout(refreshModelStatus, 700);
+    }
+
+    async function refreshModelStatus() {
+        try {
+            displayModelStatus(await apiRequest(MODEL_ENDPOINT));
+        } catch (error) {
+            displayModelStatus({ error: error.message });
+        }
+    }
+
+    async function downloadModel() {
+        if (!confirm("isnet-anime背景削除モデル（約168 MB）を取得しますか？\nモデル: Apache-2.0")) return;
+        displayModelStatus(await apiRequest(`${MODEL_ENDPOINT}/download`, { method: "POST", body: "{}" }));
+    }
+
+    async function cancelModelDownload() {
+        displayModelStatus(await apiRequest(`${MODEL_ENDPOINT}/cancel`, { method: "POST", body: "{}" }));
+    }
+
+    async function deleteModel() {
+        if (!confirm("背景削除モデルを削除しますか？")) return;
+        displayModelStatus(await apiRequest(MODEL_ENDPOINT, { method: "DELETE" }));
     }
 
     function readFileDataUrl(file) {
@@ -2392,6 +2444,10 @@
         panel.querySelector("[data-speech-bubble-user-manage]").addEventListener("click", openManager);
         panel.querySelector("[data-speech-bubble-diagnostic-run]").addEventListener("click", runDiagnostics);
         panel.querySelector("[data-speech-bubble-diagnostic-show]").addEventListener("click", () => state.lastDiagnostic && renderDiagnostic(state.lastDiagnostic));
+        panel.querySelector("[data-speech-bubble-model-refresh]").addEventListener("click", refreshModelStatus);
+        panel.querySelector("[data-speech-bubble-model-download]").addEventListener("click", () => downloadModel().catch((error) => displayModelStatus({ error: error.message })));
+        panel.querySelector("[data-speech-bubble-model-cancel]").addEventListener("click", () => cancelModelDownload().catch((error) => displayModelStatus({ error: error.message })));
+        panel.querySelector("[data-speech-bubble-model-delete]").addEventListener("click", () => deleteModel().catch((error) => displayModelStatus({ error: error.message })));
         panel.addEventListener("input", () => updateSettingSummaries(panel));
         panel.addEventListener("change", () => updateSettingSummaries(panel));
 
@@ -2399,6 +2455,7 @@
         loadLastDiagnostic();
         updateLastDiagnosticUi();
         loadCatalog({ quiet: true }).catch((error) => setPanelStatus(error.message, "error"));
+        refreshModelStatus();
     }
 
     globalThis.SpeechBubbleForgeSettingsCore = Object.freeze({

@@ -83,6 +83,25 @@ class ProjectStoreTests(unittest.TestCase):
             result = store.cleanup(project_id)
             self.assertIn(asset["id"], result["removed"])
 
+    def test_missing_image_file_is_skipped_with_repair_warning(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            store = ProjectStore(Path(temporary))
+            manifest = store.create(title="Comic")
+            project_id = manifest["project_id"]
+            asset = store.put_image(project_id, png_bytes(), name="missing.png")
+            store.save(
+                project_id,
+                title="Comic",
+                layout=default_layout(),
+                image_ids=[asset["id"]],
+            )
+            store.image_path(project_id, asset["id"]).unlink()
+
+            repaired = store.load(project_id)
+
+            self.assertEqual(repaired["images"], [])
+            self.assertEqual(len(repaired["repair_warnings"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

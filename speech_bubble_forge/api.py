@@ -638,7 +638,7 @@ def register_routes(app):
     async def health():
         return {
             "ok": True,
-            "name": "Speech Bubble Editor for Forge Neo",
+            "name": "Speech Bubble Comic Editor for Forge Neo",
             "version": __version__,
             "settings_ui_version": SETTINGS_UI_VERSION,
             "user_asset_api_version": USER_ASSET_API_VERSION,

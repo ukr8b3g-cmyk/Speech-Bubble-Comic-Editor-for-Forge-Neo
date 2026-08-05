@@ -74,7 +74,13 @@
       });
       runtime.setProjectTitle?.(manifest.title);
       dirty = false;
-      setStatus(tr("プロジェクトを読み込みました。", "Project loaded."), "saved");
+      const repairWarnings = Array.isArray(manifest.repair_warnings) ? manifest.repair_warnings : [];
+      setStatus(
+        repairWarnings.length
+          ? tr(`欠損画像${repairWarnings.length}件を除外してプロジェクトを修復読込しました。`, `Loaded the project after skipping ${repairWarnings.length} missing image(s).`)
+          : tr("プロジェクトを読み込みました。", "Project loaded."),
+        repairWarnings.length ? "error" : "saved",
+      );
       return manifest;
     }
 
@@ -240,13 +246,10 @@
     async function createProject() {
       const choice = await unsavedChoice(tr("新規作成する", "creating a new project"));
       if (choice === "cancel") return;
-      const title = prompt(
-        tr("新しいプロジェクト名", "New project name"),
-        tr("無題のコミックプロジェクト", "Untitled Comic Project"),
-      );
-      if (title === null) return;
+      const timestamp = new Date().toLocaleString("sv-SE", { hour12: false }).replace(/[ :]/g, "-");
+      const title = `${tr("無題のコミック", "Untitled Comic")} ${timestamp}`;
       const created = await api.create({
-        title: String(title).trim() || "Untitled Comic Project",
+        title,
         sourceRevisions: sourceRevisions(),
       });
       navigateToProject(created.project_id);
@@ -413,6 +416,12 @@
       ) {
         settingsModule?.setHostTheme?.(data.theme);
       }
+      if (data.type === "speech_bubble_project:settings_changed") {
+        const hostSettings = settingsModule?.setHostSettings?.(data.settings) || data.settings || {};
+        runtime.applyHostSettings?.(hostSettings);
+        updateToolbarLanguage();
+        return;
+      }
       if (data.type === "speech_bubble_project:focus") window.focus();
     });
 
@@ -425,7 +434,15 @@
 
     async function initialize() {
       installToolbar();
+      let hostSettings = settingsModule?.get?.() || {};
+      try {
+        hostSettings = await api.settings();
+        settingsModule?.setHostSettings?.(hostSettings);
+      } catch (error) {
+        console.warn("Comic Panel Editor settings could not be loaded; using local defaults.", error);
+      }
       await ensureProject();
+      runtime.applyHostSettings?.(hostSettings);
       runtime.onChanged?.(markDirty);
       root.addEventListener("speech-bubble:project-settings-changed", () => {
         updateToolbarLanguage();
@@ -445,7 +462,13 @@
       markDirty,
       markClean,
       importSelectedForgeImage,
-      cleanupUnusedImages: () => api.cleanup(projectId),
+      cleanupUnusedImages: async () => {
+        if (dirty) {
+          setStatus(tr("未保存の変更があるため画像整理を実行できません。先にプロジェクトを保存してください。", "Save the project before cleaning up images."), "error");
+          return { ok: false, blocked: "unsaved" };
+        }
+        return api.cleanup(projectId);
+      },
       hasUnsavedChanges: () => dirty,
       manifest: () => manifest,
     });

@@ -50,9 +50,9 @@
     let selectedId = "";
 
     const collapseKey = options.collapseKey || "speech-bubble-forge:page-images-collapsed";
-    let initiallyCollapsed = false;
+    let initiallyCollapsed = true;
     try {
-      initiallyCollapsed = root.localStorage?.getItem(collapseKey) === "1";
+      initiallyCollapsed = root.localStorage?.getItem(collapseKey) !== "0";
     } catch {
       // Browser storage is optional.
     }
@@ -65,13 +65,6 @@
           <span data-project-tray-count>0枚</span>
         </button>
         <div class="project-image-tray-actions">
-          <details data-project-tray-settings>
-            <summary title="ページ画像設定">⚙</summary>
-            <div class="project-image-tray-settings-panel">
-              <label class="project-image-tray-check"><input type="checkbox" data-project-tray-shared checked><span data-project-tray-shared-label></span></label>
-              <label><span data-project-tray-import-label></span><select data-project-tray-import><option value="place"></option><option value="tray_only"></option></select></label>
-            </div>
-          </details>
           <button type="button" data-project-tray-action="add"></button>
         </div>
       </div>
@@ -81,8 +74,6 @@
     canvasPanel.append(tray);
     const list = tray.querySelector(".project-image-tray-list");
     const fileInput = tray.querySelector("[data-project-tray-file]");
-    const sharedInput = tray.querySelector("[data-project-tray-shared]");
-    const importSelect = tray.querySelector("[data-project-tray-import]");
 
     const tr = (ja, en) => options.english?.() ? en : ja;
     const activeIds = () => state.mode === "shared" ? state.shared : state.workspaces[workspace];
@@ -96,16 +87,6 @@
     function applyLanguage() {
       tray.querySelector("[data-project-tray-title]").textContent = tr("ページ画像", "Page Images");
       tray.querySelector('[data-project-tray-action="add"]').textContent = tr("＋ 画像を追加", "+ Add Images");
-      tray.querySelector("[data-project-tray-shared-label]").textContent = tr(
-        "一枚画像・4コマ・コミックで画像を共有",
-        "Share images across Single Image, 4-Panel Manga, and Comic",
-      );
-      tray.querySelector("[data-project-tray-import-label]").textContent = tr(
-        "Forge画像追加時",
-        "When importing from Forge",
-      );
-      importSelect.options[0].textContent = tr("現在のモードへ自動配置", "Add and place in the current mode");
-      importSelect.options[1].textContent = tr("ページ画像へ追加のみ", "Add to Page Images only");
     }
 
     function setShared(enabled, notify = true) {
@@ -116,7 +97,6 @@
         for (const name of WORKSPACES) state.workspaces[name] = [...state.shared];
         state.mode = "separate";
       }
-      sharedInput.checked = state.mode === "shared";
       render();
       if (notify) options.changed?.();
     }
@@ -168,9 +148,13 @@
         if (id) assets.set(id, { ...record, id });
       }
       state = normalizeState(savedState, [...assets.keys()]);
-      sharedInput.checked = state.mode === "shared";
-      importSelect.value = state.forge_import;
       selectedId = activeIds()[0] || "";
+      render();
+    }
+
+    function restoreState(savedState) {
+      state = normalizeState(savedState, [...assets.keys()]);
+      selectedId = activeIds().includes(selectedId) ? selectedId : activeIds()[0] || "";
       render();
     }
 
@@ -196,12 +180,6 @@
       }
     }
 
-    function hideFromActiveTray(id) {
-      if (state.mode === "shared") state.shared = state.shared.filter((value) => value !== id);
-      else state.workspaces[workspace] = state.workspaces[workspace].filter((value) => value !== id);
-      if (selectedId === id) selectedId = activeIds()[0] || "";
-    }
-
     function removeFromAllTrays(id) {
       state.shared = state.shared.filter((value) => value !== id);
       for (const name of WORKSPACES) state.workspaces[name] = state.workspaces[name].filter((value) => value !== id);
@@ -216,11 +194,10 @@
           `この画像は次で使用されています。\n一枚画像：${usage.single}レイヤー\n4コマ漫画：${usage.comic}コマ\nコミック：${usage.comic_layout}コマ`,
           `This image is currently used in:\nSingle Image: ${usage.single}\n4-Panel Manga: ${usage.comic}\nComic: ${usage.comic_layout}`,
         );
-        dialog.innerHTML = `<strong></strong><p></p><div><button value="cancel"></button><button value="hide"></button><button class="danger" value="remove"></button></div>`;
+        dialog.innerHTML = `<strong></strong><p></p><div><button value="cancel"></button><button class="danger" value="remove"></button></div>`;
         dialog.querySelector("strong").textContent = asset.name || tr("画像", "Image");
         dialog.querySelector("p").textContent = lines;
         dialog.querySelector('[value="cancel"]').textContent = tr("キャンセル", "Cancel");
-        dialog.querySelector('[value="hide"]').textContent = tr("トレイからだけ非表示", "Hide from tray only");
         dialog.querySelector('[value="remove"]').textContent = tr("使用箇所から外して削除", "Remove from usage and tray");
         const finish = (value) => { dialog.close(); dialog.remove(); resolve(value); };
         dialog.addEventListener("click", (event) => {
@@ -239,20 +216,14 @@
       const usage = usageFor(id);
       const choice = await removalChoice(asset, usage);
       if (choice === "cancel") return;
-      if (choice === "remove") {
-        await options.removeUsage?.(id);
-        removeFromAllTrays(id);
-      } else {
-        hideFromActiveTray(id);
-      }
+      await options.removeUsage?.(id);
+      removeFromAllTrays(id);
       render();
       options.changed?.();
     }
 
     function render() {
       applyLanguage();
-      sharedInput.checked = state.mode === "shared";
-      importSelect.value = state.forge_import;
       const ids = activeIds().filter((id) => assets.has(id));
       tray.querySelector("[data-project-tray-count]").textContent = tr(`${ids.length}枚`, `${ids.length} images`);
       list.replaceChildren(...ids.map((id) => {
@@ -364,11 +335,6 @@
       }
       fileInput.value = "";
     });
-    sharedInput.addEventListener("change", () => setShared(sharedInput.checked));
-    importSelect.addEventListener("change", () => {
-      state.forge_import = importSelect.value === "tray_only" ? "tray_only" : "place";
-      options.changed?.();
-    });
 
     applyLanguage();
     render();
@@ -376,6 +342,7 @@
       DRAG_TYPE,
       register,
       restore,
+      restoreState,
       render,
       serialize,
       applySettings,

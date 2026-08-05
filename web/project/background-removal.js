@@ -1264,7 +1264,7 @@
         const name = `${base}-no-bg.png`;
         const applied = options.getMode() === "comic"
           ? await options.addPageImage(blob, name)
-          : await options.applySingleImage(blob, name);
+          : await options.applySingleImage(blob, name, source);
         if (applied === false) throw new Error(tr("編集画面へ適用できませんでした。", "Could not apply the result to the editor."));
         setStatus(options.getMode() === "comic" ? tr("画像トレイへ追加しました。", "Added to the Image Tray.") : tr("一枚画像へ適用しました。", "Applied to Single Image."), "ready");
         closeDialog();
@@ -1429,7 +1429,7 @@
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files?.[0];
       fileInput.value = "";
-      if (file) await setSource({ blob: file, name: file.name });
+      if (file) await setSource({ blob: file, name: file.name, source_kind: "external-file" });
     });
 
     const drop = dialog.querySelector("[data-br-drop]");
@@ -1439,7 +1439,7 @@
       event.preventDefault();
       drop.classList.remove("drag-active");
       const file = Array.from(event.dataTransfer?.files || []).find((item) => String(item.type).startsWith("image/"));
-      if (file) await setSource({ blob: file, name: file.name });
+      if (file) await setSource({ blob: file, name: file.name, source_kind: "external-file" });
     });
 
     function bindRangeAndNumber(range, number, minimum, maximum, onChange) {

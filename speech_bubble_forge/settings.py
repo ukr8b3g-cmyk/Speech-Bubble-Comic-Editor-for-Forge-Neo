@@ -25,6 +25,10 @@ DEFAULT_SUPERSAMPLE = 2
 DEFAULT_AUTO_SAVE = True
 DEFAULT_KEEP_LAYOUT = True
 DEFAULT_SAVE_OVERLAY = False
+DEFAULT_LANGUAGE = "auto"
+DEFAULT_SHOW_EMPTY_GUIDE = False
+DEFAULT_SHARED_PROJECT_IMAGES = True
+DEFAULT_FORGE_IMPORT_BEHAVIOR = "place"
 
 _CACHE_LOCK = threading.RLock()
 _CACHE_VERSION = str(time.time_ns())
@@ -221,6 +225,10 @@ class PublicSettings:
     auto_save: bool
     keep_previous_layout: bool
     save_overlay: bool
+    language: str
+    show_empty_guide: bool
+    shared_project_images: bool
+    forge_import_behavior: str
     asset_cache_version: str
     asset_cache_status: str
 
@@ -249,6 +257,10 @@ class PublicSettings:
             "auto_save": self.auto_save,
             "keep_previous_layout": self.keep_previous_layout,
             "save_overlay": self.save_overlay,
+            "language": self.language,
+            "show_empty_guide": self.show_empty_guide,
+            "shared_project_images": self.shared_project_images,
+            "forge_import_behavior": self.forge_import_behavior,
             "asset_cache_version": self.asset_cache_version,
             "asset_cache_status": self.asset_cache_status,
         }
@@ -352,6 +364,22 @@ def public_settings() -> PublicSettings:
         save_overlay=bool(
             get_setting("speech_bubble_forge_save_overlay_v2", DEFAULT_SAVE_OVERLAY)
         ),
+        language=_choice(
+            "speech_bubble_forge_language",
+            DEFAULT_LANGUAGE,
+            {"auto", "ja", "en"},
+        ),
+        show_empty_guide=bool(
+            get_setting("speech_bubble_forge_show_empty_guide", DEFAULT_SHOW_EMPTY_GUIDE)
+        ),
+        shared_project_images=bool(
+            get_setting("speech_bubble_forge_shared_project_images", DEFAULT_SHARED_PROJECT_IMAGES)
+        ),
+        forge_import_behavior=_choice(
+            "speech_bubble_forge_import_behavior",
+            DEFAULT_FORGE_IMPORT_BEHAVIOR,
+            {"place", "tray_only"},
+        ),
         asset_cache_version=cache_version(),
         asset_cache_status=cache_status(),
     )
@@ -365,12 +393,16 @@ __all__ = [
     "DEFAULT_FILENAME_FORMAT",
     "DEFAULT_JPEG_QUALITY",
     "DEFAULT_KEEP_LAYOUT",
+    "DEFAULT_LANGUAGE",
     "DEFAULT_OUTPUT_DIR",
     "DEFAULT_OUTPUT_FORMAT",
     "DEFAULT_PNG_COMPRESSION",
     "DEFAULT_PROMPT_EXPORT_LOCATION",
     "DEFAULT_REMEMBER_EXPORT_DIRECTORY",
     "DEFAULT_SAVE_OVERLAY",
+    "DEFAULT_SHOW_EMPTY_GUIDE",
+    "DEFAULT_SHARED_PROJECT_IMAGES",
+    "DEFAULT_FORGE_IMPORT_BEHAVIOR",
     "DEFAULT_SUPERSAMPLE",
     "DEFAULT_USE_FORGE_OUTPUT_DIR",
     "DEFAULT_WEBP_LOSSLESS",

@@ -66,15 +66,9 @@
 .project-image-tray-heading,
 .project-image-tray-actions { display: flex; align-items: center; gap: 6px; }
 .project-image-tray-heading { min-height: 34px; padding: 4px 7px; justify-content: space-between; }
-.project-image-tray-heading > button { display: flex; align-items: center; gap: 6px; border: 0; background: transparent; }
+.project-image-tray-heading > button { display: flex; align-items: center; gap: 6px; flex:1 1 auto; align-self:stretch; border: 0; background: transparent; text-align:left; cursor:pointer; }
 .project-image-tray-heading > button::before { content: "▾"; width: 10px; color: var(--muted, #aeb7c1); }
 .project-image-tray.collapsed .project-image-tray-heading > button::before { content: "▸"; }
-.project-image-tray-actions details { position: relative; }
-.project-image-tray-actions summary { list-style: none; cursor: pointer; padding: 4px 7px; border: 1px solid var(--line, #48515d); border-radius: 4px; }
-.project-image-tray-settings-panel { position: absolute; right: 0; bottom: 32px; z-index: 20; width: 310px; padding: 9px; border: 1px solid var(--line, #48515d); border-radius: 5px; background: var(--panel, #22272f); box-shadow: 0 8px 24px #0008; }
-.project-image-tray-settings-panel label { display: grid; gap: 4px; margin-bottom: 8px; }
-.project-image-tray-settings-panel .project-image-tray-check { grid-template-columns: 16px 1fr; align-items: center; }
-.project-image-tray-settings-panel input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
 .project-image-tray-list { display: flex; align-items: flex-start; gap: 6px; min-height: 112px; padding: 5px 8px 9px; overflow: auto; }
 .project-image-tray-card { position: relative; display: grid; grid-template-columns:minmax(0,1fr); gap: 3px; flex: 0 0 92px; width:92px; padding: 4px; border: 1px solid var(--line, #48515d); border-radius: 5px; background: #1c2128; cursor:pointer; }
 .project-image-tray-card.selected { border-color: #4fa3ff; box-shadow: 0 0 0 1px #4fa3ff inset; }
@@ -93,29 +87,6 @@
 .project-image-tray-dialog .danger { border-color: #a84949; color: #ffd6d6; }
 .canvas-panel > .comic-image-tray,
 .canvas-panel > .general-comic-image-tray { display: none !important; }
-
-.forge-project-settings-dialog {
-  width: min(620px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  padding: 0;
-  border: 1px solid var(--line, #48515d);
-  border-radius: 8px;
-  background: var(--panel, #22272f);
-  color: var(--text, #eef2f5);
-  box-shadow: 0 18px 60px #000a;
-}
-
-.forge-project-settings-dialog::backdrop { background: #0009; }
-.forge-project-settings-dialog form { display: grid; gap: 10px; padding: 12px; }
-.forge-project-settings-head { display: flex; align-items: center; justify-content: space-between; }
-.forge-project-settings-head strong { font-size: 16px; }
-.forge-project-settings-dialog section { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line, #48515d); border-radius: 6px; }
-.forge-project-settings-dialog h3 { margin: 0; font-size: 13px; }
-.forge-project-settings-dialog label { display: grid; gap: 4px; }
-.forge-project-settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.forge-project-settings-check { grid-template-columns: 16px minmax(0, 1fr); align-items: center; }
-.forge-project-settings-check input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
-.forge-project-settings-actions { display: grid; grid-template-columns: 1fr auto auto auto; gap: 7px; align-items: center; }
 
 .project-action-dialog,
 .project-open-dialog {
@@ -160,11 +131,19 @@
   color: #fff;
 }
 
-@media (max-width: 700px) {
-  .forge-project-settings-grid { grid-template-columns: 1fr; }
-  .forge-project-settings-actions { grid-template-columns: 1fr 1fr; }
-  .forge-project-settings-actions span { display: none; }
-}
 .canvas-workspace > .comic-image-tray {
   display: none !important;
+}
+
+html[data-host-mode="forge-project"] .layout {
+  grid-template-columns: clamp(176px, 14vw, 224px) minmax(340px, 1fr);
+}
+
+html[data-host-mode="forge-project"] .right {
+  display: contents;
+}
+
+html[data-host-mode="forge-project"] .properties-dock.floating-panel,
+html[data-host-mode="forge-project"] .layers-dock.floating-panel {
+  pointer-events: auto;
 }

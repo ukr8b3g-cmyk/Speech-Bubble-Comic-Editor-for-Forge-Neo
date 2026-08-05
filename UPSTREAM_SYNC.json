@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "upstream": {
+    "repository": "https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor",
+    "local_reference": "D:/Codex/Projects/Speech-Bubble-Editor-Desktop-v0.1.4",
+    "commit": "af7f79d896823f39f19fa936602317e39164a827"
+  },
+  "exact_files": [
+    {
+      "forge": "web/project/project-schema.js",
+      "upstream": "web/project-schema.js",
+      "sha256": "c9efaab04e7cd70ee204c948189823936632682d6fcd5591041294e2318dc511"
+    },
+    {
+      "forge": "web/project/editor-mode-controller.js",
+      "upstream": "web/editor-mode-controller.js",
+      "sha256": "694c930cab8b6dfab382026f66a5f65ab5b263a1084a7323bdf60aaab3715d4e"
+    },
+    {
+      "forge": "web/project/general-comic-core.js",
+      "upstream": "web/general-comic-core.js",
+      "sha256": "66adf90765243820d2d997848dfc301af95d6fa31fb98a299123657393fdb1dc"
+    },
+    {
+      "forge": "web/project/comic-panels.js",
+      "upstream": "web/comic-panels.js",
+      "sha256": "9b94239d311bd7f72833a21f16bc9afcc10ed8eddef04564a5fd455d6d9b5258"
+    }
+  ],
+  "adapted_files": [
+    "web/project-editor.html",
+    "web/project/comic-editor.js",
+    "web/project/general-comic-editor.js",
+    "web/project/comic-converter.js",
+    "web/project/background-removal.js"
+  ]
+}

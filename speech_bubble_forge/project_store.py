@@ -153,21 +153,26 @@ class ProjectStore:
             )
             registry = self._load_registry(normalized_id)
             current_images = []
+            repair_warnings = []
             for record in manifest["images"]:
                 server_record = registry.get(record["id"])
                 if not server_record:
-                    raise ProjectSchemaError(
-                        f"Project image blob is missing: {record['id']}"
+                    repair_warnings.append(
+                        f"Missing image registry entry was skipped: {record['id']}"
                     )
+                    continue
                 image_path = self._project_dir(normalized_id) / safe_asset_path(
                     server_record["path"]
                 )
                 if not image_path.is_file():
-                    raise ProjectSchemaError(
-                        f"Project image file is missing: {record['id']}"
+                    repair_warnings.append(
+                        f"Missing image file was skipped: {record['id']}"
                     )
+                    continue
                 current_images.append(server_record)
             manifest["images"] = current_images
+            if repair_warnings:
+                manifest["repair_warnings"] = repair_warnings
             return manifest
 
     def list(self) -> list[dict]:
@@ -221,6 +226,7 @@ class ProjectStore:
                 if self.exists(normalized_id)
                 else self.create(project_id=normalized_id, title=clean_title)
             )
+            current.pop("repair_warnings", None)
             registry = self._load_registry(normalized_id)
             seen: set[str] = set()
             images: list[dict] = []

@@ -40,7 +40,13 @@ function leafCount(node) {
 
 (async () => {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const browser = await chromium.launch({ headless: true });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+  } catch (error) {
+    if (!/Executable doesn't exist/i.test(String(error?.message || error))) throw error;
+    browser = await chromium.launch({ headless: true, channel: "chrome" });
+  }
   try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const pageErrors = [];

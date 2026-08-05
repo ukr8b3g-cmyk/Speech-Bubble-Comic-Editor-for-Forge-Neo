@@ -13,13 +13,53 @@
   let currentProjectId = "";
   let lastTheme = "";
   let focusTimers = [];
+  let configuredLanguage = "auto";
+  let lastProjectSettings = null;
 
   const appRoot = () =>
     typeof gradioApp === "function" ? gradioApp() : document;
 
-  const englishUi = () => /^en(?:-|$)/i.test(
-    String(document.documentElement.lang || navigator.language || ""),
+  const englishUi = () => configuredLanguage === "en" || (
+    configuredLanguage !== "ja" && /^en(?:-|$)/i.test(
+      String(document.documentElement.lang || navigator.language || ""),
+    )
   );
+
+  async function loadProjectSettings() {
+    const response = await fetch("/speech-bubble-forge/config", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Settings request failed (${response.status})`);
+    const payload = await response.json();
+    return payload?.settings && typeof payload.settings === "object"
+      ? payload.settings
+      : payload;
+  }
+
+  async function syncProjectSettings() {
+    try {
+      const settings = await loadProjectSettings();
+      lastProjectSettings = settings;
+      configuredLanguage = ["auto", "ja", "en"].includes(settings?.language)
+        ? settings.language
+        : "auto";
+      installUi();
+      if (projectWindow && !projectWindow.closed) {
+        projectWindow.postMessage(
+          {
+            type: "speech_bubble_project:settings_changed",
+            protocolVersion: PROTOCOL_VERSION,
+            settings,
+          },
+          location.origin,
+        );
+      }
+      return settings;
+    } catch (error) {
+      console.warn("Comic Panel Editor settings sync failed", error);
+      configuredLanguage = "auto";
+      installUi();
+      return null;
+    }
+  }
 
   function uuid() {
     const nativeUuid = globalThis.crypto?.randomUUID?.();
@@ -275,6 +315,52 @@
     output.dataset.level = level;
   }
 
+  function directChildOf(parent, node) {
+    let current = node;
+    while (current && current.parentElement && current.parentElement !== parent) {
+      current = current.parentElement;
+    }
+    return current?.parentElement === parent ? current : null;
+  }
+
+  function findScriptAnchor(settings, tabName) {
+    const root = appRoot();
+    for (const selector of [
+      `#script_${tabName}_script_container`,
+      `#${tabName}_script_container`,
+      `#script_${tabName}_script`,
+      `#${tabName}_script`,
+    ]) {
+      const candidate = root.querySelector(selector);
+      if (candidate && settings.contains(candidate)) {
+        return directChildOf(settings, candidate) || candidate;
+      }
+    }
+    return null;
+  }
+
+  function ensureProjectPanel(tabName) {
+    const root = appRoot();
+    const settings = root.querySelector(`#${tabName}_settings`);
+    if (!settings) return null;
+    let panel = settings.querySelector(`[data-speech-bubble-panel="${tabName}"]`);
+    if (!panel) {
+      panel = document.createElement("details");
+      panel.className = "speech-bubble-forge-panel";
+      panel.dataset.speechBubblePanel = tabName;
+      panel.open = true;
+      panel.innerHTML = `
+        <summary>Comic Panel Editor</summary>
+        <div class="speech-bubble-forge-panel-body">
+          <div class="speech-bubble-forge-actions"></div>
+        </div>`;
+      const anchor = findScriptAnchor(settings, tabName);
+      if (anchor?.parentElement === settings) settings.insertBefore(panel, anchor);
+      else settings.appendChild(panel);
+    }
+    return panel;
+  }
+
   async function replyWithGalleryImage(event, data) {
     const requestId = String(data.requestId || "");
     const tabName =
@@ -322,10 +408,7 @@
   }
 
   function installProjectRow(tabName) {
-    const root = appRoot();
-    const panel = root.querySelector(
-      `[data-speech-bubble-panel="${tabName}"]`,
-    );
+    const panel = ensureProjectPanel(tabName);
     const actions = panel?.querySelector(".speech-bubble-forge-actions");
     if (!actions) {
       return;
@@ -335,26 +418,29 @@
       : panel.querySelector(".speech-bubble-forge-panel");
     const summary = details?.querySelector(":scope > summary");
     if (summary) summary.textContent = "Comic Panel Editor";
-    if (actions.querySelector("[data-action-project-editor]")) return;
-    const row = document.createElement("div");
-    row.className = "speech-bubble-forge-action-row";
-    row.innerHTML = `
-      <button type="button" data-action-project-editor></button>
-      <span class="speech-bubble-forge-action-description"></span>
-      <small data-project-editor-status aria-live="polite"></small>
-    `;
-    row.querySelector("[data-action-project-editor]").textContent = englishUi()
+    let row = actions.querySelector(".speech-bubble-forge-action-row");
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "speech-bubble-forge-action-row";
+      row.innerHTML = `
+        <button type="button" data-action-project-editor></button>
+        <span class="speech-bubble-forge-action-description"></span>
+        <small data-project-editor-status aria-live="polite"></small>
+      `;
+      row.querySelector("[data-action-project-editor]").addEventListener("click", openProjectEditor);
+    }
+    const openButton = row.querySelector("[data-action-project-editor]");
+    openButton.textContent = englishUi()
       ? "Open Comic Panel Editor ↗"
       : "コミックパネルエディターを開く ↗";
+    openButton.title = englishUi()
+      ? "Open the Comic Panel Editor in a separate window"
+      : "コミックパネルエディターを別ウィンドウで開きます";
+    openButton.setAttribute("aria-label", openButton.title);
     row.querySelector(".speech-bubble-forge-action-description").innerHTML = englishUi()
       ? "Import Forge-generated images and edit<br>Single Images, 4-Panel Manga, and Comic projects."
       : "Forgeの生成画像を取り込み、<br>一枚画像・4コマ漫画・コミックを編集します。";
-    row
-      .querySelector("[data-action-project-editor]")
-      .addEventListener("click", openProjectEditor);
     actions.replaceChildren(row);
-    panel.querySelector(".speech-bubble-forge-meta-row")?.setAttribute("hidden", "");
-    panel.querySelector("[data-action=\"settings\"]")?.setAttribute("hidden", "");
   }
 
   function installUi() {
@@ -381,6 +467,16 @@
         },
         event.origin,
       );
+      if (lastProjectSettings) {
+        projectWindow.postMessage(
+          {
+            type: "speech_bubble_project:settings_changed",
+            protocolVersion: PROTOCOL_VERSION,
+            settings: lastProjectSettings,
+          },
+          event.origin,
+        );
+      }
       focusProjectWindow();
       return;
     }
@@ -404,6 +500,7 @@
       replyWithGalleryImage(event, data);
       return;
     }
+
 
     if (data.type === "speech_bubble_project:window_state") {
       try {
@@ -433,8 +530,8 @@
     }
   };
 
-  const start = () => {
-    installUi();
+  const start = async () => {
+    await syncProjectSettings();
     syncTheme();
   };
 
@@ -447,4 +544,6 @@
       syncTheme();
     });
   }
+  if (typeof onOptionsAvailable === "function") onOptionsAvailable(syncProjectSettings);
+  if (typeof onOptionsChanged === "function") onOptionsChanged(syncProjectSettings);
 })();

@@ -87,7 +87,7 @@
             "#tabs button[role='tab']",
         ]);
         if (!mainSettingsTab) {
-            toast("Settingsタブを開けませんでした。上部のSettingsからSpeech Bubble Editorを選択してください。", "error");
+            toast("Settingsタブを開けませんでした。上部のSettingsからComic Panel Editorを選択してください。", "error");
             return;
         }
         mainSettingsTab.click();
@@ -96,7 +96,7 @@
             setTimeout(() => {
                 if (completed) return;
                 const settings = root.querySelector("#settings");
-                const section = buttonWithText(settings, "Speech Bubble Editor", [
+                const section = buttonWithText(settings, "Comic Panel Editor", [
                     ":scope > .tab-nav button",
                     ":scope > div.tab-nav button",
                     ".tab-nav button",
@@ -547,7 +547,7 @@
 
         const editorUrl = new URL(apiPath("speech-bubble-forge/static/speech-bubble-editor.html"));
         if (candidateUrl.origin !== editorUrl.origin || candidateUrl.pathname !== editorUrl.pathname) {
-            setPanelStatus(tabName, "同名ウィンドウはSpeech Bubble Editorではありません。上書きしませんでした。", "error");
+            setPanelStatus(tabName, "同名ウィンドウはComic Panel Editorではありません。上書きしませんでした。", "error");
             candidate.focus();
             return;
         }
@@ -808,7 +808,7 @@
                 </div>
                 <div class="speech-bubble-forge-meta-row">
                   <p class="speech-bubble-forge-note">※ どちらも別ウィンドウで開きます。</p>
-                  <button type="button" class="speech-bubble-forge-settings-link" data-action="settings">Speech Bubble Editor 設定を開く <span aria-hidden="true">→</span></button>
+                  <button type="button" class="speech-bubble-forge-settings-link" data-action="settings">Comic Panel Editor 設定を開く <span aria-hidden="true">→</span></button>
                   <div class="speech-bubble-forge-status" data-speech-bubble-status="${tabName}" data-level="info" aria-live="polite">Editor: Ready</div>
                 </div>
               </div>`;
@@ -856,15 +856,13 @@
     function installUi() {
         syncTheme();
         removeLegacyExportResults();
-        for (const tabName of ["txt2img", "img2img"]) {
-            addGalleryButton(tabName);
-            addQuickPanel(tabName);
-            refreshPanelState(tabName);
-        }
+        const root = appRoot();
+        root.querySelectorAll("[data-speech-bubble-forge]").forEach((element) => element.remove());
     }
 
-    window.speechBubbleForgeOpenSelected = openSelected;
-    window.speechBubbleForgeOpenEditor = openBlank;
+    delete window.speechBubbleForgeOpenSelected;
+    delete window.speechBubbleForgeOpenEditor;
+    window.speechBubbleForgeOpenSettings = openSpeechBubbleSettings;
 
     const start = async () => {
         await loadRuntimeSettings();

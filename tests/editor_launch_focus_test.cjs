@@ -17,6 +17,6 @@ assert(source.includes("requestEditorFocus(event.source, latestOpenRequestId);")
 assert(source.includes("function openSpeechBubbleSettings(event)"));
 assert(source.includes('data-action="settings"'));
 assert(source.includes('class="speech-bubble-forge-meta-row"'));
-assert(source.includes('buttonWithText(settings, "Speech Bubble Editor"'));
+assert(source.includes('buttonWithText(settings, "Comic Panel Editor"'));
 
 console.log("editor_launch_focus_test: OK");

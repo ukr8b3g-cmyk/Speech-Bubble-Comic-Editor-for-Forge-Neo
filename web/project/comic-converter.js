@@ -728,7 +728,7 @@
           );
         } else {
           await storeHistory(options.getDocumentId?.(), source.blob, source.name);
-          const applied = await options.applySingleImage?.(blob, name);
+          const applied = await options.applySingleImage?.(blob, name, source);
           if (!applied) throw new Error(tr("一枚画像へ適用できませんでした。", "Could not apply the conversion to the Single Image."));
           options.setStatus?.(
             tr("コミック変換を一枚画像へ適用しました。", "Comic Conversion was applied to the Single Image."),
@@ -845,7 +845,7 @@
     fileInput.onchange = async () => {
       const file = fileInput.files?.[0];
       fileInput.value = "";
-      if (file) await setSource({ blob: file, name: file.name });
+      if (file) await setSource({ blob: file, name: file.name, source_kind: "external-file" });
     };
     const drop = dialog.querySelector("[data-converter-drop]");
     drop.addEventListener("dragover", (event) => {
@@ -859,7 +859,7 @@
       const file = Array.from(event.dataTransfer?.files || []).find((item) =>
         /^image\/(?:png|jpeg|webp)$/i.test(item.type),
       );
-      if (file) await setSource({ blob: file, name: file.name });
+      if (file) await setSource({ blob: file, name: file.name, source_kind: "external-file" });
     });
     document.addEventListener("paste", async (event) => {
       if (!dialog.open || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;

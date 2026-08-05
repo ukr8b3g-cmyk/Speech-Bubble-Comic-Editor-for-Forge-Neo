@@ -32,10 +32,6 @@ const projectSettings = fs.readFileSync(
   "web/project/project-settings.js",
   "utf8",
 );
-const commonAssetDrawer = fs.readFileSync(
-  "web/project/common-asset-drawer.js",
-  "utf8",
-);
 const forgeProjectCss = fs.readFileSync(
   "web/project/forge-project.css",
   "utf8",
@@ -65,7 +61,7 @@ assert.match(projectEditor, /general-comic-editor\.js/);
 assert.match(projectEditor, /forge-project-adapter\.js/);
 assert.match(projectEditor, /project-image-tray\.js/);
 assert.match(projectEditor, /project-settings\.js/);
-assert.match(projectEditor, /common-asset-drawer\.js/);
+assert.doesNotMatch(projectEditor, /common-asset-drawer\.js/);
 assert.match(projectEditor, /Comic Panel Editor/);
 assert.match(projectEditor, /forgeProjectImageStore/);
 assert.match(projectEditor, /initializeProjectImageTray/);
@@ -73,8 +69,8 @@ assert.match(projectEditor, /grid-template-columns:clamp\(176px,14vw,224px\)[^;]
 assert.match(projectEditor, /@media \(max-width:1100px\)[\s\S]*grid-template-rows:minmax\(260px,58%\) minmax\(180px,42%\)/);
 assert.match(projectEditor, /<section id="propertiesDock" class="properties-dock">/);
 assert.match(projectEditor, /<section id="layersDock" class="layers-dock">/);
-assert.doesNotMatch(projectEditor, /id="(?:properties|layers)Dock" class="[^"]*floating-panel/);
-assert.match(projectEditor, /if\(isForgeProjectHost&&!isPaletteWindow\)/);
+assert.match(projectEditor, /initializeRightDockFloating\(\)/);
+assert.doesNotMatch(projectEditor, /if\(isForgeProjectHost&&!isPaletteWindow\)/);
 assert.match(projectEditor, /getImageTrayState/);
 assert.match(projectEditor, /forgeImportBehavior/);
 assert.match(projectEditor, /registerSingleImageAsset[\s\S]*forgeProjectImageStore\.put/);
@@ -92,7 +88,14 @@ assert.match(projectBridge, /UUID_RE/);
 assert.match(projectBridge, /forgeApiBase", "\/speech-bubble-forge"/);
 assert.match(projectBridge, /コミックパネルエディターを開く ↗/);
 assert.match(projectBridge, /actions\.replaceChildren\(row\)/);
+assert.match(projectBridge, /function ensureProjectPanel/);
+assert.match(projectBridge, /speech_bubble_project:settings_changed/);
+assert.doesNotMatch(projectBridge, /speech_bubble_project:open_settings/);
+assert.doesNotMatch(quickBridge, /addGalleryButton\(tabName\);/);
+assert.doesNotMatch(quickBridge, /addQuickPanel\(tabName\);/);
 
+assert.match(projectApi, /\/config/);
+assert.doesNotMatch(projectApi, /\/settings/);
 assert.match(projectApi, /\/projects\//);
 assert.match(projectApi, /uploadImage/);
 assert.match(projectAdapter, /importSelectedForgeImage/);
@@ -105,14 +108,16 @@ assert.match(projectImageTray, /ページ画像/);
 assert.match(projectImageTray, /canvasPanel\.append\(tray\)/);
 assert.match(projectImageTray, /project-image-tray-badge selected-badge/);
 assert.match(projectImageTray, /project-image-tray-badge used-badge/);
-assert.match(projectSettings, /show_empty_guide: true/);
+assert.match(projectImageTray, /let initiallyCollapsed = true/);
+assert.doesNotMatch(projectImageTray, /data-project-tray-settings/);
+assert.match(projectSettings, /show_empty_guide: false/);
 assert.match(projectSettings, /autosave_enabled: true/);
-assert.match(projectSettings, /shared_images/);
-assert.match(projectSettings, /form\.elements\.theme\.value = DEFAULTS\.theme/);
-assert.match(projectSettings, /UIレイアウトを初期化/);
-assert.match(commonAssetDrawer, /My Presets/);
-assert.match(commonAssetDrawer, /Focus Lines/);
-assert.match(commonAssetDrawer, /common-asset-launcher/);
+assert.match(projectSettings, /shared_project_images/);
+assert.match(projectSettings, /source\.autosave_enabled = source\.auto_save !== false/);
+assert.match(projectSettings, /saveLocal: false/);
+assert.doesNotMatch(projectSettings, /forge-project-settings-dialog/);
+assert.doesNotMatch(projectEditor, /id="openEditorSettings"/);
+assert.doesNotMatch(forgeProjectCss, /forge-project-settings-dialog/);
 assert.match(forgeProjectCss, /> \.comic-image-tray/);
 assert.match(
   comicEditor,

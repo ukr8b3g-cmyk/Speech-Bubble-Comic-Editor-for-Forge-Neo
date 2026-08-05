@@ -19,12 +19,16 @@ from speech_bubble_forge.settings import (
     DEFAULT_FILENAME_FORMAT,
     DEFAULT_JPEG_QUALITY,
     DEFAULT_KEEP_LAYOUT,
+    DEFAULT_LANGUAGE,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_OUTPUT_FORMAT,
     DEFAULT_PNG_COMPRESSION,
     DEFAULT_PROMPT_EXPORT_LOCATION,
     DEFAULT_REMEMBER_EXPORT_DIRECTORY,
     DEFAULT_SAVE_OVERLAY,
+    DEFAULT_SHOW_EMPTY_GUIDE,
+    DEFAULT_SHARED_PROJECT_IMAGES,
+    DEFAULT_FORGE_IMPORT_BEHAVIOR,
     DEFAULT_SUPERSAMPLE,
     DEFAULT_USE_FORGE_OUTPUT_DIR,
     DEFAULT_WEBP_LOSSLESS,
@@ -43,7 +47,7 @@ from speech_bubble_forge.user_assets import (
     USER_ASSET_RESIZE_SIDE,
 )
 
-_SETTINGS_SECTION = ("speech_bubble_forge", "Speech Bubble Editor")
+_SETTINGS_SECTION = ("speech_bubble_forge", "Comic Panel Editor")
 
 
 def _on_app_started(_demo, app):
@@ -69,8 +73,13 @@ def _on_ui_settings():
         f"""
         <div id="speech-bubble-forge-settings-panel" class="speech-bubble-forge-settings-panel" data-ui-version="{SETTINGS_UI_VERSION}">
           <div class="speech-bubble-forge-settings-heading">
-            <div><strong>Speech Bubble Editor 設定</strong><small>独立ウィンドウ型Editorの設定とユーザー素材を管理します。</small></div>
+            <div><strong>Comic Panel Editor 設定</strong><small>独立ウィンドウ型コミックエディターの設定とユーザー素材を管理します。</small></div>
           </div>
+
+          <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="appearance" open>
+            <summary><span>Appearance（表示）</span><small>言語・画像ガイド・ページ画像の共有</small></summary>
+            <div class="speech-bubble-forge-settings-group-body" data-speech-bubble-settings-body="appearance"></div>
+          </details>
 
           <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="user-presets" open>
             <summary><span>User Presets（ユーザープリセット）</span><small data-speech-bubble-user-summary>読み込み中…</small></summary>
@@ -122,6 +131,21 @@ def _on_ui_settings():
                   <button type="button" data-speech-bubble-diagnostic-show disabled>前回レポート</button>
                 </div>
               </div>
+            </div>
+          </details>
+
+          <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="model">
+            <summary><span>AI Background Removal Model（AI背景削除モデル）</span><small>isnet-anime・約168 MB</small></summary>
+            <div class="speech-bubble-forge-settings-group-body speech-bubble-forge-model-card">
+              <output data-speech-bubble-model-status aria-live="polite">確認待ち</output>
+              <progress data-speech-bubble-model-progress max="1" value="0" style="width:100%"></progress>
+              <div class="speech-bubble-forge-model-actions">
+                <button type="button" data-speech-bubble-model-refresh>更新</button>
+                <button type="button" data-speech-bubble-model-download>モデルを取得</button>
+                <button type="button" data-speech-bubble-model-cancel hidden>中止</button>
+                <button type="button" data-speech-bubble-model-delete>モデルを削除</button>
+              </div>
+              <small>初回利用時の確認、または「モデルを取得」を押した場合だけダウンロードします。画像処理はローカルで実行します。</small>
             </div>
           </details>
         </div>
@@ -345,6 +369,50 @@ def _on_ui_settings():
             section=_SETTINGS_SECTION,
         ).info("画像内容のハッシュごとに保存し、Forge再起動・タブ切替後も同じ画像へ復元"),
     )
+    _add_option(
+        "speech_bubble_forge_language",
+        shared.OptionInfo(
+            DEFAULT_LANGUAGE,
+            "エディターの表示言語",
+            component=gr.Dropdown,
+            component_args={
+                "choices": [
+                    ("自動（システム）", "auto"),
+                    ("日本語", "ja"),
+                    ("English", "en"),
+                ]
+            },
+            section=_SETTINGS_SECTION,
+        ).info("Comic Panel EditorのUIとマウスオーバー説明へ反映します"),
+    )
+    _add_option(
+        "speech_bubble_forge_show_empty_guide",
+        shared.OptionInfo(
+            DEFAULT_SHOW_EMPTY_GUIDE,
+            "画像未読込時に「画像をドロップ」を表示",
+            component=gr.Checkbox,
+            section=_SETTINGS_SECTION,
+        ),
+    )
+    _add_option(
+        "speech_bubble_forge_shared_project_images",
+        shared.OptionInfo(
+            DEFAULT_SHARED_PROJECT_IMAGES,
+            "ページ画像を3モードで共有",
+            component=gr.Checkbox,
+            section=_SETTINGS_SECTION,
+        ).info("一枚画像・4コマ漫画・コミックで同じページ画像トレイを使用"),
+    )
+    _add_option(
+        "speech_bubble_forge_import_behavior",
+        shared.OptionInfo(
+            DEFAULT_FORGE_IMPORT_BEHAVIOR,
+            "Forge画像追加時",
+            component=gr.Dropdown,
+            component_args={"choices": ["place", "tray_only"]},
+            section=_SETTINGS_SECTION,
+        ).info("place: 現在のモードへ配置 / tray_only: ページ画像へ追加のみ"),
+    )
     browser_cache = shared.OptionHTML(
         """
         <div id="speech-bubble-forge-cache-manager" class="speech-bubble-forge-cache-manager">
@@ -382,7 +450,7 @@ class Script(scripts.Script):
     setup_for_ui_only = True
 
     def title(self):
-        return "Speech Bubble Editor"
+        return "Comic Panel Editor"
 
     def show(self, is_img2img):
         return False
