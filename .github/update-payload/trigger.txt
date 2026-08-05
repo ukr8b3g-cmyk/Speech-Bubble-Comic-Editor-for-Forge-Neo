@@ -1,1 +1,2 @@
 Trigger the validated Comic Panel Editor update workflow.
+Retry after preserving the temporary bootstrap workflow.
