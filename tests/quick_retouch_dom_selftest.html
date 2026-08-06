@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<style>:root{--text:#eee;--panel:#22262d;--header:#1d2025;--line:#454c58;--field:#171a1f;--muted:#9ca7b5;--accent:#4fa3ff}body{margin:0;background:#111;color:#eee;font:12px sans-serif}button,input,select{font:inherit}#result{position:fixed;left:0;top:0;z-index:9999999;background:#fff;color:#000;padding:10px}</style>
+<link rel="stylesheet" href="../web/project/quick-retouch.css">
+</head>
+<body>
+<div id="result">RUNNING</div>
+<button data-quick-retouch-open>Open</button>
+<script src="../web/project/quick-retouch-core.js"></script>
+<script src="../web/project/quick-retouch.js"></script>
+<script>
+(async()=>{
+  const out=document.getElementById('result');
+  try{
+    const c=document.createElement('canvas');c.width=96;c.height=72;const x=c.getContext('2d');
+    const g=x.createLinearGradient(0,0,96,72);g.addColorStop(0,'#143c8c');g.addColorStop(1,'#ff66bb');x.fillStyle=g;x.fillRect(0,0,96,72);x.fillStyle='#fff';x.fillRect(8,8,20,14);
+    const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+    window.__applied=null;
+    const api=SpeechBubbleQuickRetouch.create({getMode:()=> 'single',getSingleSource:async()=>({blob,name:'harness.png',width:96,height:72,layer_id:'source-layer',source_kind:'layer',selected:true}),getComicSources:async()=>[],addPageImage:async()=> 'image-id',applySingleImage:async(result)=>{window.__applied=result;return true;},setStatus:()=>{}});
+    api.open();
+    await new Promise(r=>setTimeout(r,900));
+    const q=s=>document.querySelector(s); const qa=s=>[...document.querySelectorAll(s)];
+    if(!q('dialog.quick-retouch-dialog[open]')) throw Error('dialog not open');
+    if(!q('[data-retouch-tool="brush"].active')) throw Error('brush not initial');
+    if(qa('[data-retouch-layer-id]').length!==1) throw Error('paint layer count');
+    if(!q('[data-retouch-layer-id].active')) throw Error('paint layer not active');
+    if(qa('[data-retouch-panel]').length!==3) throw Error('floating panels');
+    if(!q('[data-retouch-tool-options] [data-tool-setting="brushSize"]')) throw Error('brush options missing');
+    if(!q('[data-retouch-original][hidden]')) throw Error('original canvas should be hidden');
+    q('[data-retouch-tool="lasso"]').click();
+    const canvas=q('[data-retouch-result]'); const rect=canvas.getBoundingClientRect();
+    const pts=[[.2,.2],[.55,.2],[.55,.55],[.2,.55]];
+    canvas.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:9,clientX:rect.left+rect.width*pts[0][0],clientY:rect.top+rect.height*pts[0][1]}));
+    for(const [px,py] of pts.slice(1)) canvas.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,pointerId:9,clientX:rect.left+rect.width*px,clientY:rect.top+rect.height*py}));
+    canvas.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,pointerId:9,clientX:rect.left+rect.width*.2,clientY:rect.top+rect.height*.2}));
+    await new Promise(r=>setTimeout(r,200));
+    if(!q('[data-retouch-selection-panel] strong')?.textContent.includes('選択範囲あり')) throw Error('lasso selection missing');
+    q('[data-retouch-add="curves"]').click();
+    q('[data-retouch-curve-preset]').value='contrast';q('[data-retouch-curve-preset]').dispatchEvent(new Event('change',{bubbles:true}));
+    q('[data-retouch-action="apply"]').click();
+    for(let i=0;i<50&&!window.__applied;i++) await new Promise(r=>setTimeout(r,100));
+    if(!window.__applied||window.__applied.type!=='image/png'||!window.__applied.size) throw Error('apply failed');
+    out.textContent='PASS';
+  }catch(e){out.textContent='FAIL: '+(e.stack||e);}
+})();
+</script>
+</body></html>

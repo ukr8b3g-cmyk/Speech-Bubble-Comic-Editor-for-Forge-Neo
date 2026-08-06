@@ -14,8 +14,7 @@ const manifest = JSON.parse(fs.readFileSync(
 ));
 
 assert.match(bridge, /let configuredLanguage = "auto"/);
-assert.match(bridge, /async function syncProjectSettings\(\)/);
-assert.match(bridge, /speech_bubble_project:settings_changed/);
+assert.match(bridge, /async function loadConfiguredLanguage\(\)/);
 assert.match(bridge, /let row = actions\.querySelector/);
 assert.doesNotMatch(bridge, /if \(actions\.querySelector\("\[data-action-project-editor\]"\)\) return/);
 
@@ -27,7 +26,6 @@ assert.match(editor, /SFX_SECTION_STATE_KEY = "speech_bubble:sfx_drawer_sections
 assert.match(editor, /function restoreDrawerWidth\(drawer\)/);
 assert.match(editor, /locked=false,fit="cover"/);
 assert.match(editor, /role:"forge-gallery",assetId:String\(asset\.id\),locked:false/);
-assert.doesNotMatch(editor, /id="openEditorSettings"/);
 
 assert.match(settings, /MODEL_ENDPOINT/);
 assert.match(settings, /speech_bubble_forge_language/);

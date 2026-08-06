@@ -75,9 +75,9 @@
     }
   }
 
-  function update(patch, { notify = true, saveLocal = true } = {}) {
+  function update(patch, { notify = true } = {}) {
     settings = normalize({ ...settings, ...(patch || {}) });
-    if (saveLocal) persist();
+    persist();
     applyAppearance();
     if (notify) {
       root.dispatchEvent(new Event("speech-bubble:language-change"));
@@ -112,7 +112,7 @@
     if (!("autosave_enabled" in source) && "auto_save" in source) {
       source.autosave_enabled = source.auto_save !== false;
     }
-    return update(source, { notify: true, saveLocal: false });
+    return update(source, { notify: true });
   }
 
   applyAppearance();

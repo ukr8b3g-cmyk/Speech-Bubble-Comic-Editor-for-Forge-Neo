@@ -18,6 +18,7 @@ Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し�
 - ベジェ曲線で編集できる吹き出しとユーザープリセット
 - 単色、グラデーション、網点、雲、木目、集中線など23種類のCanvas背景
 - グレースケール、白黒コミック、モノクロ、XDoGのコミック変換
+- 選択マスク、ペイント、部分色変更、トーンカーブに対応する簡易レタッチ（初期版）
 - isnet-animeによるAI背景削除、ブラシ、自動選択、マスク補正
 - フリンジ、不要色、白マット、黒マットのエッジカラー補正
 - Undo／Redo、自動保存、ローカルプロジェクト保存、PNG／JPEG／WebP書き出し
@@ -34,23 +35,14 @@ Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し�
 
 ## インストール
 
-Forge Neoを終了してから、Forge Neoの`extensions`フォルダーへ配置します。
-
-通常のForge Neo構成例:
-
-```powershell
-cd C:\stable-diffusion-webui-forge\extensions
-git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo.git
-```
-
-Stability Matrixの構成例:
+Forge Neoを終了してから、拡張フォルダーへ配置します。
 
 ```powershell
 cd D:\StabilityMatrix\Data\Packages\Forge-Neo\extensions
 git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo.git
 ```
 
-Forge Neoの設置場所を変更している場合は、実際の`Forge-Neo\extensions`または`stable-diffusion-webui-forge\extensions`を使用してください。配置後にForge Neoを起動または再起動します。追加の必須Pythonパッケージはありません。
+Stability Matrixのパッケージ場所を変更している場合は、実際の`Forge-Neo\extensions`を使用してください。配置後にForge Neoを起動または再起動します。追加の必須Pythonパッケージはありません。
 
 更新:
 
@@ -117,6 +109,110 @@ Canvas背景の上へ複数の画像や素材を重ねるモードです。背�
 
 吹き出しはPropertiesでベジェ曲線のアンカーとハンドルを編集できます。`Finish Path`で確定後、ユーザープリセットとして保存するとMy Presetsから再利用できます。Built-inは上書きされません。
 
+## 簡易レタッチ（Quick Retouch・UI再設計版）
+
+左パネルの「簡易レタッチを開く」、または画像レイヤーの右クリックメニューから起動します。生成画像の小さな修正、不要文字の塗りつぶし、髪や服の部分的な色変更、明暗調整を行います。元画像は上書きせず、適用結果を新しい画像レイヤーまたは「ページ画像」として保存します。
+
+### 1枚Canvasとフローティングパネル
+
+編集画像は中央の1枚Canvasへ大きく表示します。元画像との常時2画面表示は行いません。
+
+- 「元画像を表示（長押し）」: 押している間だけ元画像へ切り替え
+- 「左右比較」: 同じCanvas内を元画像と編集結果に分割して比較
+- 選択範囲、Layers、Properties: Editor内のフローティングパネル
+
+3つのパネルは移動、リサイズ、最小化、非表示、再表示に対応し、位置と大きさを保存します。初期状態ではCanvasを覆いにくい右側へ並びます。
+
+### 初期状態とツール
+
+Quick Retouchを開くと、`ブラシ`と`ペイント1`が選択されています。左ツールは使用頻度とPhotoshopに近い分類で並びます。
+
+- 描画: ブラシ、消しゴム、スポイト
+- 選択: 矩形選択、フリーハンド投げ縄、自動選択、色域選択
+- 表示: 手のひら、ズーム
+
+選択中ツールのサイズ、硬さ、不透明度、許容値、選択方法などはCanvas上部のツールオプションバーに表示されます。
+
+### ブラシと色
+
+ブラシカーソルは実際のサイズと一致する白黒二重線の円と中央の「＋」で表示し、描画中だけ円内を薄い赤で示します。消しゴムは中央の「−」と水色系の表示、調整レイヤーマスクの編集時は青系の表示になります。
+
+- 右ボタンを押しながら左右ドラッグ: ブラシサイズ変更。円形枠と `80 px` 形式の表示をリアルタイム更新
+- `[` / `]`: ブラシサイズを縮小／拡大
+- ホイール: ポインター付近を中心にCanvasを拡大／縮小
+- 中ボタンドラッグ: 一時的な手のひら操作でCanvasを移動
+- Alt＋クリック: 一時スポイト
+- 前景色／背景色の色面: カラーピッカー
+- `⇄`: 前景色と背景色を入れ替え
+
+### 選択範囲
+
+選択範囲は通常の画像レイヤーではなく、独立した「選択範囲」パネルで管理します。
+
+- 全選択、解除、反転
+- 新規、追加、削除、共通部分
+- 境界ぼかし、拡張、縮小
+- 青い境界線、青い半透明マスク、非表示
+- 目アイコンでCanvas上の表示だけをON／OFF
+
+Shiftは追加、Altは削除、Shift＋Altは共通部分として一時的に動作し、押している間は上部の選択方法ボタンも連動して強調されます。
+
+### 選択ツール
+
+- 矩形選択: ドラッグした矩形を選択
+- 投げ縄選択: マウスを押したまま自由な形に囲み、離して確定
+- 自動選択: クリック位置からつながった近似色を選択。連続領域をOFFにすると画像全体の近似色を選択
+- 色域選択: 基準色、追加色、除外色を専用スポイトで登録し、青紫の候補プレビューから画像全体の近い色を選択
+
+自動選択と色域選択は、追加モードまたはShift＋クリックで複数箇所・複数色を選択できます。
+
+### ペイントと選択範囲
+
+選択範囲がある場合、ペイントと消しゴムは選択範囲内だけに作用します。例えば背景文字を自動選択または投げ縄で囲み、背景色をスポイトで取得して塗りつぶせます。
+
+### 調整レイヤーとマスク
+
+選択範囲がある状態で調整レイヤーを追加すると、その範囲がレイヤー専用マスクへコピーされます。
+
+- 色相・彩度・明度、色彩の統一
+- 明るさ・コントラスト・ガンマ
+- トーンカーブ: RGB、Red、Green、Blue
+
+マスクサムネイルのボタンを押すとマスク編集へ入り、白で効果を適用、消しゴムで黒くして効果を保護します。
+
+### トーンカーブ
+
+グラフ上をクリックして制御点を追加し、ドラッグまたは入力／出力の数値で調整します。リニア、コントラスト、強いコントラスト、シャドウを持ち上げる、ハイライトを抑えるプリセットを備えます。処理は256段階のLUTへ変換してプレビューと元解像度出力へ適用します。
+
+### 保存方式と制約
+
+「一枚画像へ適用」または「新しいページ画像として適用」を押すと、現在の結果をPNGとして追加します。元画像は常にロックされた基準レイヤーとして保持され、直接描画・削除・並べ替えはできません。処理は非破壊で、元ファイルを上書きしません。
+
+Quick Retouch内のペイントレイヤー、調整レイヤー、選択範囲は、適用時に1枚のPNGへ統合されます。ダイアログを閉じた後に調整レイヤーを再編集することはできません。コピースタンプ、修復ブラシ、ぼかし、シャープ、グラデーション、AIインペイントは今後の候補です。
+
+
+### Quick Retouchのショートカット
+
+| 操作 | 動作 |
+| --- | --- |
+| `B` / `E` / `I` | ブラシ／消しゴム／スポイト |
+| `M` / `L` / `W` / `U` | 矩形／投げ縄／自動選択／色域選択 |
+| `H` / `Z` | 手のひら／ズーム |
+| `Ctrl+A` | すべてを選択 |
+| `Ctrl+D` | 選択を解除 |
+| `Ctrl+Shift+D` | 直前に解除した選択範囲を再選択 |
+| `Ctrl+Shift+I` | 選択範囲を反転 |
+| `Shift` / `Alt` / `Shift+Alt` | 選択へ追加／削除／共通部分 |
+| `Ctrl+J` | 選択中のレタッチレイヤーを複製 |
+| `Ctrl+0` / `Ctrl+1` | 全体表示／100%表示 |
+| `Ctrl++` / `Ctrl+-` | 拡大／縮小 |
+| ホイール | ポインター付近を中心に拡大／縮小 |
+| 中ボタンドラッグ | Canvasを移動 |
+| Space＋左ドラッグ | Canvasを移動 |
+| 右ボタン＋左右ドラッグ | ブラシサイズをリアルタイム変更 |
+| `[` / `]` | ブラシサイズを縮小／拡大 |
+| `\`を押している間 | 元画像を表示 |
+
 ## コミック変換
 
 「コミック変換を開く」からカラー画像を変換します。
@@ -143,7 +239,7 @@ isnet-animeモデル（約168MB）は同梱していません。モデルがな�
 
 ## Forge Settings
 
-設定はForge Neo本体の`Settings > Comic Panel Editor`から変更します。Editor内には重複するSettingsボタンや、効果のない独立Settings画面を設けていません。設定を適用すると、開いているComic Panel Editorにも表示言語やページ画像の動作が反映されます。
+設定はForge Neo本体の`Settings > Comic Panel Editor`から変更します。Editor内に重複する設定ボタンや独立Settings画面は設けていません。
 
 主な設定:
 
@@ -157,7 +253,7 @@ isnet-animeモデル（約168MB）は同梱していません。モデルがな�
 - 編集キャッシュ、素材キャッシュ、自己診断
 - AI背景削除モデルの取得状態、取得、中止、削除
 
-言語変更はEditorの主要UI、Properties、Layers、素材Drawer、背景削除、コミック変換へ反映されます。日本語／Englishの切り替えはEditorを開き直さなくても反映されます。ユーザーが入力した文字やプリセット名は翻訳しません。
+言語変更はEditorの主要UI、Properties、Layers、素材Drawer、背景削除、コミック変換へ反映されます。ユーザーが入力した文字やプリセット名は翻訳しません。
 
 ## 保存と書き出し
 
@@ -198,7 +294,7 @@ isnet-animeモデル（約168MB）は同梱していません。モデルがな�
 
 It provides three independent workspaces—Single Image, 4-Panel Manga, and Comic—plus Page Images, layers, speech bubbles, text and vertical writing, SFX, stamps, frames, emphasis lines, procedural backgrounds, comic conversion, AI background removal, local project persistence, and PNG/JPEG/WebP export.
 
-Install it under `Forge-Neo/extensions`, restart Forge Neo, expand **Comic Panel Editor** in `txt2img` or `img2img`, and click **Open Comic Panel Editor ↗**. Language, Page Images behavior, export, presets, cache, diagnostics, and the optional AI model are managed from `Settings > Comic Panel Editor` in the Forge Neo window. Changes to the display language are also sent to an Editor window that is already open.
+Install it under `Forge-Neo/extensions`, restart Forge Neo, expand **Comic Panel Editor** in `txt2img` or `img2img`, and click **Open Comic Panel Editor ↗**. Language, Page Images behavior, export, presets, cache, diagnostics, and the optional AI model are managed from `Settings > Comic Panel Editor` in the Forge Neo window.
 
 The optional isnet-anime model is not bundled. It is downloaded only after the user approves the first-use prompt or clicks **Download Model** in Forge Settings. Processing remains local.
 

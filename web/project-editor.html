@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./project/general-comic-editor.css?v=forge-project-1">
   <link rel="stylesheet" href="./project/comic-converter.css?v=forge-project-1">
   <link rel="stylesheet" href="./project/background-removal.css?v=forge-project-1">
+  <link rel="stylesheet" href="./project/quick-retouch.css?v=quick-retouch-074-pan-cursor-1">
   <link rel="stylesheet" href="./project/forge-project.css?v=forge-project-3">
   <script src="./project/project-schema.js?v=forge-project-1"></script>
   <script src="./project/editor-mode-controller.js?v=forge-project-1"></script>
@@ -19,6 +20,8 @@
   <script src="./project/background-removal-selection.js?v=forge-project-1"></script>
   <script src="./project/background-removal-edge.js?v=forge-project-1"></script>
   <script src="./project/background-removal.js?v=forge-project-1"></script>
+  <script src="./project/quick-retouch-core.js?v=quick-retouch-074-pan-cursor-1"></script>
+  <script src="./project/quick-retouch.js?v=quick-retouch-074-pan-cursor-1"></script>
   <script src="./project/canvas-background-patterns.js?v=forge-project-1"></script>
   <script src="./project/project-bridge-protocol.js?v=forge-project-1"></script>
   <script src="./project/forge-project-api.js?v=forge-project-1"></script>
@@ -51,6 +54,7 @@
     [data-desktop-action="project-new"] { background:var(--toolbar-new); color:#fff; }
     [data-desktop-action="project-open"] { background:var(--toolbar-open); color:#fff; }
     [data-desktop-action="project-save"] { background:var(--toolbar-save); color:#fff; }
+    #openEditorSettings { background:var(--toolbar-settings); color:#fff; }
     #deleteFrameBtn { background:#4a2929; border-color:#785050; color:#f6dddd; }
     #discardChanges { background:#b7791f; color:#fff; font-weight:700; }
     #saveLayout { background:#15803d; color:#fff; font-weight:600; }
@@ -88,6 +92,7 @@
     [data-editor-mode][aria-pressed="true"] { border-color:#fff; box-shadow:0 0 0 1px #fff7 inset; }
     header .segmented button { height:28px; min-height:28px; }
     header .comic-mode-toggle { display:flex; align-items:center; gap:3px; margin:0; }
+    header .comic-mode-toggle button,#openEditorSettings { height:28px; min-height:28px; line-height:1.2; }
     header .spacer { flex:1; }
     .layout { height:calc(100% - 40px); display:grid; grid-template-columns:clamp(176px,14vw,224px) minmax(340px,1fr) clamp(540px,34vw,640px); min-width:0; }
     aside { background:var(--panel); overflow:auto; }
@@ -273,6 +278,7 @@
     [data-comic-converter-open] { background:#a94f19; border-color:#db7937; color:#fff; }
     [data-comic-converter-open]:hover { background:#bd5b20; }
     .comic-insert-target-status { margin:4px 2px 6px; color:#8fc8f4; font-size:10px; line-height:1.25; }
+    #openEditorSettings { border-color:#8461aa; background:#38284a; color:#f2e7ff; }
     #randomizeShape { background:#2b3638; border-color:#50666a; color:#dce9eb; }
     #saveUserPreset { background:#393328; border-color:#665a42; color:#eee4cd; }
     .vector-tools button { background:#302f3a; border-color:#57566a; color:#e1deea; }
@@ -400,6 +406,10 @@
   </header>
   <div class="layout">
     <aside class="left">
+      <details class="left-section quick-retouch-launcher" data-left-section="quick-retouch" open>
+        <summary>簡易レタッチ</summary>
+        <button type="button" data-quick-retouch-open>簡易レタッチを開く</button>
+      </details>
       <details class="left-section comic-converter-launcher" data-left-section="comic-converter" open>
         <summary>コミック変換</summary>
         <button type="button" data-comic-converter-open>コミック変換を開く</button>
@@ -726,7 +736,7 @@
     </div>
     <div id="fontList" class="font-list" role="listbox" aria-label="Available fonts"></div>
   </div>
-  <div id="layerMenu" class="layer-menu"><button id="copyLayer">Copy　Ctrl+C</button><button id="pasteLayer" disabled>Paste　Ctrl+V</button><button id="duplicateLayer">Duplicate</button><button id="processLayerBackgroundRemoval" hidden>この画像を背景削除</button><button id="processLayerComicConversion" hidden>この画像をコミック変換</button><button id="showOriginalImageLayer" hidden>元画像を表示</button><button id="deleteLayer">Delete</button></div>
+  <div id="layerMenu" class="layer-menu"><button id="copyLayer">Copy　Ctrl+C</button><button id="pasteLayer" disabled>Paste　Ctrl+V</button><button id="duplicateLayer">Duplicate</button><button id="processLayerQuickRetouch" hidden>この画像を簡易レタッチ</button><button id="processLayerBackgroundRemoval" hidden>この画像を背景削除</button><button id="processLayerComicConversion" hidden>この画像をコミック変換</button><button id="showOriginalImageLayer" hidden>元画像を表示</button><button id="deleteLayer">Delete</button></div>
   <dialog id="replaceImageDialog" class="document-dialog">
     <strong>背景画像を置き換えますか？</strong>
     <p>現在の画像には未保存の変更があります。</p>
@@ -799,7 +809,9 @@
           ? "converted"
           : metadata?.source === "background-removal"
             ? "background-removal"
-            : "local-file";
+            : metadata?.source === "quick-retouch"
+              ? "retouched"
+              : "local-file";
         const asset = await forgeProjectApiClient.uploadImage(forgeProjectId, blob, {
           name: metadata?.name || "project-image",
           sourceKind,
@@ -903,7 +915,7 @@
     function imageLayerScale(item){return Math.max(10,Math.min(800,Math.round(((Number(item?.w)||1)/Math.max(1,Number(item?.base_width)||Number(item?.w)||1))*100)));}
     function fitImageLayerGeometry(asset,mode="cover"){const ratio=(mode==="contain"?Math.min:Math.max)(state.width/Math.max(1,asset.width),state.height/Math.max(1,asset.height)),w=asset.width*ratio,h=asset.height*ratio;return{x:(state.width-w)/2,y:(state.height-h)/2,w,h,base_width:w,base_height:h};}
     function createSingleImageLayer(asset,{name=asset.name,inherit=null,role="image",visible=true,locked=false,fit="cover"}={}){const geometry=inherit?{x:inherit.x,y:inherit.y,w:inherit.w,h:inherit.h,base_width:inherit.base_width||inherit.w,base_height:inherit.base_height||inherit.h}:fitImageLayerGeometry(asset,fit);return{id:id(),type:"image",image_asset_id:asset.id,image_name:name,source_role:role,x:geometry.x,y:geometry.y,w:geometry.w,h:geometry.h,base_width:geometry.base_width,base_height:geometry.base_height,rotation:Number(inherit?.rotation)||0,opacity:Math.max(0,Math.min(1,finiteOr(inherit?.opacity,1))),lock_aspect_ratio:true,locked:inherit?inherit.locked===true:locked,visible,comic_scope:"free",comic_panel_id:""};}
-    async function addSingleImageLayerFromBlob(blob,name,{inherit=null,role="image",hideSource=false,select=true,assetId="",locked=false}={}){const asset=await registerSingleImageAsset(blob,name,assetId),layer=createSingleImageLayer(asset,{name,inherit,role,locked});if(inherit)layer.source_image_layer_id=inherit.id;pushUndo();if(hideSource&&inherit)inherit.visible=false;const lastImageIndex=state.elements.reduce((last,item,index)=>item.type==="image"?index:last,-1);state.elements.splice(lastImageIndex+1,0,layer);if(select)setSelection([layer.id],layer.id);captureActiveWorkspace();syncProperties();render();updateActionState();return layer;}
+    async function addSingleImageLayerFromBlob(blob,name,{inherit=null,role="image",hideSource=false,select=true,assetId="",locked=false,fit="cover"}={}){const asset=await registerSingleImageAsset(blob,name,assetId),layer=createSingleImageLayer(asset,{name,inherit,role,locked,fit});if(inherit)layer.source_image_layer_id=inherit.id;pushUndo();if(hideSource&&inherit)inherit.visible=false;const lastImageIndex=state.elements.reduce((last,item,index)=>item.type==="image"?index:last,-1);state.elements.splice(lastImageIndex+1,0,layer);if(select)setSelection([layer.id],layer.id);captureActiveWorkspace();syncProperties();render();updateActionState();return layer;}
     function ensurePrimarySingleImageLayer(assetId=primarySingleImageAssetId){if(activeWorkspace!=="single"||!assetId)return null;const asset=singleImageAssets.get(assetId);if(!asset)return null;let layer=state.elements.find(item=>item.type==="image"&&item.image_asset_id===assetId);if(layer)return layer;const legacy=normalizedBackgroundImage(state.backgroundImage),base=Math.max(state.width/asset.width,state.height/asset.height),w=asset.width*base*legacy.scale,h=asset.height*base*legacy.scale;layer=createSingleImageLayer(asset,{role:"original",visible:state.backgroundVisible,locked:legacy.locked});Object.assign(layer,{x:(state.width-w)/2+legacy.offsetX,y:(state.height-h)/2+legacy.offsetY,w,h,base_width:asset.width*base,base_height:asset.height*base});state.elements.unshift(layer);state.backgroundImage=normalizedBackgroundImage({attached:false});state.backgroundVisible=true;captureActiveWorkspace();return layer;}
     const state = { width: 1024, height: 1024, zoom: 1, panX: 0, panY: 0, backgroundVisible: true, canvasBackground:normalizedCanvasBackground(), backgroundImage:normalizedBackgroundImage({attached:false}), elements: [], selected: null, selection: [], vectorEditId: null, vectorAnchorIndex: null, vectorAddMode: false, drag: null, undo: [], redo: [], propertyEditSnapshot: null, canvasFromLayout: false, spaceDown: false };
     const WORKSPACE_VIEW_KEY=isForgeProjectHost?`${PROJECT_STORAGE_PREFIX}workspace-views:v1`:"speech_bubble:workspace_views:v1";
@@ -942,7 +954,7 @@
       document.getElementById("addSingleImageLayerFromLayers").hidden=next!=="single";
       restoreWorkspaceView(source,false);
     }
-    let modeController=null,comicEditor=null,generalComicEditor=null,comicConverter=null,backgroundRemoval=null,comicOverlayExport=false;
+    let modeController=null,comicEditor=null,generalComicEditor=null,comicConverter=null,backgroundRemoval=null,quickRetouch=null,comicOverlayExport=false;
     function activeStructuralEditor(){return generalComicEditor?.isActive()?generalComicEditor:comicEditor?.isActive()?comicEditor:null;}
 
     function initializeModeController(){
@@ -973,7 +985,7 @@
       document.documentElement.dataset.editorMode=activeWorkspace;
     }
     async function selectedSingleImageSource(){const layer=selectedSingleImageLayer(),asset=singleImageAssetFor(layer);if(layer&&asset){lastSingleProcessingLayerId=layer.id;return{blob:asset.blob,name:layer.image_name||asset.name,width:asset.width,height:asset.height,layer_id:layer.id,source_kind:"layer",visible:layer.visible!==false};}if(!imageLoaded||!image.naturalWidth)return null;lastSingleProcessingLayerId="";return{blob:await sourceImageBlob(),name:sourceName||"speech_bubble",width:image.naturalWidth,height:image.naturalHeight,source_kind:"legacy-background"};}
-    async function applyProcessedSingleImage(blob,name,role,sourceContext){if(!blob)return false;const sourceId=String(sourceContext?.layer_id||"");const source=sourceId?state.elements.find(item=>item.id===sourceId&&item.type==="image"):null;await addSingleImageLayerFromBlob(blob,name,{inherit:source||undefined,role,hideSource:Boolean(source)});layoutDirty=true;scheduleAutoSave();updateActionState();notifyForgeProjectChanged();return true;}
+    async function applyProcessedSingleImage(blob,name,role,sourceContext){if(!blob)return false;const sourceId=String(sourceContext?.layer_id||"");const source=sourceId?state.elements.find(item=>item.id===sourceId&&item.type==="image"):null;const hasImage=workspaces.single.elements.some(item=>item.type==="image");if(!source&&!hasImage&&Number(sourceContext?.width)>0&&Number(sourceContext?.height)>0&&activeWorkspace==="single")scaleStateToImageSize(Number(sourceContext.width),Number(sourceContext.height));await addSingleImageLayerFromBlob(blob,name,{inherit:source||undefined,role,hideSource:Boolean(source),fit:source?"cover":"contain"});layoutDirty=true;scheduleAutoSave();updateActionState();notifyForgeProjectChanged();return true;}
     function initializeComicEditor(){
       if(!["desktop","desktop-file","forge-project"].includes(hostMode)||comicEditor||!window.SpeechBubbleComicEditor)return comicEditor;
       comicEditor=window.SpeechBubbleComicEditor.create({
@@ -1073,6 +1085,18 @@
         aiApiBase:isForgeProjectHost?`${forgeApiBase}/background-removal`:"/desktop/background-removal",
       });
       return backgroundRemoval;
+    }
+    function initializeQuickRetouch(){
+      if(quickRetouch||!window.SpeechBubbleQuickRetouch)return quickRetouch;
+      quickRetouch=window.SpeechBubbleQuickRetouch.create({
+        getMode:()=>comicEditor?.isActive()||generalComicEditor?.isActive()?"comic":"single",
+        getSingleSource:selectedSingleImageSource,
+        getComicSources:()=>generalComicEditor?.isActive()?generalComicEditor.getConversionSources?.()||Promise.resolve([]):comicEditor?.getConversionSources?.()||Promise.resolve([]),
+        addPageImage:(blob,name)=>generalComicEditor?.isActive()?generalComicEditor.addConvertedImage?.(blob,name):comicEditor?.addConvertedImage?.(blob,name),
+        applySingleImage:(blob,name,source)=>applyProcessedSingleImage(blob,name||`${sourceName||"speech_bubble"}-retouched`,"quick-retouch",source),
+        setStatus:setSaveState,
+      });
+      return quickRetouch;
     }
     const savedLayoutKey = (id=documentId) => id ? `${SAVED_LAYOUT_PREFIX}${id}` : "";
     const draftLayoutKey = (id=documentId) => id ? `${DRAFT_LAYOUT_PREFIX}${id}` : "";
@@ -2913,7 +2937,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     }
     async function createNewDesktopProject(){
       setStandaloneContext(`standalone:${createUuid()}`);clearDocumentCanvas();currentProjectPath="";sourceName="speech_bubble";
-      comicEditor?.setEditMode?.("single");comicConverter?.close?.();backgroundRemoval?.close?.();
+      comicEditor?.setEditMode?.("single");comicConverter?.close?.();backgroundRemoval?.close?.();quickRetouch?.close?.();
       lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=false;layoutDirty=false;state.undo=[];state.redo=[];
       setSaveState(uiText("新規プロジェクトを作成しました","Created a new project"),"saved");updateActionState();
     }
@@ -3395,7 +3419,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function redoAction(){commitPropertyEdit();if(!state.redo.length)return;state.undo.push(sceneSnapshot());restoreScene(state.redo.pop());syncProperties();render();}
     function duplicateSelected(){const items=selectedItems().filter(item=>!item.locked);if(!items.length)return;pushUndo();const copiedGroups=new Map(),copies=items.map(item=>{const copy=JSON.parse(JSON.stringify(item));copy.id=id();copy.x+=20;copy.y+=20;copy.locked=false;if(copy.group_id){if(!copiedGroups.has(copy.group_id))copiedGroups.set(copy.group_id,`group-${id()}`);copy.group_id=copiedGroups.get(copy.group_id);}return copy;});state.elements.push(...copies);setSelection(copies.map(item=>item.id),copies.at(-1).id);state.vectorEditId=null;syncProperties();render();}
     function sourceImageLayerFor(item){if(!item||item.type!=="image")return null;return state.elements.find(candidate=>candidate.type==="image"&&candidate.id===item.source_image_layer_id)||state.elements.find(candidate=>candidate.type==="image"&&candidate.source_role==="original")||null;}
-    function updateLayerMenuState(){const imageSelected=selectedImageLayer();document.getElementById("copyLayer").disabled=!selectedItems().length;document.getElementById("pasteLayer").disabled=!layerClipboard?.length;document.getElementById("processLayerBackgroundRemoval").hidden=!imageSelected;document.getElementById("processLayerComicConversion").hidden=!imageSelected;document.getElementById("showOriginalImageLayer").hidden=!sourceImageLayerFor(imageSelected);}
+    function updateLayerMenuState(){const imageSelected=selectedImageLayer();document.getElementById("copyLayer").disabled=!selectedItems().length;document.getElementById("pasteLayer").disabled=!layerClipboard?.length;document.getElementById("processLayerQuickRetouch").hidden=!imageSelected;document.getElementById("processLayerBackgroundRemoval").hidden=!imageSelected;document.getElementById("processLayerComicConversion").hidden=!imageSelected;document.getElementById("showOriginalImageLayer").hidden=!sourceImageLayerFor(imageSelected);}
     function copySelected(){const items=selectedItems();if(!items.length)return false;layerClipboard=JSON.parse(JSON.stringify(items));layerPasteCount=0;updateLayerMenuState();return true;}
     function pasteLayers(){if(!layerClipboard?.length)return;pushUndo();layerPasteCount+=1;const offset=20*layerPasteCount,copiedGroups=new Map(),copies=layerClipboard.map(source=>{const copy=JSON.parse(JSON.stringify(source));copy.id=id();copy.x=(Number(copy.x)||0)+offset;copy.y=(Number(copy.y)||0)+offset;copy.locked=false;if(copy.group_id){if(!copiedGroups.has(copy.group_id))copiedGroups.set(copy.group_id,`group-${id()}`);copy.group_id=copiedGroups.get(copy.group_id);}return copy;});state.elements.push(...copies);setSelection(copies.map(item=>item.id),copies.at(-1).id);state.vectorEditId=null;state.vectorAnchorIndex=null;state.vectorAddMode=false;syncProperties();render();}
      function deleteSelected(){const ids=new Set(selectedItems().filter(item=>!item.locked).map(item=>item.id));if(!ids.size)return;pushUndo();const first=state.elements.findIndex(item=>ids.has(item.id));state.elements=state.elements.filter(item=>!ids.has(item.id));const next=state.elements[Math.min(first,state.elements.length-1)]?.id||null;setSelection(next?[next]:[],next);state.vectorEditId=null;syncProperties();render();}
@@ -3549,6 +3573,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("containBackgroundImage").onclick=()=>fitSelectedImage("contain");
     const openSelectedBackgroundRemoval=()=>{if(!selectedImageLayer())return;backgroundRemoval?.open?.();};
     const openSelectedComicConversion=()=>{if(!selectedImageLayer())return;comicConverter?.open?.();};
+    const openSelectedQuickRetouch=()=>{if(!selectedImageLayer())return;quickRetouch?.open?.();};
     document.getElementById("processImageBackgroundRemoval").onclick=openSelectedBackgroundRemoval;
     document.getElementById("processImageComicConversion").onclick=openSelectedComicConversion;
     for(const [controlId,key] of [["backgroundOffsetX","x"],["backgroundOffsetY","y"],["backgroundRotation","rotation"]]){const control=document.getElementById(controlId);control.addEventListener("focus",beginPropertyEdit);control.addEventListener("input",()=>{const item=selectedImageLayer(),value=Number(control.value);if(!item||item.locked||!Number.isFinite(value))return;item[key]=key==="rotation"?Math.max(-180,Math.min(180,value)):Math.max(-8192,Math.min(8192,value));requestRender({canvas:true,preview:true});});control.addEventListener("change",()=>{commitPropertyEdit();syncProperties();requestRender({canvas:true,layers:true,preview:true});});control.addEventListener("blur",commitPropertyEdit);}
@@ -3619,6 +3644,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("copyLayer").onclick=()=>{copySelected();document.getElementById("layerMenu").classList.remove("open");};
     document.getElementById("pasteLayer").onclick=()=>{document.getElementById("layerMenu").classList.remove("open");pasteLayers();};
     document.getElementById("duplicateLayer").onclick=()=>{document.getElementById("layerMenu").classList.remove("open");duplicateSelected();};
+    document.getElementById("processLayerQuickRetouch").onclick=()=>{document.getElementById("layerMenu").classList.remove("open");openSelectedQuickRetouch();};
     document.getElementById("processLayerBackgroundRemoval").onclick=()=>{document.getElementById("layerMenu").classList.remove("open");openSelectedBackgroundRemoval();};
     document.getElementById("processLayerComicConversion").onclick=()=>{document.getElementById("layerMenu").classList.remove("open");openSelectedComicConversion();};
     document.getElementById("showOriginalImageLayer").onclick=()=>{document.getElementById("layerMenu").classList.remove("open");const processed=selectedImageLayer(),original=sourceImageLayerFor(processed);if(!original)return;pushUndo();if(processed&&processed!==original)processed.visible=false;original.visible=true;setSelection([original.id],original.id);syncProperties();render();};
@@ -3775,6 +3801,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       };
       for(const [id,label] of Object.entries(labels)){const node=document.getElementById(id);if(node)node.textContent=label;}
       const staticLabels={
+        "[data-left-section='quick-retouch'] > summary":["簡易レタッチ","Quick Retouch"],
         "[data-left-section='comic-converter'] > summary":["コミック変換","Comic Conversion"],
         "[data-left-section='background-removal'] > summary":["背景削除","Background Removal"],
         "[data-left-section='bubbles'] > summary":["吹き出し","Speech Bubbles"],
@@ -3785,6 +3812,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       };
       for(const [selector,pair] of Object.entries(staticLabels)){const node=document.querySelector(selector);if(node)node.textContent=uiText(...pair);}
       const actionLabels={
+        "[data-quick-retouch-open]":["簡易レタッチを開く","Open Quick Retouch"],
         "[data-comic-converter-open]":["コミック変換を開く","Open Comic Conversion"],
         "[data-background-removal-open]":["背景削除を開く","Open Background Removal"],
         "#openShapeDrawer":["吹き出しを開く…","Browse Bubbles…"],
@@ -3802,6 +3830,8 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       }
       document.querySelector(".footer").textContent=uiText("ホイール：拡大縮小　中ボタンまたはSpace＋ドラッグ：パン　ドラッグ：移動　8ハンドル：サイズ変更　通常：縦横比固定　Shift＋角：自由変形　緑ハンドル：回転","Wheel: zoom　Middle mouse or Space + drag: pan　Drag: move　8 handles: resize　Standard: lock ratio　Shift + corner: free transform　Green handle: rotate");
       document.querySelectorAll(".drawer-resizer").forEach(node=>node.title=uiText("ドラッグで幅を変更。ダブルクリックで標準幅に戻します。","Drag to resize. Double-click to reset."));
+      const settingsButton=document.getElementById("openEditorSettings");
+      if(settingsButton)settingsButton.title=uiText("Forge Neo本体のComic Panel Editor設定を開きます","Open Comic Panel Editor settings in Forge Neo");
       const writingButtons=document.querySelectorAll("#writingModes button");
       if(writingButtons[0])writingButtons[0].textContent=uiText("横書き","Horizontal");
       if(writingButtons[1])writingButtons[1].textContent=uiText("縦書き","Vertical");
@@ -3811,7 +3841,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       if(fontSearch)fontSearch.placeholder=uiText("フォント名・スタイルを検索…","Search font family or style…");
       const textArea=document.querySelector('#textProps textarea[data-key="text"]');
       if(textArea)textArea.placeholder=uiText("セリフを入力…","Enter dialogue…");
-      const layerMenuLabels={copyLayer:uiText("コピー　Ctrl+C","Copy　Ctrl+C"),pasteLayer:uiText("貼り付け　Ctrl+V","Paste　Ctrl+V"),duplicateLayer:uiText("複製","Duplicate"),deleteLayer:uiText("削除","Delete")};
+      const layerMenuLabels={copyLayer:uiText("コピー　Ctrl+C","Copy　Ctrl+C"),pasteLayer:uiText("貼り付け　Ctrl+V","Paste　Ctrl+V"),duplicateLayer:uiText("複製","Duplicate"),processLayerQuickRetouch:uiText("この画像を簡易レタッチ","Quick Retouch this image"),processLayerBackgroundRemoval:uiText("この画像を背景削除","Remove background from this image"),processLayerComicConversion:uiText("この画像をコミック変換","Convert this image to comic"),deleteLayer:uiText("削除","Delete")};
       for(const [id,label] of Object.entries(layerMenuLabels)){const node=document.getElementById(id);if(node)node.textContent=label;}
       localizeStaticText();
       initializePresetUI();
@@ -3832,6 +3862,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function initializeForgeProjectSettings(){
       if(!isForgeProjectHost||forgeProjectSettingsController||!window.SpeechBubbleForgeProjectSettings)return forgeProjectSettingsController;
       forgeProjectSettingsController=window.SpeechBubbleForgeProjectSettings.create({
+        openHostSettings:()=>postHost("speech_bubble_project:open_settings"),
         onChange:applyForgeProjectSettings,
       });
       applyForgeProjectSettings();
@@ -4005,6 +4036,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       initializeForgeProjectSettings();
       initializeComicConverter();
       initializeBackgroundRemoval();
+      initializeQuickRetouch();
       initializePresetUI();initializeSfxSwatches();initializeCompactColorSwatches();initializeCanvasBackgroundSwatches();refreshQuickSfx();refreshQuickFrames();refreshQuickEmphasisLines();initializeDrawerResize();initializeAccordionState();initializeLeftSectionState();initializeRightDockFloating();initializeFontBrowserDrag();enhanceNumericInputs();initializeUserAssetBroadcast();loadUserPresets();
       applyForgeProjectLanguage();
       window.addEventListener("speech-bubble:language-change",applyForgeProjectLanguage);

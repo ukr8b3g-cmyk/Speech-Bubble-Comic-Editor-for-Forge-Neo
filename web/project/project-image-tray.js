@@ -253,20 +253,24 @@
           used.textContent = tr("使用中", "USED");
           preview.append(used);
         }
-        const name = document.createElement("span");
-        name.className = "project-image-tray-name";
-        name.textContent = asset.name || tr("画像", "Image");
-        name.title = name.textContent;
-        const usageText = document.createElement("small");
-        usageText.textContent = tr(
-          `一枚 ${usage.single}　4コマ ${usage.comic}　コミック ${usage.comic_layout}`,
-          `Single ${usage.single}  4-Panel ${usage.comic}  Comic ${usage.comic_layout}`,
-        );
+        const tooltip = [
+          asset.name || tr("画像", "Image"),
+          `${asset.width || "?"} × ${asset.height || "?"} px`,
+          tr(
+            `一枚画像：${usage.single} / 4コマ漫画：${usage.comic} / コミック：${usage.comic_layout}`,
+            `Single Image: ${usage.single} / 4-Panel Manga: ${usage.comic} / Comic: ${usage.comic_layout}`,
+          ),
+        ].join("\n");
+        card.title = tooltip;
+        card.setAttribute("aria-label", tooltip.replace(/\n/g, ", "));
+        const accessible = document.createElement("span");
+        accessible.className = "project-image-tray-accessible";
+        accessible.textContent = tooltip;
         const actions = document.createElement("div");
         actions.className = "project-image-tray-card-actions";
         actions.innerHTML = `<button type="button" data-project-tray-place></button><button type="button" class="danger" data-project-tray-remove title="${tr("画像を管理", "Manage image")}">×</button>`;
         actions.querySelector("[data-project-tray-place]").textContent = tr("配置", "Place");
-        card.append(preview, name, usageText, actions);
+        card.append(preview, accessible, actions);
         return card;
       }));
     }

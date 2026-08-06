@@ -14,7 +14,6 @@
   let lastTheme = "";
   let focusTimers = [];
   let configuredLanguage = "auto";
-  let lastProjectSettings = null;
 
   const appRoot = () =>
     typeof gradioApp === "function" ? gradioApp() : document;
@@ -25,39 +24,16 @@
     )
   );
 
-  async function loadProjectSettings() {
-    const response = await fetch("/speech-bubble-forge/config", { cache: "no-store" });
-    if (!response.ok) throw new Error(`Settings request failed (${response.status})`);
-    const payload = await response.json();
-    return payload?.settings && typeof payload.settings === "object"
-      ? payload.settings
-      : payload;
-  }
-
-  async function syncProjectSettings() {
+  async function loadConfiguredLanguage() {
     try {
-      const settings = await loadProjectSettings();
-      lastProjectSettings = settings;
-      configuredLanguage = ["auto", "ja", "en"].includes(settings?.language)
-        ? settings.language
+      const response = await fetch("/speech-bubble-forge/config", { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      configuredLanguage = ["auto", "ja", "en"].includes(payload?.language)
+        ? payload.language
         : "auto";
-      installUi();
-      if (projectWindow && !projectWindow.closed) {
-        projectWindow.postMessage(
-          {
-            type: "speech_bubble_project:settings_changed",
-            protocolVersion: PROTOCOL_VERSION,
-            settings,
-          },
-          location.origin,
-        );
-      }
-      return settings;
-    } catch (error) {
-      console.warn("Comic Panel Editor settings sync failed", error);
+    } catch {
       configuredLanguage = "auto";
-      installUi();
-      return null;
     }
   }
 
@@ -233,6 +209,7 @@
       "speech-bubble-forge/static/project-editor.html",
       `${base.origin}${basePath}`,
     );
+    url.searchParams.set("build", "0.7.4");
     url.searchParams.set("host", "forge-project");
     url.searchParams.set("projectId", projectId());
     url.searchParams.set("forgeApiBase", "/speech-bubble-forge");
@@ -467,16 +444,6 @@
         },
         event.origin,
       );
-      if (lastProjectSettings) {
-        projectWindow.postMessage(
-          {
-            type: "speech_bubble_project:settings_changed",
-            protocolVersion: PROTOCOL_VERSION,
-            settings: lastProjectSettings,
-          },
-          event.origin,
-        );
-      }
       focusProjectWindow();
       return;
     }
@@ -501,6 +468,10 @@
       return;
     }
 
+    if (data.type === "speech_bubble_project:open_settings") {
+      window.speechBubbleForgeOpenSettings?.();
+      return;
+    }
 
     if (data.type === "speech_bubble_project:window_state") {
       try {
@@ -531,7 +502,8 @@
   };
 
   const start = async () => {
-    await syncProjectSettings();
+    await loadConfiguredLanguage();
+    installUi();
     syncTheme();
   };
 
@@ -544,6 +516,6 @@
       syncTheme();
     });
   }
-  if (typeof onOptionsAvailable === "function") onOptionsAvailable(syncProjectSettings);
-  if (typeof onOptionsChanged === "function") onOptionsChanged(syncProjectSettings);
+  if (typeof onOptionsAvailable === "function") onOptionsAvailable(start);
+  if (typeof onOptionsChanged === "function") onOptionsChanged(start);
 })();

@@ -158,7 +158,7 @@ class BackgroundRemovalService:
                 pass
             request = urllib.request.Request(
                 MODEL_URL,
-                headers={"User-Agent": "SpeechBubbleComicStudioForgeNeo/0.6.0"},
+                headers={"User-Agent": "SpeechBubbleComicEditorForgeNeo/0.7.2"},
             )
             digest = hashlib.sha256()
             with (

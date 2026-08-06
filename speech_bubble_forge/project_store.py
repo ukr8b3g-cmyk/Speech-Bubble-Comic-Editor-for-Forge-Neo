@@ -306,6 +306,7 @@ class ProjectStore:
             "local-file",
             "converted",
             "background-removal",
+            "retouched",
         }:
             source_kind = "forge-gallery"
         if source_tab not in {"txt2img", "img2img", ""}:

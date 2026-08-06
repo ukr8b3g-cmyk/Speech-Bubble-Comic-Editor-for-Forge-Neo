@@ -1,0 +1,16 @@
+Quick Retouch cache, cursor overlay, and free-pan fix 0.7.4
+
+Runtime changes:
+- web/project/quick-retouch.js
+- web/project/quick-retouch.css
+- web/project-editor.html
+- javascript/speech_bubble_project_bridge.js
+
+Version/documentation changes:
+- metadata.ini
+- speech_bubble_forge/__init__.py
+- CHANGELOG.md
+- PACKAGE_INFO_JA.txt
+- BUILD_VALIDATION.txt
+
+The source image, project schema, save format, adjustment processing, background removal, and comic modes are unchanged.

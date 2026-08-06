@@ -89,13 +89,10 @@ assert.match(projectBridge, /forgeApiBase", "\/speech-bubble-forge"/);
 assert.match(projectBridge, /コミックパネルエディターを開く ↗/);
 assert.match(projectBridge, /actions\.replaceChildren\(row\)/);
 assert.match(projectBridge, /function ensureProjectPanel/);
-assert.match(projectBridge, /speech_bubble_project:settings_changed/);
-assert.doesNotMatch(projectBridge, /speech_bubble_project:open_settings/);
+assert.match(projectBridge, /speech_bubble_project:open_settings/);
 assert.doesNotMatch(quickBridge, /addGalleryButton\(tabName\);/);
 assert.doesNotMatch(quickBridge, /addQuickPanel\(tabName\);/);
 
-assert.match(projectApi, /\/config/);
-assert.doesNotMatch(projectApi, /\/settings/);
 assert.match(projectApi, /\/projects\//);
 assert.match(projectApi, /uploadImage/);
 assert.match(projectAdapter, /importSelectedForgeImage/);
@@ -114,9 +111,8 @@ assert.match(projectSettings, /show_empty_guide: false/);
 assert.match(projectSettings, /autosave_enabled: true/);
 assert.match(projectSettings, /shared_project_images/);
 assert.match(projectSettings, /source\.autosave_enabled = source\.auto_save !== false/);
-assert.match(projectSettings, /saveLocal: false/);
+assert.match(projectSettings, /options\.openHostSettings\?\.\(\)/);
 assert.doesNotMatch(projectSettings, /forge-project-settings-dialog/);
-assert.doesNotMatch(projectEditor, /id="openEditorSettings"/);
 assert.doesNotMatch(forgeProjectCss, /forge-project-settings-dialog/);
 assert.match(forgeProjectCss, /> \.comic-image-tray/);
 assert.match(

@@ -196,7 +196,7 @@ def validate_asset_record(record: object) -> dict:
     if not isinstance(source, dict):
         raise ProjectSchemaError("Image asset source is invalid")
     kind = str(source.get("kind") or "")
-    if kind not in {"forge-gallery", "local-file", "converted", "background-removal"}:
+    if kind not in {"forge-gallery", "local-file", "converted", "background-removal", "retouched"}:
         raise ProjectSchemaError("Image asset source kind is invalid")
     result.update(
         {

@@ -1,0 +1,18 @@
+Speech Bubble Comic Editor for Forge Neo 0.7.4
+Quick Retouch cache, cursor overlay, and free-pan fix
+
+Validation completed in the build container:
+- JavaScript / CommonJS syntax: 46 files passed node --check
+- Node regression tests: 18 functional tests passed
+- Node browser smoke tests: 2 skipped because the Node Playwright package is unavailable
+- Independent Chromium UI test via Python Playwright: PASS
+  - runtime version reports 0.7.4
+  - Brush outline exists inside the modal dialog top layer and is visible
+  - Eyedropper and Magic Wand resolve to dedicated URL cursors
+  - middle-mouse drag changes the independent canvas pan offset while the image fits
+  - Fit resets the pan offset to the centered position
+- Python compile: 22 files passed
+- Python pytest: 46 passed
+- Quick Retouch integration test verifies the 0.7.4 cache key, dialog overlay placement, free-pan state, and Project Editor build query
+
+Manual Forge Neo acceptance is still required for host cache replacement, native mouse-device behavior, cursor appearance, and final PNG application in the user's installation.

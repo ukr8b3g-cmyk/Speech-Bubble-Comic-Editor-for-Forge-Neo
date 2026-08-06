@@ -1,5 +1,77 @@
 # Changelog
 
+## [0.7.4] - Unreleased
+
+### Fixed
+
+- Quick Retouch CSS and JavaScript now use a new cache key, and the Project Editor launch URL includes the build version
+- Brush and Eraser outline overlay is attached inside the modal dialog top layer so it cannot be hidden behind the dialog
+- Hand, Space-drag, and middle-mouse drag now move the canvas even when the fitted image is smaller than the workspace
+- Pointer-centered wheel zoom preserves the edited canvas position while using the independent pan offset
+- The Quick Retouch title and JavaScript API expose version 0.7.4 for runtime verification
+
+## [0.7.3] - Unreleased
+
+### Added
+
+- Photoshop-style high-visibility Brush and Eraser outlines with center marks and actual on-canvas diameter
+- Dedicated Eyedropper, Magic Wand, and Color Range sampler cursors, including add/exclude badges
+- Live Shift / Alt / Shift+Alt feedback in selection mode buttons
+- Blue-purple Color Range preview distinct from the normal blue selection overlay
+
+### Changed
+
+- Right-button horizontal brush resizing now updates the outline and nearby pixel-size HUD in real time
+- Alt temporarily switches Brush or Eraser to the foreground-color Eyedropper without sharing Color Range sampler state
+- Selection visualization can remain hidden while selection data is edited or replaced
+- Pointer capture loss, cancellation, window blur, and out-of-window release now terminate brush sizing and painting states safely
+
+## [0.7.2] - Unreleased
+
+### Added
+
+- Mouse-wheel zoom centered near the pointer in Quick Retouch
+- Middle-mouse drag panning, in addition to the Hand tool and Space-drag
+- Photoshop-style Quick Retouch shortcuts for Select All, Deselect, Reselect, Invert Selection, layer duplication, Fit, 100%, and zoom
+- Tool-specific canvas cursors for Brush, Eraser, Hand, Pan, and Zoom
+- High-visibility live brush outline while resizing with right-button horizontal drag
+
+### Changed
+
+- Quick Retouch Brush and Zoom tool icons are more recognizable
+- The Hand and Zoom option hints now document wheel and middle-button operation
+- The original image remains permanently protected as the non-destructive source layer
+
+## [0.7.1] - Unreleased
+
+### Added
+
+- Quick Retouch dialog for small post-generation corrections without overwriting the source image
+- Independent Selection panel with Select All, Deselect, Invert, Add, Subtract, Intersect, boundary, blue overlay, and hidden display modes
+- Rectangle, freehand mouse Lasso, connected/non-contiguous Magic Wand, and sampled Color Range selection tools
+- Paint layers with brush, eraser, eyedropper, size, hardness, opacity, and common color swatches
+- Non-destructive Hue / Saturation, Brightness / Contrast / Gamma, and RGB channel Curves adjustment layers
+- Per-adjustment grayscale masks copied from the current Selection Mask and editable with the mask brush
+- Tone Curve control points, numeric Input / Output editing, five presets, histogram backdrop, and 256-value LUT rendering
+- Single-canvas editing, hold-to-view Original, draggable split comparison, bounded Undo / Redo history, full-resolution PNG rendering, and Page Images integration
+- Photoshop-like tool order, dynamic Tool Options bar, foreground/background color wells, red/blue brush cursor, right-drag brush resizing, Japanese/English UI, and regression tests
+
+### Changed
+
+- Quick Retouch now starts with Brush and Paint 1 instead of the Selection Mask
+- Selection, Layers, and Properties are movable, resizable, collapsible floating panels inside the Editor window
+- Paint, erase, and adjustment-mask strokes can be constrained by the current selection
+- Processing a standalone external image into an empty Single Image workspace now preserves its source dimensions and aspect ratio
+- Project image records now accept the `retouched` source kind
+- Project settings are read from the public `/speech-bubble-forge/config` API
+- The duplicate Editor-side Forge Settings button remains removed; settings are managed from Forge Neo
+
+### Known initial limitations
+
+- Quick Retouch sessions are flattened into a new project image when applied; editable retouch layers are not yet stored in the project file
+- Clone Stamp, Healing Brush, blur/sharpen tools, gradients, and AI inpainting are not included in this initial version
+- The injected Chromium harness passes, but full interaction testing must still be completed inside an actual Forge Neo installation
+
 ## [0.6.0] - Unreleased
 
 ### Added
@@ -19,11 +91,10 @@
 - Project settings are managed from Forge Settings > Comic Panel Editor
 - Page Images uses the full-width app-style accordion and starts collapsed
 - New image layers start unlocked, and each asset drawer remembers its own width and section state
-- Forge settings are centralized under Settings > Comic Panel Editor; the duplicate Editor toolbar button was removed
+- Settings remain centralized in Forge Neo Settings > Comic Panel Editor
 
 ### Fixed
 
-- Forge language settings now load from the public config API and update an open Editor window immediately
 - Properties and Layers use movable floating panels in the Forge project editor
 - Page Images changes participate in Undo and Redo
 - External processing sources no longer inherit an unrelated image layer transform

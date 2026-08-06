@@ -416,12 +416,6 @@
       ) {
         settingsModule?.setHostTheme?.(data.theme);
       }
-      if (data.type === "speech_bubble_project:settings_changed") {
-        const hostSettings = settingsModule?.setHostSettings?.(data.settings) || data.settings || {};
-        runtime.applyHostSettings?.(hostSettings);
-        updateToolbarLanguage();
-        return;
-      }
       if (data.type === "speech_bubble_project:focus") window.focus();
     });
 
@@ -434,13 +428,8 @@
 
     async function initialize() {
       installToolbar();
-      let hostSettings = settingsModule?.get?.() || {};
-      try {
-        hostSettings = await api.settings();
-        settingsModule?.setHostSettings?.(hostSettings);
-      } catch (error) {
-        console.warn("Comic Panel Editor settings could not be loaded; using local defaults.", error);
-      }
+      const hostSettings = await api.settings();
+      settingsModule?.setHostSettings?.(hostSettings);
       await ensureProject();
       runtime.applyHostSettings?.(hostSettings);
       runtime.onChanged?.(markDirty);

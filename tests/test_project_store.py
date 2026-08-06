@@ -63,6 +63,18 @@ class ProjectStoreTests(unittest.TestCase):
             self.assertEqual(loaded["images"][0]["id"], first["id"])
             self.assertTrue(store.image_path(project_id, first["id"]).is_file())
 
+    def test_retouched_image_source_kind_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            store = ProjectStore(Path(temporary))
+            manifest = store.create(title="Retouch")
+            asset = store.put_image(
+                manifest["project_id"],
+                png_bytes(),
+                name="retouched.png",
+                source_kind="retouched",
+            )
+            self.assertEqual(asset["source"]["kind"], "retouched")
+
     def test_unused_blob_is_kept_until_cleanup(self):
         with tempfile.TemporaryDirectory() as temporary:
             store = ProjectStore(Path(temporary))

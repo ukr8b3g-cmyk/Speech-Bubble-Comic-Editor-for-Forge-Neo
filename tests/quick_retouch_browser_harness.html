@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root { --text:#eee;--panel:#22262d;--header:#1d2025;--line:#454c58;--field:#171a1f;--muted:#9ca7b5;--accent:#4fa3ff; }
+    body { margin:0; background:#111; color:#eee; font:12px sans-serif; }
+    button,input,select { font:inherit; }
+  </style>
+  <link rel="stylesheet" href="../web/project/quick-retouch.css">
+</head>
+<body>
+  <button data-quick-retouch-open>Open Quick Retouch</button>
+  <script src="../web/project/quick-retouch-core.js"></script>
+  <script src="../web/project/quick-retouch.js"></script>
+  <script>
+    window.__errors = [];
+    window.addEventListener("error", (event) => window.__errors.push(String(event.error || event.message)));
+    window.addEventListener("unhandledrejection", (event) => window.__errors.push(String(event.reason)));
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = 96;
+    sourceCanvas.height = 72;
+    const ctx = sourceCanvas.getContext("2d");
+    const gradient = ctx.createLinearGradient(0, 0, 96, 72);
+    gradient.addColorStop(0, "#143c8c");
+    gradient.addColorStop(1, "#ff66bb");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 96, 72);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(8, 8, 20, 14);
+    sourceCanvas.toBlob((blob) => {
+      window.__source = { blob, name: "harness.png", width: 96, height: 72, layer_id: "source-layer", source_kind: "layer", selected: true };
+      window.__retouch = window.SpeechBubbleQuickRetouch.create({
+        getMode: () => "single",
+        getSingleSource: async () => window.__source,
+        getComicSources: async () => [],
+        addPageImage: async () => "image-id",
+        applySingleImage: async (result) => { window.__applied = { size: result.size, type: result.type }; return true; },
+        setStatus: (message, level) => { window.__hostStatus = { message, level }; },
+      });
+      window.__ready = true;
+    }, "image/png");
+  </script>
+</body>
+</html>
