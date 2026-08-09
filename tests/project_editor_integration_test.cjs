@@ -76,6 +76,11 @@ assert.match(projectEditor, /forgeImportBehavior/);
 assert.match(projectEditor, /registerSingleImageAsset[\s\S]*forgeProjectImageStore\.put/);
 assert.match(projectEditor, /isForgeProjectHost\s*\?\s*"multipart_canvas_v1"/);
 assert.match(projectEditor, /forgeProjectAdapter\?\.save\?\.\("manual"\)/);
+assert.match(
+  projectEditor,
+  /ensureFontLoaded\(restoredFont\)\.then\(loaded=>\{if\(!loaded\|\|!state\.elements\.includes\(item\)\)return;verticalGlyphSpriteCache\.clear\(\);fitTextBox/,
+  "restored vertical text must clear fallback glyph sprites after its font loads",
+);
 
 assert.match(quickBridge, /speech_bubble_forge_editor/);
 assert.doesNotMatch(quickBridge, /speech_bubble_forge_project_editor/);

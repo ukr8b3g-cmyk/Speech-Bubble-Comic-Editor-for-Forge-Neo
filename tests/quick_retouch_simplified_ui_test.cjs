@@ -1,0 +1,44 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const js = fs.readFileSync("web/project/quick-retouch.js", "utf8");
+const css = fs.readFileSync("web/project/quick-retouch.css", "utf8");
+const editor = fs.readFileSync("web/project-editor.html", "utf8");
+
+assert.match(js, /BUILD_VERSION = "0\.7\.10"/);
+assert.match(editor, /quick-retouch-078-compact-controls-1/);
+assert.match(js, /data-retouch-source-picker/);
+assert.match(js, /data-retouch-source-drop/);
+assert.match(js, /data-retouch-candidates/);
+assert.match(js, /data-retouch-quick-mask/);
+assert.match(js, /function toggleQuickMask/);
+assert.doesNotMatch(js, /data-retouch-protection-action/);
+assert.doesNotMatch(js, /保護範囲/);
+assert.match(js, /const constrain = activeTarget\.kind !== "selection" && core\.maskHasSelection\(selectionMask\)/);
+assert.match(js, /data-retouch-layer-controls/);
+assert.match(js, /propertiesPanel\.hidden = !shouldShow/);
+assert.match(js, /quick-retouch-hs-advanced/);
+assert.match(css, /quick-retouch-field-hue/);
+assert.match(css, /linear-gradient\(90deg,#f44,#ff0/);
+
+assert.match(js, /data-retouch-action="zoom-out"/);
+assert.match(js, /data-retouch-action="zoom-in"/);
+assert.match(js, /data-retouch-compare-mode="none"/);
+assert.match(js, /data-retouch-compare-mode="vertical"/);
+assert.match(js, /data-retouch-compare-mode="horizontal"/);
+assert.doesNotMatch(js, /data-retouch-layer-blend/);
+assert.doesNotMatch(js, /選択を確定/);
+assert.doesNotMatch(js, /候補をクリア/);
+assert.match(js, /画像をクリックすると選択へ即時反映します/);
+assert.match(js, /\["add", tr\("追加", "Add"\)\]/);
+assert.match(js, /\["subtract", tr\("削除", "Subtract"\)\]/);
+assert.match(css, /width: 16px !important/);
+assert.match(css, /quick-retouch-compare-buttons/);
+assert.match(css, /quick-retouch-layer-opacity-control/);
+
+const lasso = js.indexOf('{ id: "lasso"');
+const rectangle = js.indexOf('{ id: "rectangle"');
+const wand = js.indexOf('{ id: "wand"');
+const range = js.indexOf('{ id: "color_range"');
+assert.ok(lasso >= 0 && lasso < rectangle && rectangle < wand && wand < range);
+console.log("quick_retouch_simplified_ui_test: OK");

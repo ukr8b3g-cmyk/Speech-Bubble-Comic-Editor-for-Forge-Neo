@@ -3,6 +3,8 @@
 
   const core = root.SpeechBubbleComicCore;
   if (!core) throw new Error("SpeechBubbleComicCore must be loaded before comic-editor.js");
+  const imageLayerRotation = root.SpeechBubbleImageLayerRotation;
+  if (!imageLayerRotation) throw new Error("SpeechBubbleImageLayerRotation must be loaded before comic-editor.js");
 
   const DB_NAME = "speech-bubble-editor-comic-images";
   const DB_STORE = "images";
@@ -309,7 +311,7 @@
       }
     }
 
-    async function attachBlob(metadata, blob) {
+    async function attachBlob(metadata, blob, render = true) {
       const loaded = await imageFromBlob(blob);
       loaded.image.dataset.comicObjectUrl = loaded.url;
       objectUrls.add(loaded.url);
@@ -317,7 +319,7 @@
       runtimeImages.set(metadata.id, loaded.image);
       metadata.width = loaded.image.naturalWidth;
       metadata.height = loaded.image.naturalHeight;
-      options.requestRender({ canvas: true });
+      if (render) options.requestRender({ canvas: true });
     }
 
     async function hydrateImages() {
@@ -330,7 +332,7 @@
           .map(async (metadata) => {
             try {
               const blob = await imageStore.get(metadata.id);
-              if (blob && hydratedDocumentId === targetDocument) await attachBlob(metadata, blob);
+              if (blob && hydratedDocumentId === targetDocument) await attachBlob(metadata, blob, false);
             } catch (error) {
               console.warn("Speech Bubble comic image restore failed", metadata.id, error);
             }
@@ -510,7 +512,13 @@
               <label>位置 X<input data-comic-property="image_offset_x" type="number" step="1"></label>
               <label>位置 Y<input data-comic-property="image_offset_y" type="number" step="1"></label>
             </div>
+            <label>回転角度<div class="image-rotation-control"><input data-comic-property="image_rotation" type="range" min="-180" max="180" step="1"><input data-comic-property="image_rotation" type="number" min="-180" max="180" step="1" aria-label="現在の回転角度"></div></label>
             <button type="button" data-comic-action="fit-reset">画像位置を中央へ戻す</button>
+            <div class="comic-two-column">
+              <button type="button" data-comic-action="edit-image-crop">クロップを編集</button>
+              <button type="button" data-comic-action="reset-image-crop">クロップをリセット</button>
+            </div>
+            <p class="hint" data-comic-crop-status>クロップは非破壊です。元画像は保持されます。</p>
             <p class="hint">Canvas上でドラッグして移動、Ctrl＋ホイールで拡大・縮小できます。</p>
           </section>
         `;
@@ -524,6 +532,8 @@
       contextMenu.className = "comic-context-menu";
       contextMenu.hidden = true;
       contextMenu.innerHTML = `
+        <button type="button" data-comic-context="edit-crop">クロップを編集</button>
+        <button type="button" data-comic-context="reset-crop">クロップをリセット</button>
         <button type="button" data-comic-context="reset-image">画像位置を中央へ戻す</button>
         <button type="button" data-comic-context="remove-image">画像を外す</button>
       `;
@@ -827,6 +837,10 @@
         } else if (action === "choose-panel-image" && panel) {
           pendingAssignPanelId = panel.id;
           elements.imageInput.click();
+        } else if (action === "edit-image-crop" && panel) {
+          void editPanelImageCrop(panel);
+        } else if (action === "reset-image-crop" && panel) {
+          resetPanelImageCrop(panel);
         } else if (action === "fit-reset" && panel) {
           options.pushUndo();
           panel.image_scale = 1;
@@ -849,7 +863,11 @@
         contextMenu.hidden = true;
         const panel = selectedPanel();
         if (!panel || !action) return;
-        if (action === "reset-image" && panel.image_id) {
+        if (action === "edit-crop" && panel.image_id) {
+          void editPanelImageCrop(panel);
+        } else if (action === "reset-crop" && panel.image_id) {
+          resetPanelImageCrop(panel);
+        } else if (action === "reset-image" && panel.image_id) {
           options.pushUndo();
           panel.image_scale = 1;
           panel.image_offset_x = 0;
@@ -1119,6 +1137,17 @@
       elements.properties.querySelectorAll('[data-comic-action="remove-panel-image"]').forEach((button) => {
         button.disabled = !panel?.image_id;
       });
+      const cropEditable = Boolean(panel?.image_id) && imagePanels.length === 1 && !panel.image_locked;
+      const editCropButton = elements.properties.querySelector('[data-comic-action="edit-image-crop"]');
+      const resetCropButton = elements.properties.querySelector('[data-comic-action="reset-image-crop"]');
+      const cropStatus = elements.properties.querySelector('[data-comic-crop-status]');
+      if (editCropButton) editCropButton.disabled = !cropEditable;
+      if (resetCropButton) resetCropButton.disabled = !cropEditable || panelImageCropIsFull(panel);
+      if (cropStatus) cropStatus.textContent = imagePanels.length > 1
+        ? tr("クロップ編集は画像を1枚だけ選択してください。", "Select one panel image to edit its crop.")
+        : panel && !panelImageCropIsFull(panel)
+          ? tr("非破壊クロップが適用されています。", "A non-destructive crop is applied.")
+          : tr("クロップは非破壊です。元画像は保持されます。", "Cropping is non-destructive; the source image is preserved.");
       const metadata = comic.images.find((item) => item.id === panel?.image_id);
       const thumbnail = elements.properties.querySelector("[data-comic-selected-thumbnail]");
       const imageName = elements.properties.querySelector("[data-comic-image-name]");
@@ -1139,6 +1168,34 @@
     function selectedImagePanels() {
       const ids = selectedPanelImageIds.size ? selectedPanelImageIds : new Set(selectedTarget === "image" && selectedPanelId ? [selectedPanelId] : []);
       return layout().panels.filter((entry) => ids.has(entry.id) && entry.node.image_id).map((entry) => entry.node);
+    }
+
+    function panelImageCrop(panel) { return core.normalizeImageCrop?.(panel?.image_crop) || { x: 0, y: 0, w: 1, h: 1 }; }
+    function panelImageCropIsFull(panel) { const crop = panelImageCrop(panel); return crop.x < .0005 && crop.y < .0005 && crop.w > .999 && crop.h > .999; }
+    function runtimeImageForPanel(panel) { return panel?.image_id === "source" ? sourceImage() : runtimeImages.get(panel?.image_id); }
+    async function editPanelImageCrop(panel = selectedPanel()) {
+      const selected = selectedImagePanels();
+      if (!panel?.image_id || panel.image_locked || selected.length !== 1 || selected[0].id !== panel.id) return false;
+      const image = runtimeImageForPanel(panel), dialog = root.SpeechBubbleImageCropDialog;
+      if (!image?.naturalWidth || !dialog?.open) return false;
+      const metadata = comic.images.find((item) => item.id === panel.image_id);
+      const next = await dialog.open({ image, name: metadata?.name || tr("コマ画像", "Panel Image"), crop: panelImageCrop(panel) });
+      if (!next || dialog.sameCrop?.(next, panelImageCrop(panel))) return false;
+      options.pushUndo();
+      panel.image_crop = core.normalizeImageCrop(next);
+      updateUi(); changed(); return true;
+    }
+    function resetPanelImageCrop(panel = selectedPanel()) {
+      const selected = selectedImagePanels();
+      if (!panel?.image_id || panel.image_locked || selected.length !== 1 || selected[0].id !== panel.id || panelImageCropIsFull(panel)) return false;
+      options.pushUndo(); panel.image_crop = { x: 0, y: 0, w: 1, h: 1 }; updateUi(); changed(); return true;
+    }
+    function startSelectedImageCrop() { const panel = selectedPanel(); if (!panel || selectedTarget !== "image" || selectedImagePanels().length !== 1) return false; void editPanelImageCrop(panel); return true; }
+    function startImageCropAt(point) {
+      const hit = core.panelAt(layout(), point);
+      if (!hit?.node?.image_id || hit.node.image_locked) return false;
+      setPanelImageSelection([hit.id], hit.id); panelImageSelectionAnchorId = hit.id; updateUi(); options.requestRender({ canvas: true, layers: true });
+      void editPanelImageCrop(hit.node); return true;
     }
 
     function setPanelImageSelection(panelIds, primaryId = null) {
@@ -1393,6 +1450,7 @@
         panel.tone.color = input.value;
       } else if (key === "fit" || key === "background") panel[key] = input.value;
       else if (key === "image_scale") panel[key] = core.clamp(input.value, 0.05, 5);
+      else if (key === "image_rotation") panel[key] = imageLayerRotation.normalize(input.value);
       else panel[key] = Number(input.value) || 0;
     }
 
@@ -1476,6 +1534,7 @@
       panel.image_scale = 1;
       panel.image_offset_x = 0;
       panel.image_offset_y = 0;
+      panel.image_crop = { x: 0, y: 0, w: 1, h: 1 };
       setPanelImageSelection([panel.id], panel.id);
       panelImageSelectionAnchorId = panel.id;
       used = true;
@@ -1521,11 +1580,11 @@
           if (stored?.id) metadata = { ...metadata, ...stored, id: String(stored.id), source: "forge-project" };
           const storedDuplicate = comic.images.find((item) => item.id === metadata.id);
           if (storedDuplicate) {
-            if (!runtimeImages.has(storedDuplicate.id)) await attachBlob(storedDuplicate, file);
+            if (!runtimeImages.has(storedDuplicate.id)) await attachBlob(storedDuplicate, file, false);
             importedIds.push(storedDuplicate.id);
             continue;
           }
-          await attachBlob(metadata, file);
+          await attachBlob(metadata, file, false);
           comic.images.push(metadata);
           importedIds.push(metadata.id);
         } catch (error) {
@@ -1540,6 +1599,7 @@
           droppedPanel.node.image_scale = 1;
           droppedPanel.node.image_offset_x = 0;
           droppedPanel.node.image_offset_y = 0;
+          droppedPanel.node.image_crop = { x: 0, y: 0, w: 1, h: 1 };
           setPanelImageSelection([droppedPanel.id], droppedPanel.id);
           panelImageSelectionAnchorId = droppedPanel.id;
         }
@@ -1743,7 +1803,7 @@
           };
           comic.images.push(metadata);
         }
-        await attachBlob(metadata, blob);
+        await attachBlob(metadata, blob, false);
         await imageStore.put(metadata, blob);
       }
       renderTray();
@@ -1767,7 +1827,7 @@
         existing = metadata;
         comic.images.push(existing);
       }
-      if (!runtimeImages.has(existing.id)) await attachBlob(existing, file);
+      if (!runtimeImages.has(existing.id)) await attachBlob(existing, file, false);
       selectedTrayImageId = existing.id;
       const dropped = control.point ? core.panelAt(layout(), control.point)?.node : null;
       const target = dropped || (control.assignToSelectedPanel ? selectedPanel() : null);
@@ -1776,6 +1836,7 @@
         target.image_scale = 1;
         target.image_offset_x = 0;
         target.image_offset_y = 0;
+        target.image_crop = { x: 0, y: 0, w: 1, h: 1 };
         target.image_visible = true;
         setPanelImageSelection([target.id], target.id);
       }
@@ -1962,16 +2023,19 @@
               ? sourceImage()
               : runtimeImages.get(panel.image_id);
           if (image?.naturalWidth && image?.naturalHeight) {
+            const crop = panelImageCrop(panel);
+            const sourceX = Math.round(crop.x * image.naturalWidth), sourceY = Math.round(crop.y * image.naturalHeight);
+            const sourceW = Math.max(1, Math.min(image.naturalWidth - sourceX, Math.round(crop.w * image.naturalWidth))), sourceH = Math.max(1, Math.min(image.naturalHeight - sourceY, Math.round(crop.h * image.naturalHeight)));
             const fitted = core.imageFit(
               rect,
-              image.naturalWidth,
-              image.naturalHeight,
+              sourceW,
+              sourceH,
               panel.fit,
               panel.image_scale,
               panel.image_offset_x,
               panel.image_offset_y,
             );
-            target.drawImage(image, fitted.x, fitted.y, fitted.w, fitted.h);
+            imageLayerRotation.drawCroppedImage(target, image, { ...fitted, sourceX, sourceY, sourceW, sourceH }, panel.image_rotation);
           }
         }
         if (panel.tone && drawImages) {
@@ -2516,9 +2580,11 @@
       updateUi();
       const menu = elements.contextMenu;
       menu.style.left = `${Math.min(event.clientX, window.innerWidth - 190)}px`;
-      menu.style.top = `${Math.min(event.clientY, window.innerHeight - 230)}px`;
+      menu.style.top = `${Math.min(event.clientY, window.innerHeight - 280)}px`;
       menu.querySelector('[data-comic-context="remove-image"]').disabled = !panel.node.image_id;
       menu.querySelector('[data-comic-context="reset-image"]').disabled = !panel.node.image_id;
+      menu.querySelector('[data-comic-context="edit-crop"]').disabled = !panel.node.image_id || panel.node.image_locked;
+      menu.querySelector('[data-comic-context="reset-crop"]').disabled = !panel.node.image_id || panel.node.image_locked || panelImageCropIsFull(panel.node);
       menu.hidden = false;
       options.requestRender({ canvas: true });
       return true;
@@ -2669,6 +2735,9 @@
       IMAGE_DRAG_TYPE,
       isActive: () => comic.enabled,
       isEditing: () => comic.enabled && Boolean(selectedTarget),
+      startImageCrop: startSelectedImageCrop,
+      startImageCropAt,
+      canCropSelectedImage: () => selectedTarget === "image" && selectedImagePanels().length === 1 && !selectedPanel()?.image_locked,
       importFiles,
       importExternalImage,
       removeAssetUsage,

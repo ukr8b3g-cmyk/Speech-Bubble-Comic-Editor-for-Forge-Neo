@@ -4,13 +4,13 @@
   const core = root.SpeechBubbleQuickRetouchCore;
   if (!core) throw new Error("SpeechBubbleQuickRetouchCore must be loaded first");
 
-  const BUILD_VERSION = "0.7.4";
+  const BUILD_VERSION = "0.7.10";
   const PREVIEW_LONG_EDGE = 920;
-  const GEOMETRY_KEY = "speech-bubble-editor:quick-retouch-geometry:v1";
-  const SETTINGS_KEY = "speech-bubble-editor:quick-retouch-settings:v2";
+  const GEOMETRY_KEY = "speech-bubble-editor:quick-retouch-geometry:v2";
+  const SETTINGS_KEY = "speech-bubble-editor:quick-retouch-settings:v5";
   const PANEL_GEOMETRY_KEY = "speech-bubble-editor:quick-retouch-panels:v1";
-  const MAX_HISTORY_BYTES = 192 * 1024 * 1024;
-  const MAX_HISTORY_STEPS = 16;
+  const MAX_HISTORY_BYTES = 512 * 1024 * 1024;
+  const MAX_HISTORY_STEPS = 32;
   const SWATCHES = [
     "#ffffff", "#000000", "#808080", "#e53935", "#fb8c00", "#fdd835",
     "#43a047", "#00acc1", "#1e88e5", "#5e35b1", "#d81b60", "#f5d6d6",
@@ -141,7 +141,17 @@
       return {
         ...common,
         name: tr("色相・彩度", "Hue / Saturation"),
-        settings: { hue: 0, saturation: 0, lightness: 0, colorize: false },
+        settings: {
+          hue: 0,
+          saturation: 0,
+          lightness: 0,
+          colorize: false,
+          targetColor: "master",
+          targetWidth: 30,
+          targetSoftness: 30,
+          targetSamples: [],
+          targetExcluded: [],
+        },
       };
     }
     if (type === "brightness_contrast") {
@@ -182,12 +192,19 @@
           <button type="button" data-retouch-action="maximize" title="${tr("最大化／元に戻す", "Maximize / Restore")}">□</button>
           <button type="button" data-retouch-action="close" aria-label="${tr("閉じる", "Close")}">×</button>
         </header>
-        <div class="quick-retouch-source-bar">
+        <div class="quick-retouch-source-bar" data-retouch-action="toggle-source-picker" title="${tr("画像候補を開く／閉じる", "Open / close image sources")}">
           <div class="quick-retouch-source-thumb" data-retouch-source-thumb></div>
-          <div><strong data-retouch-source-name></strong><small data-retouch-source-info></small></div>
-          <button type="button" data-retouch-action="choose-file"></button>
-          <input data-retouch-file type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <div><strong data-retouch-source-name>${tr("画像を選択してください", "Select an image")}</strong><small data-retouch-source-info></small></div>
+          <button type="button" data-retouch-action="toggle-source-picker"></button>
         </div>
+        <section class="quick-retouch-source-picker" data-retouch-source-picker hidden>
+          <div class="quick-retouch-source-candidates" data-retouch-candidates></div>
+          <div class="quick-retouch-source-drop" data-retouch-source-drop>
+            <span>${tr("PNG / JPEG / WebPをドロップ", "Drop PNG / JPEG / WebP")}</span>
+            <button type="button" data-retouch-action="choose-file"></button>
+          </div>
+          <input data-retouch-file type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        </section>
         <div class="quick-retouch-tool-options" data-retouch-tool-options></div>
         <div class="quick-retouch-body">
           <aside class="quick-retouch-tools">
@@ -210,10 +227,17 @@
               <span class="quick-retouch-brush-size-hud" data-retouch-brush-size-hud hidden></span>
             </div>
             <div class="quick-retouch-view-bar">
-              <select data-retouch-zoom aria-label="${tr("ズーム", "Zoom")}"><option value="fit">${tr("画面に合わせる", "Fit")}</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select>
               <button type="button" data-retouch-action="fit-view"></button>
+              <button type="button" data-retouch-action="zoom-out" title="${tr("縮小", "Zoom out")}">−</button>
+              <select data-retouch-zoom aria-label="${tr("ズーム", "Zoom")}"><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+              <button type="button" data-retouch-action="zoom-in" title="${tr("拡大", "Zoom in")}">＋</button>
               <button type="button" data-retouch-action="hold-original"></button>
-              <button type="button" data-retouch-action="split-compare"></button>
+              <div class="quick-retouch-compare-buttons" role="group" aria-label="${tr("比較表示", "Compare view")}">
+                <span>${tr("比較", "Compare")}</span>
+                <button type="button" data-retouch-compare-mode="none"></button>
+                <button type="button" data-retouch-compare-mode="vertical"></button>
+                <button type="button" data-retouch-compare-mode="horizontal"></button>
+              </div>
               <span class="quick-retouch-view-spacer"></span>
               <button type="button" data-retouch-panel-toggle="selection"></button>
               <button type="button" data-retouch-panel-toggle="layers"></button>
@@ -228,6 +252,7 @@
             <section class="quick-retouch-floating-panel layers-panel" data-retouch-panel="layers">
               <div class="quick-retouch-floating-head" data-retouch-panel-drag="layers"><strong data-retouch-layers-title></strong><small data-retouch-layer-count></small><button type="button" data-retouch-panel-collapse="layers">−</button><button type="button" data-retouch-panel-close="layers">×</button></div>
               <div class="quick-retouch-floating-body">
+                <div class="quick-retouch-layer-controls" data-retouch-layer-controls></div>
                 <div class="quick-retouch-layer-list" data-retouch-layer-list></div>
                 <div class="quick-retouch-layer-actions">
                   <button type="button" data-retouch-add="paint"></button>
@@ -265,11 +290,16 @@
     const resultContext = resultCanvas.getContext("2d", { willReadFrequently: true });
     const originalContext = originalCanvas.getContext("2d", { willReadFrequently: true });
     const sourceThumb = dialog.querySelector("[data-retouch-source-thumb]");
+    const sourcePicker = dialog.querySelector("[data-retouch-source-picker]");
+    const sourceCandidatesHost = dialog.querySelector("[data-retouch-candidates]");
+    const sourceDrop = dialog.querySelector("[data-retouch-source-drop]");
     const fileInput = dialog.querySelector("[data-retouch-file]");
     const status = dialog.querySelector("[data-retouch-status]");
     const applyButton = dialog.querySelector('[data-retouch-action="apply"]');
     const propertiesHost = dialog.querySelector("[data-retouch-properties]");
     const layerList = dialog.querySelector("[data-retouch-layer-list]");
+    const layerControlsHost = dialog.querySelector("[data-retouch-layer-controls]");
+    const propertiesPanel = dialog.querySelector('[data-retouch-panel="properties"]');
     const toolsHost = dialog.querySelector("[data-retouch-tools]");
     const toolOptionsHost = dialog.querySelector("[data-retouch-tool-options]");
     const selectionHost = dialog.querySelector("[data-retouch-selection-panel]");
@@ -290,7 +320,9 @@
     let source = null;
     let sourceBitmap = null;
     let sourceCanvas = null;
+    let baseCanvas = null;
     let sourceImageData = null;
+    let baseLayerState = { visible: true, locked: false };
     let selectionCanvas = null;
     let layers = [];
     let activeTarget = { kind: "paint", layerId: "" };
@@ -299,20 +331,30 @@
     let previewTimer = null;
     let previewRevision = 0;
     let showOriginalOnResult = false;
-    let splitCompare = false;
+    let compareMode = "none";
     let compareSplit = 0.5;
-    let selectionDisplay = "boundary";
-    let lastVisibleSelectionDisplay = "boundary";
+    let selectionDisplay = "overlay";
+    let lastVisibleSelectionDisplay = "overlay";
     let selectionOperation = "replace";
     let selectionFeather = 0;
     let selectionModifyRadius = 1;
     let wandTolerance = 30;
     let wandContiguous = true;
-    let colorRangeTolerance = 30;
+    let wandSampleMerged = true;
+    let wandAntialias = true;
+    let colorRangeTolerance = 15;
+    let colorRangeContiguous = false;
+    let colorRangeSampleMerged = true;
     let colorRangeSamples = [];
+    let colorRangeSeedPoint = null;
     let colorSampleMode = "replace";
     let colorRangeExcluded = [];
     let pendingColorRangeMask = null;
+    let colorRangeBaseSelection = null;
+    let colorRangeOperation = "replace";
+    let colorRangeRecalcTimer = 0;
+    let colorRangeRecalcGeneration = 0;
+    let shapeSelectionMode = "rectangle";
     let brush = { size: 40, hardness: 0.8, opacity: 1, color: "#ffffff" };
     let backgroundColor = "#000000";
     let viewZoom = "fit";
@@ -334,9 +376,15 @@
     let restoringHistory = false;
     let controlSnapshotArmed = false;
     let thumbUrl = "";
+    let sourceCandidateUrls = [];
+    let quickMaskReturnTarget = null;
     let dragState = null;
     let curveDrag = null;
     let lastRenderMs = 0;
+    let hueSampleMode = "";
+    let savedActiveTool = "brush";
+    let savedActiveTargetKind = "paint";
+    let initialDocumentSnapshot = null;
 
     try {
       const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
@@ -345,11 +393,20 @@
       if (selectionDisplay !== "hidden") lastVisibleSelectionDisplay = selectionDisplay;
       backgroundColor = /^#[0-9a-f]{6}$/i.test(saved.backgroundColor || "") ? saved.backgroundColor : backgroundColor;
       wandContiguous = saved.wandContiguous !== false;
+      wandSampleMerged = saved.wandSampleMerged !== false;
+      wandAntialias = saved.wandAntialias !== false;
       wandTolerance = core.clamp(saved.wandTolerance ?? wandTolerance, 0, 100);
-      colorRangeTolerance = core.clamp(saved.colorRangeTolerance ?? colorRangeTolerance, 0, 100);
+      colorRangeTolerance = core.clamp(saved.colorRangeTolerance === 30 && saved.colorRangeToleranceDefaultMigrated !== true ? 15 : saved.colorRangeTolerance ?? colorRangeTolerance, 0, 100);
+      colorRangeContiguous = saved.colorRangeContiguous === true;
+      colorRangeSampleMerged = saved.colorRangeSampleMerged !== false;
+      shapeSelectionMode = ["rectangle", "ellipse"].includes(saved.shapeSelectionMode) ? saved.shapeSelectionMode : shapeSelectionMode;
+      savedActiveTool = ["brush", "eraser", "eyedropper", "rectangle", "lasso", "wand", "color_range", "hand", "zoom"].includes(saved.activeTool) ? saved.activeTool : savedActiveTool;
+      savedActiveTargetKind = ["paint", "base"].includes(saved.activeTargetKind) ? saved.activeTargetKind : savedActiveTargetKind;
     } catch {}
 
     function saveSettings() {
+      savedActiveTool = activeTool;
+      savedActiveTargetKind = activeTarget.kind === "base" ? "base" : "paint";
       try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
           brush,
@@ -357,7 +414,15 @@
           backgroundColor,
           wandTolerance,
           wandContiguous,
+          wandSampleMerged,
+          wandAntialias,
           colorRangeTolerance,
+          colorRangeToleranceDefaultMigrated: true,
+          colorRangeContiguous,
+          colorRangeSampleMerged,
+          shapeSelectionMode,
+          activeTool,
+          activeTargetKind: activeTarget.kind === "base" ? "base" : "paint",
         }));
       } catch {}
     }
@@ -402,6 +467,7 @@
 
     function activePaintCanvas() {
       if (activeTarget.kind === "selection") return selectionCanvas;
+      if (activeTarget.kind === "base") return baseLayerState.locked ? null : baseCanvas;
       const layer = activeLayer();
       if (activeTarget.kind === "paint" && layer?.type === "paint") return layer.canvas;
       if (activeTarget.kind === "mask" && layer?.type === "adjustment") return layer.mask;
@@ -410,6 +476,47 @@
 
     function activeIsMask() {
       return activeTarget.kind === "selection" || activeTarget.kind === "mask";
+    }
+
+    function transparentPixels(width, height) {
+      return new Uint8ClampedArray(Math.max(0, width * height * 4));
+    }
+
+    function effectiveSelectionMask() {
+      if (!source) return null;
+      const selected = selectionCanvas ? maskData(selectionCanvas) : core.createMask(source.width, source.height, 0);
+      return core.maskHasSelection(selected) ? selected : core.createMask(source.width, source.height, 255);
+    }
+
+    function basePixelsScaled(width, height) {
+      if (!baseLayerState.visible || !baseCanvas) return transparentPixels(width, height);
+      return imageDataScaled(baseCanvas, width, height).data;
+    }
+
+    function renderedReferenceImageData(fullResolution = true) {
+      if (!source || !baseCanvas) return sourceImageData;
+      const width = fullResolution ? source.width : previewDimensions().width;
+      const height = fullResolution ? source.height : previewDimensions().height;
+      const base = basePixelsScaled(width, height);
+      const payload = [];
+      const masks = new Map();
+      for (const layer of layers) {
+        if (layer.type === "paint") {
+          payload.push({ id: layer.id, type: "paint", visible: layer.visible, opacity: layer.opacity, pixels: imageDataScaled(layer.canvas, width, height).data });
+        } else {
+          payload.push({ id: layer.id, type: "adjustment", adjustmentType: layer.adjustmentType, visible: layer.visible, opacity: layer.opacity, settings: JSON.parse(JSON.stringify(layer.settings)) });
+          masks.set(layer.id, maskScaled(layer.mask, width, height));
+        }
+      }
+      return new ImageData(core.renderStack(base, payload, masks), width, height);
+    }
+
+    function activeReferenceImageData(merged = false) {
+      if (merged) return renderedReferenceImageData(true);
+      if (activeTarget.kind === "base" && baseCanvas) return baseCanvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, source.width, source.height);
+      const layer = activeLayer();
+      if (layer?.type === "paint") return layer.canvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, source.width, source.height);
+      return baseCanvas?.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, source.width, source.height) || sourceImageData;
     }
 
     function previewLayerPayload() {
@@ -450,7 +557,17 @@
         const y = Math.min(pointerState.start.previewY, pointerState.current.previewY);
         const width = Math.abs(pointerState.start.previewX - pointerState.current.previewX);
         const height = Math.abs(pointerState.start.previewY - pointerState.current.previewY);
-        resultContext.strokeRect(x, y, width, height);
+        resultContext.beginPath();
+        if (pointerState.shape === "ellipse") resultContext.ellipse(x + width / 2, y + height / 2, Math.max(0.5, width / 2), Math.max(0.5, height / 2), 0, 0, Math.PI * 2);
+        else resultContext.rect(x, y, width, height);
+        resultContext.fillStyle = "rgba(60,145,255,.16)";
+        resultContext.fill();
+        resultContext.lineWidth = 3.5;
+        resultContext.strokeStyle = "rgba(8,18,28,.9)";
+        resultContext.stroke();
+        resultContext.lineWidth = 1.5;
+        resultContext.strokeStyle = "#d9f0ff";
+        resultContext.stroke();
       }
       if (pointerState?.mode === "lasso" && lassoPoints.length) {
         resultContext.beginPath();
@@ -492,28 +609,32 @@
       if (!source || selectionDisplay === "hidden") return;
       const size = previewDimensions();
       const isLayerMask = activeTarget.kind === "mask";
+      const isQuickMask = activeTarget.kind === "selection";
       const isColorRangePreview = Boolean(pendingColorRangeMask);
       const mask = isColorRangePreview
         ? scaleMaskArray(pendingColorRangeMask, source.width, source.height, size.width, size.height)
         : maskScaled(isLayerMask ? activeLayer()?.mask : selectionCanvas, size.width, size.height);
-      if (!mask || !core.maskHasSelection(mask)) return;
-      if (selectionDisplay === "boundary" && !isLayerMask && !isColorRangePreview) {
-        drawSelectionBoundary(mask, size.width, size.height);
+      if (!mask) return;
+      const hasMask = core.maskHasSelection(mask);
+      if (selectionDisplay === "boundary" && !isLayerMask && !isColorRangePreview && !isQuickMask) {
+        if (hasMask) drawSelectionBoundary(mask, size.width, size.height);
         return;
       }
+      if (!hasMask && !isQuickMask) return;
       const overlay = resultContext.createImageData(size.width, size.height);
       for (let index = 0, offset = 0; index < mask.length; index += 1, offset += 4) {
-        const amount = mask[index] / 255;
+        const selectedAmount = mask[index] / 255;
+        const amount = isQuickMask ? 1 - selectedAmount : selectedAmount;
         if (amount <= 0) continue;
-        overlay.data[offset] = isLayerMask ? 236 : isColorRangePreview ? 130 : 48;
-        overlay.data[offset + 1] = isLayerMask ? 68 : isColorRangePreview ? 82 : 145;
-        overlay.data[offset + 2] = isLayerMask ? 132 : 255;
-        overlay.data[offset + 3] = Math.round(amount * (isLayerMask ? 92 : isColorRangePreview ? 96 : 78));
+        overlay.data[offset] = isQuickMask ? 232 : isLayerMask ? 236 : isColorRangePreview ? 130 : 48;
+        overlay.data[offset + 1] = isQuickMask ? 52 : isLayerMask ? 68 : isColorRangePreview ? 82 : 145;
+        overlay.data[offset + 2] = isQuickMask ? 66 : isLayerMask ? 132 : 255;
+        overlay.data[offset + 3] = Math.round(amount * (isQuickMask ? 92 : isLayerMask ? 92 : isColorRangePreview ? 104 : 76));
       }
       const overlayCanvas = createCanvas(size.width, size.height);
       overlayCanvas.getContext("2d").putImageData(overlay, 0, 0);
       resultContext.drawImage(overlayCanvas, 0, 0);
-      if (!isLayerMask) drawSelectionBoundary(mask, size.width, size.height, isColorRangePreview ? "color-range" : "selection");
+      if (!isLayerMask && !isQuickMask && hasMask) drawSelectionBoundary(mask, size.width, size.height, isColorRangePreview ? "color-range" : "selection");
     }
     function scaleMaskArray(mask, width, height, targetWidth, targetHeight) {
       if (!mask) return null;
@@ -536,11 +657,7 @@
     function syncZoomControl(scale) {
       const control = dialog.querySelector("[data-retouch-zoom]");
       if (!control) return;
-      if (viewZoom === "fit") {
-        control.value = "fit";
-        return;
-      }
-      const value = String(Number(viewZoom));
+      const value = String(Number(scale.toFixed(4)));
       let custom = control.querySelector("[data-retouch-custom-zoom]");
       if (![...control.options].some((option) => option.value === value)) {
         if (!custom) {
@@ -617,10 +734,10 @@
       originalContext.drawImage(sourceCanvas, 0, 0, size.width, size.height);
       const original = originalContext.getImageData(0, 0, size.width, size.height);
       const { payload, masks } = previewLayerPayload();
-      const edited = core.renderStack(original.data, payload, masks);
+      const edited = core.renderStack(basePixelsScaled(size.width, size.height), payload, masks);
       let output = edited;
       if (showOriginalOnResult) output = new Uint8ClampedArray(original.data);
-      else if (splitCompare) {
+      else if (compareMode === "vertical") {
         output = new Uint8ClampedArray(edited);
         const splitX = Math.round(size.width * compareSplit);
         for (let y = 0; y < size.height; y += 1) {
@@ -628,6 +745,11 @@
           const start = y * size.width * 4;
           output.set(original.data.subarray(start, end), start);
         }
+      } else if (compareMode === "horizontal") {
+        output = new Uint8ClampedArray(edited);
+        const splitY = Math.round(size.height * compareSplit);
+        const end = splitY * size.width * 4;
+        output.set(original.data.subarray(0, end), 0);
       }
       previewData = new ImageData(output, size.width, size.height);
       resultContext.putImageData(previewData, 0, 0);
@@ -635,8 +757,10 @@
       drawInteractionGuides();
       lastRenderMs = performance.now() - started;
       dialog.querySelector("[data-retouch-hud]").textContent = `${source.width}×${source.height} · ${Math.round(size.width / source.width * 100)}% · ${Math.round(lastRenderMs)} ms`;
-      compareDivider.hidden = !splitCompare;
-      compareDivider.style.left = `${compareSplit * 100}%`;
+      compareDivider.hidden = compareMode === "none";
+      compareDivider.classList.toggle("horizontal", compareMode === "horizontal");
+      compareDivider.style.left = compareMode === "vertical" ? `${compareSplit * 100}%` : "0";
+      compareDivider.style.top = compareMode === "horizontal" ? `${compareSplit * 100}%` : "0";
       renderLayerThumbnails();
       applyViewZoom();
     }
@@ -667,20 +791,29 @@
       const context = sourceCanvas.getContext("2d", { willReadFrequently: true });
       context.drawImage(sourceBitmap, 0, 0, source.width, source.height);
       sourceImageData = context.getImageData(0, 0, source.width, source.height);
+      baseCanvas = cloneCanvas(sourceCanvas);
+      baseLayerState = { visible: true, locked: false };
       selectionCanvas = maskCanvas(source.width, source.height, 0);
       layers = [];
       activeTarget = { kind: "paint", layerId: "" };
       history = [];
       redo = [];
       colorRangeSamples = [];
+      colorRangeSeedPoint = null;
       colorRangeExcluded = [];
       pendingColorRangeMask = null;
+      hueSampleMode = "";
+      showOriginalOnResult = false;
+      compareMode = "none";
+      compareSplit = 0.5;
+      viewZoom = "fit";
       lassoPoints = [];
       lastDeselectedSelection = null;
       resetViewPan();
       if (thumbUrl) URL.revokeObjectURL(thumbUrl);
       thumbUrl = URL.createObjectURL(next.blob);
       sourceThumb.style.backgroundImage = `url("${thumbUrl}")`;
+      if (sourcePicker) sourcePicker.hidden = true;
       dialog.querySelector("[data-retouch-source-name]").textContent = source.name;
       dialog.querySelector("[data-retouch-source-info]").textContent = `${source.width} × ${source.height}px`;
       dialog.querySelector("[data-retouch-document]").textContent = `${source.name} · ${source.width}×${source.height}`;
@@ -688,10 +821,12 @@
       if (originalSizeLabel) originalSizeLabel.textContent = `${source.width} × ${source.height}px`;
       applyButton.disabled = false;
       const initialPaint = addPaintLayer(false);
-      activeTarget = { kind: "paint", layerId: initialPaint?.id || "" };
-      activeTool = "brush";
-      selectionDisplay = "boundary";
+      activeTarget = savedActiveTargetKind === "base"
+        ? { kind: "base", layerId: "" }
+        : { kind: "paint", layerId: initialPaint?.id || "" };
+      activeTool = savedActiveTool;
       lastDeselectedSelection = null;
+      initialDocumentSnapshot = snapshotState();
       renderTools();
       renderToolOptions();
       renderSelectionPanel();
@@ -710,12 +845,50 @@
       return (await options.getComicSources?.()) || [];
     }
 
+    function clearSourceCandidateUrls() {
+      sourceCandidateUrls.forEach((url) => URL.revokeObjectURL(url));
+      sourceCandidateUrls = [];
+    }
+
+    async function showSourcePicker(forceOpen = false) {
+      if (!sourcePicker) return;
+      sourcePicker.hidden = forceOpen ? false : !sourcePicker.hidden;
+      if (sourcePicker.hidden) return;
+      clearSourceCandidateUrls();
+      sourceCandidatesHost.replaceChildren();
+      const candidates = await sourceCandidates();
+      for (const candidate of candidates) {
+        if (!candidate?.blob) continue;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `quick-retouch-source-candidate${candidate.selected ? " selected" : ""}`;
+        const url = URL.createObjectURL(candidate.blob);
+        sourceCandidateUrls.push(url);
+        button.innerHTML = `<img alt=""><span></span><small></small>`;
+        button.querySelector("img").src = url;
+        button.querySelector("span").textContent = sourceDisplayName(candidate.name);
+        button.querySelector("small").textContent = candidate.width && candidate.height ? `${candidate.width}×${candidate.height}` : "";
+        button.onclick = async (event) => { event.stopPropagation(); await setSource(candidate); };
+        sourceCandidatesHost.append(button);
+      }
+      if (!sourceCandidatesHost.children.length) {
+        const empty = document.createElement("p");
+        empty.textContent = currentMode() === "comic"
+          ? tr("ページ画像・画像トレイから選ぶか、画像ファイルを読み込んでください。", "Choose a Page Image / Image Tray item, or load an image file.")
+          : tr("一枚画像を読み込んでください。", "Load a Single Image.");
+        sourceCandidatesHost.append(empty);
+      }
+    }
+
     async function refreshSource() {
       const candidates = await sourceCandidates();
       const selected = candidates.find((item) => item.selected) || candidates[0];
       if (selected) return setSource(selected);
       setStatus(tr("画像を選択するか、画像ファイルを読み込んでください。", "Select an image or load an image file."), "error");
       applyButton.disabled = true;
+      dialog.querySelector("[data-retouch-source-name]").textContent = tr("画像を選択してください", "Select an image");
+      dialog.querySelector("[data-retouch-source-info]").textContent = "";
+      await showSourcePicker(true);
       return false;
     }
 
@@ -727,14 +900,18 @@
     }
 
     function snapshotBytes(snapshot) {
-      let total = snapshot.selection.byteLength;
-      for (const layer of snapshot.layers) total += layer.canvas?.byteLength || layer.mask?.byteLength || 0;
+      let total = (snapshot.selection?.byteLength || 0) + (snapshot.base?.byteLength || 0);
+      total += snapshot.lastDeselectedSelection?.byteLength || 0;
+      total += snapshot.pendingColorRangeMask?.byteLength || 0;
+      for (const layer of snapshot.layers || []) total += layer.canvas?.byteLength || layer.mask?.byteLength || 0;
       return total;
     }
 
     function snapshotState() {
       return {
         selection: maskData(selectionCanvas),
+        base: baseCanvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, source.width, source.height).data.slice(),
+        baseLayerState: { ...baseLayerState },
         layers: layers.map((layer) => ({
           id: layer.id,
           type: layer.type,
@@ -746,6 +923,27 @@
           ...layerCanvasSnapshot(layer),
         })),
         activeTarget: { ...activeTarget },
+        activeTool,
+        selectionDisplay,
+        lastVisibleSelectionDisplay,
+        selectionOperation,
+        lastDeselectedSelection: lastDeselectedSelection ? new Uint8ClampedArray(lastDeselectedSelection) : null,
+        colorRangeSamples: colorRangeSamples.map((sample) => ({ ...sample })),
+        colorRangeExcluded: colorRangeExcluded.map((sample) => ({ ...sample })),
+        colorRangeSeedPoint: colorRangeSeedPoint ? { ...colorRangeSeedPoint } : null,
+        pendingColorRangeMask: pendingColorRangeMask ? new Uint8ClampedArray(pendingColorRangeMask) : null,
+        colorRangeBaseSelection: colorRangeBaseSelection ? new Uint8ClampedArray(colorRangeBaseSelection) : null,
+        colorRangeOperation,
+        colorSampleMode,
+        hueSampleMode,
+        brush: { ...brush },
+        backgroundColor,
+        viewZoom,
+        viewPanX,
+        viewPanY,
+        showOriginalOnResult,
+        compareMode,
+        compareSplit,
       };
     }
 
@@ -765,6 +963,12 @@
       restoringHistory = true;
       try {
         putMask(selectionCanvas, snapshot.selection);
+        baseCanvas.getContext("2d", { willReadFrequently: true }).putImageData(
+          new ImageData(new Uint8ClampedArray(snapshot.base), source.width, source.height),
+          0,
+          0,
+        );
+        baseLayerState = { visible: true, locked: false, ...(snapshot.baseLayerState || {}) };
         layers = snapshot.layers.map((saved) => {
           if (saved.type === "paint") {
             const layer = {
@@ -793,10 +997,39 @@
           return layer;
         });
         activeTarget = { ...snapshot.activeTarget };
+        activeTool = snapshot.activeTool || "brush";
+        selectionDisplay = ["boundary", "overlay", "hidden"].includes(snapshot.selectionDisplay) ? snapshot.selectionDisplay : "overlay";
+        lastVisibleSelectionDisplay = ["boundary", "overlay"].includes(snapshot.lastVisibleSelectionDisplay) ? snapshot.lastVisibleSelectionDisplay : "overlay";
+        selectionOperation = core.normalizeSelectionOperation(snapshot.selectionOperation);
+        lastDeselectedSelection = snapshot.lastDeselectedSelection ? new Uint8ClampedArray(snapshot.lastDeselectedSelection) : null;
+        colorRangeSamples = (snapshot.colorRangeSamples || []).map((sample) => ({ ...sample }));
+        colorRangeExcluded = (snapshot.colorRangeExcluded || []).map((sample) => ({ ...sample }));
+        colorRangeSeedPoint = snapshot.colorRangeSeedPoint ? { ...snapshot.colorRangeSeedPoint } : null;
+        pendingColorRangeMask = snapshot.pendingColorRangeMask ? new Uint8ClampedArray(snapshot.pendingColorRangeMask) : null;
+        colorRangeBaseSelection = snapshot.colorRangeBaseSelection ? new Uint8ClampedArray(snapshot.colorRangeBaseSelection) : null;
+        colorRangeOperation = core.normalizeSelectionOperation(snapshot.colorRangeOperation);
+        colorSampleMode = snapshot.colorSampleMode || "replace";
+        hueSampleMode = snapshot.hueSampleMode || "";
+        brush = { ...brush, ...(snapshot.brush || {}) };
+        backgroundColor = snapshot.backgroundColor || backgroundColor;
+        viewZoom = snapshot.viewZoom ?? "fit";
+        viewPanX = Number(snapshot.viewPanX) || 0;
+        viewPanY = Number(snapshot.viewPanY) || 0;
+        showOriginalOnResult = snapshot.showOriginalOnResult === true;
+        compareMode = ["none", "vertical", "horizontal"].includes(snapshot.compareMode) ? snapshot.compareMode : "none";
+        compareSplit = core.clamp(snapshot.compareSplit ?? 0.5, 0.05, 0.95);
+        colorInput.value = brush.color;
+        backgroundColorInput.value = backgroundColor;
+        renderTools();
         renderSelectionPanel();
         renderLayers();
         renderProperties();
         renderToolOptions();
+        dialog.querySelectorAll("[data-retouch-compare-mode]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.retouchCompareMode === compareMode);
+          button.setAttribute("aria-pressed", String(button.dataset.retouchCompareMode === compareMode));
+        });
+        applyViewZoom();
         schedulePreview(0);
       } finally {
         restoringHistory = false;
@@ -823,8 +1056,7 @@
     }
 
     function selectedMaskForNewAdjustment() {
-      const selected = maskData(selectionCanvas);
-      return core.maskHasSelection(selected) ? selected : core.createMask(source.width, source.height, 255);
+      return effectiveSelectionMask();
     }
 
     function addPaintLayer(record = true) {
@@ -860,6 +1092,10 @@
     }
 
     function deleteLayer() {
+      if (activeTarget.kind === "base") {
+        setStatus(tr("ベース画像は削除できません。非表示またはロックできます。", "The Base Image cannot be deleted. Hide or lock it instead."), "info");
+        return;
+      }
       const layer = activeLayer();
       if (!layer) return;
       pushHistory();
@@ -869,12 +1105,25 @@
       if (!next) next = addPaintLayer(false);
       activeTarget = next
         ? { kind: next.type === "paint" ? "paint" : "adjustment", layerId: next.id }
-        : { kind: "original", layerId: "" };
+        : { kind: "base", layerId: "" };
       renderLayers();
       renderProperties();
       schedulePreview();
     }
     function duplicateLayer() {
+      if (activeTarget.kind === "base") {
+        if (!baseCanvas) return;
+        pushHistory();
+        const copy = layerDefaults("paint");
+        copy.name = tr("ベース画像 コピー", "Base Image copy");
+        copy.canvas = cloneCanvas(baseCanvas);
+        layers.unshift(copy);
+        activeTarget = { kind: "paint", layerId: copy.id };
+        renderLayers();
+        renderProperties();
+        schedulePreview();
+        return;
+      }
       const layer = activeLayer();
       if (!layer) return;
       pushHistory();
@@ -931,14 +1180,34 @@
         selectionThumb.height = 76;
         selectionThumb.getContext("2d").drawImage(selectionCanvas, 0, 0, selectionThumb.width, selectionThumb.height);
       }
-      const originalThumb = layerList.querySelector("[data-retouch-original-thumb]");
-      if (originalThumb) {
-        originalThumb.width = 80;
-        originalThumb.height = 76;
-        originalThumb.getContext("2d").drawImage(sourceCanvas, 0, 0, originalThumb.width, originalThumb.height);
+      const baseThumb = layerList.querySelector("[data-retouch-base-thumb]");
+      if (baseThumb) {
+        baseThumb.width = 80;
+        baseThumb.height = 76;
+        baseThumb.getContext("2d").drawImage(baseCanvas, 0, 0, baseThumb.width, baseThumb.height);
       }
     }
+    function renderLayerControls() {
+      if (!layerControlsHost) return;
+      const layer = activeLayer();
+      const editableLayer = layer && (activeTarget.kind === "paint" || activeTarget.kind === "adjustment" || activeTarget.kind === "mask");
+      const opacity = editableLayer ? Math.round(layer.opacity * 100) : 100;
+      layerControlsHost.innerHTML = `<label class="quick-retouch-layer-opacity-control"><span>${tr("不透明度", "Opacity")}</span><input type="range" min="0" max="100" step="1" value="${opacity}" data-retouch-layer-opacity ${editableLayer ? "" : "disabled"}><output>${opacity}%</output></label>`;
+      const range = layerControlsHost.querySelector("[data-retouch-layer-opacity]");
+      const output = layerControlsHost.querySelector("output");
+      if (range && editableLayer) {
+        range.addEventListener("pointerdown", beginControlHistory);
+        range.addEventListener("input", () => {
+          layer.opacity = core.clamp(Number(range.value) / 100, 0, 1);
+          output.textContent = `${Math.round(layer.opacity * 100)}%`;
+          schedulePreview(0);
+        });
+        range.addEventListener("change", () => { endControlHistory(); renderLayers(); });
+      }
+    }
+
     function renderLayers() {
+      renderLayerControls();
       layerList.replaceChildren();
       for (const layer of [...layers].reverse()) {
         const row = document.createElement("div");
@@ -966,6 +1235,7 @@
           renderToolOptions();
           renderLayers();
           renderProperties();
+          saveSettings();
           schedulePreview(0);
         });
         row.onclick = () => {
@@ -973,22 +1243,43 @@
           renderLayers();
           renderProperties();
           renderToolOptions();
+          saveSettings();
           schedulePreview(0);
         };
         layerList.append(row);
       }
-      const originalRow = document.createElement("div");
-      originalRow.className = `quick-retouch-layer-row original-layer${activeTarget.kind === "original" ? " active" : ""}`;
-      originalRow.innerHTML = `<button type="button" class="quick-retouch-eye" disabled>👁</button><canvas class="quick-retouch-layer-thumb" data-retouch-original-thumb></canvas><div><strong>${tr("元画像", "Original")}</strong><small>${tr("非破壊の基準画像", "Protected source image")}</small></div><span title="${tr("ロック済み", "Locked")}">🔒</span>`;
-      originalRow.onclick = () => {
-        activeTarget = { kind: "original", layerId: "" };
+      const baseRow = document.createElement("div");
+      baseRow.className = `quick-retouch-layer-row base-layer${activeTarget.kind === "base" ? " active" : ""}`;
+      baseRow.innerHTML = `<button type="button" class="quick-retouch-eye" data-retouch-base-visible aria-pressed="${String(baseLayerState.visible)}">${baseLayerState.visible ? "👁" : "·"}</button><canvas class="quick-retouch-layer-thumb" data-retouch-base-thumb></canvas><div><strong>${tr("ベース画像", "Base Image")}</strong><small>${tr("画像レイヤー", "Image layer")}</small></div><button type="button" class="quick-retouch-lock-button${baseLayerState.locked ? " active" : ""}" data-retouch-base-lock title="${baseLayerState.locked ? tr("ロックを解除", "Unlock") : tr("ロック", "Lock")}">${baseLayerState.locked ? "🔒" : "🔓"}</button>`;
+      baseRow.querySelector("[data-retouch-base-visible]").onclick = (event) => {
+        event.stopPropagation();
+        pushHistory();
+        baseLayerState.visible = !baseLayerState.visible;
+        renderLayers();
+        schedulePreview();
+      };
+      baseRow.querySelector("[data-retouch-base-lock]").onclick = (event) => {
+        event.stopPropagation();
+        pushHistory();
+        baseLayerState.locked = !baseLayerState.locked;
         renderLayers();
         renderProperties();
+        updateBrushRingStyle();
+        setStatus(baseLayerState.locked
+          ? tr("ベース画像をロックしました。", "Base Image locked.")
+          : tr("ベース画像を編集可能にしました。", "Base Image is editable."), "ready");
       };
-      layerList.append(originalRow);
+      baseRow.onclick = () => {
+        activeTarget = { kind: "base", layerId: "" };
+        renderLayers();
+        renderProperties();
+        renderToolOptions();
+        saveSettings();
+      };
+      layerList.append(baseRow);
       dialog.querySelector("[data-retouch-layer-count]").textContent = `${layers.length + 1}`;
-      dialog.querySelector('[data-retouch-action="delete-layer"]').disabled = !activeLayer();
-      dialog.querySelector('[data-retouch-action="duplicate-layer"]').disabled = !activeLayer();
+      dialog.querySelector('[data-retouch-action="delete-layer"]').disabled = activeTarget.kind === "base" || !activeLayer();
+      dialog.querySelector('[data-retouch-action="duplicate-layer"]').disabled = activeTarget.kind !== "base" && !activeLayer();
       const active = activeLayer();
       const index = active ? layers.indexOf(active) : -1;
       dialog.querySelector('[data-retouch-action="move-layer-up"]').disabled = index < 0 || index >= layers.length - 1;
@@ -996,7 +1287,7 @@
       renderLayerThumbnails();
     }
     function controlMarkup(key, label, value, min, max, step = 1) {
-      return `<label class="quick-retouch-field"><span>${label}</span><span class="quick-retouch-control"><input type="range" data-retouch-setting="${key}" min="${min}" max="${max}" step="${step}" value="${value}"><input type="number" data-retouch-setting-number="${key}" min="${min}" max="${max}" step="${step}" value="${value}"></span></label>`;
+      return `<label class="quick-retouch-field quick-retouch-field-${key}"><span>${label}</span><span class="quick-retouch-control"><input type="range" data-retouch-setting="${key}" min="${min}" max="${max}" step="${step}" value="${value}"><input type="number" data-retouch-setting-number="${key}" min="${min}" max="${max}" step="${step}" value="${value}"></span></label>`;
     }
 
     function adjustmentMaskMarkup() {
@@ -1011,23 +1302,17 @@
       const selected = maskData(selectionCanvas);
       const hasSelection = core.maskHasSelection(selected);
       const visible = selectionDisplay !== "hidden";
+      const quickMask = activeTarget.kind === "selection";
       selectionHost.innerHTML = `
         <div class="quick-retouch-selection-summary">
           <button type="button" class="quick-retouch-eye" data-retouch-selection-visible aria-pressed="${String(visible)}">${visible ? "👁" : "·"}</button>
           <canvas class="quick-retouch-layer-thumb" data-retouch-selection-thumb></canvas>
-          <div><strong>${hasSelection ? tr("選択範囲あり", "Selection active") : tr("選択範囲なし", "No selection")}</strong><small>${visible ? tr("表示中", "Visible") : tr("表示は非表示・選択は保持", "Hidden visually; selection retained")}</small></div>
+          <div><strong>${hasSelection ? tr("選択範囲あり", "Selection active") : tr("選択範囲なし", "No selection")}</strong><small>${quickMask ? tr("クイックマスク編集中", "Editing Quick Mask") : visible ? tr("表示中", "Visible") : tr("表示は非表示・選択は保持", "Hidden visually; selection retained")}</small></div>
         </div>
-        <div class="quick-retouch-button-row"><button type="button" data-retouch-selection-action="all">${tr("全選択", "Select All")}</button><button type="button" data-retouch-selection-action="none">${tr("解除", "Deselect")}</button><button type="button" data-retouch-selection-action="invert">${tr("反転", "Invert")}</button></div>
-        <div class="quick-retouch-segmented" data-retouch-selection-display-buttons>
-          <button type="button" data-selection-display="boundary">${tr("境界線", "Boundary")}</button>
-          <button type="button" data-selection-display="overlay">${tr("マスク", "Overlay")}</button>
-          <button type="button" data-selection-display="hidden">${tr("非表示", "Hidden")}</button>
-        </div>
-        ${controlMarkup("selectionFeather", tr("境界ぼかし（px）", "Feather (px)"), selectionFeather, 0, 40, 1)}
-        ${controlMarkup("selectionModifyRadius", tr("拡張・縮小量（px）", "Expand / contract amount"), selectionModifyRadius, 1, 32, 1)}
-        <div class="quick-retouch-button-row two"><button type="button" data-retouch-selection-action="expand">${tr("拡張", "Expand")}</button><button type="button" data-retouch-selection-action="shrink">${tr("縮小", "Contract")}</button></div>
-        <button type="button" class="quick-retouch-wide-button" data-retouch-selection-edit>${tr("ブラシで選択範囲を編集", "Edit selection with brush")}</button>
-        <div class="quick-retouch-status-note">${tr("選択範囲はペイント、消しゴム、調整レイヤーの適用範囲として共通利用できます。", "The selection constrains painting, erasing, and newly created adjustment masks.")}</div>`;
+        <div class="quick-retouch-button-row"><button type="button" data-retouch-selection-action="all">${tr("全選択", "Select All")}</button><button type="button" data-retouch-selection-action="none">${tr("解除", "Deselect")}</button><button type="button" data-retouch-selection-action="invert" ${hasSelection ? "" : "disabled"}>${tr("反転", "Invert")}</button></div>
+        ${hasSelection ? `<div class="quick-retouch-segmented" data-retouch-selection-display-buttons><button type="button" data-selection-display="boundary">${tr("境界線", "Boundary")}</button><button type="button" data-selection-display="overlay">${tr("マスク", "Overlay")}</button><button type="button" data-selection-display="hidden">${tr("非表示", "Hidden")}</button></div>${controlMarkup("selectionFeather", tr("境界ぼかし（px）", "Feather (px)"), selectionFeather, 0, 40, 1)}${controlMarkup("selectionModifyRadius", tr("拡張・縮小量（px）", "Expand / contract amount"), selectionModifyRadius, 1, 32, 1)}<div class="quick-retouch-button-row two"><button type="button" data-retouch-selection-action="expand">${tr("拡張", "Expand")}</button><button type="button" data-retouch-selection-action="shrink">${tr("縮小", "Contract")}</button></div>` : ""}
+        <button type="button" class="quick-retouch-wide-button${quickMask ? " active" : ""}" data-retouch-quick-mask>${quickMask ? tr("クイックマスクを終了 (Q)", "Exit Quick Mask (Q)") : tr("クイックマスク (Q)", "Quick Mask (Q)")}</button>
+        <div class="quick-retouch-status-note">${tr("選択範囲は1つだけです。追加・削除・反転で整え、調整レイヤー作成時にその瞬間の選択がレイヤーマスクへコピーされます。", "There is one current selection. Refine it with add, subtract, or invert; creating an adjustment layer copies that selection into its layer mask.")}</div>`;
       selectionHost.querySelectorAll("[data-selection-display]").forEach((button) => {
         button.classList.toggle("active", button.dataset.selectionDisplay === selectionDisplay);
       });
@@ -1047,12 +1332,33 @@
     }
     function renderHueProperties(layer) {
       propertiesHost.innerHTML = `
+        <label>${tr("編集対象", "Target colors")}<select data-retouch-hs-target><option value="master">${tr("マスター", "Master")}</option><option value="red">${tr("赤系", "Reds")}</option><option value="yellow">${tr("黄色系", "Yellows")}</option><option value="green">${tr("緑系", "Greens")}</option><option value="cyan">${tr("シアン系", "Cyans")}</option><option value="blue">${tr("青系", "Blues")}</option><option value="magenta">${tr("マゼンタ系", "Magentas")}</option><option value="custom">${tr("画像から対象色を指定", "Pick Target Color from Image")}</option></select></label>
+        <details class="quick-retouch-hs-advanced"><summary>${tr("対象色を詳細調整", "Advanced target color")}</summary><div class="quick-retouch-status-note">${tr("選択範囲は作成しません。画像から取得した色だけに色相・彩度の効果を適用します。", "This does not create a selection. Hue and Saturation affect only colors sampled from the image.")}</div><div class="quick-retouch-option-group quick-retouch-hs-sampler"><span>${tr("調整する色を取得", "Sample Adjustment Colors")}</span><div class="quick-retouch-segmented"><button type="button" data-retouch-hs-sample-mode="replace" class="${hueSampleMode === "replace" ? "active" : ""}">${tr("指定", "Set")}</button><button type="button" data-retouch-hs-sample-mode="add" class="${hueSampleMode === "add" ? "active" : ""}">${tr("色を追加", "Add Color")}</button><button type="button" data-retouch-hs-sample-mode="exclude" class="${hueSampleMode === "exclude" ? "active" : ""}">${tr("色を除外", "Exclude Color")}</button></div></div>
+        <div class="quick-retouch-color-samples" data-retouch-hs-samples></div>
+        ${controlMarkup("targetWidth", tr("色域幅", "Range width"), layer.settings.targetWidth ?? 30, 1, 90, 1)}
+        ${controlMarkup("targetSoftness", tr("境界ぼかし", "Range softness"), layer.settings.targetSoftness ?? 30, 0, 90, 1)}</details>
         ${controlMarkup("hue", tr("色相", "Hue"), layer.settings.hue, -180, 180, 1)}
         ${controlMarkup("saturation", tr("彩度", "Saturation"), layer.settings.saturation, -100, 100, 1)}
         ${controlMarkup("lightness", tr("明度", "Lightness"), layer.settings.lightness, -100, 100, 1)}
         <label class="quick-retouch-check"><input type="checkbox" data-retouch-setting-check="colorize" ${layer.settings.colorize ? "checked" : ""}><span>${tr("色彩の統一", "Colorize")}</span></label>
-        ${controlMarkup("layerOpacity", tr("レイヤー不透明度（%）", "Layer opacity (%)"), Math.round(layer.opacity * 100), 0, 100, 1)}
         ${adjustmentMaskMarkup()}`;
+      propertiesHost.querySelector("[data-retouch-hs-target]").value = layer.settings.targetColor || "master";
+      renderHueTargetSamples(layer);
+    }
+
+    function renderHueTargetSamples(layer) {
+      const host = propertiesHost.querySelector("[data-retouch-hs-samples]");
+      if (!host) return;
+      host.replaceChildren();
+      const append = (hue, excluded = false) => {
+        const node = document.createElement("span");
+        node.className = `quick-retouch-color-sample${excluded ? " excluded" : ""}`;
+        node.style.background = `hsl(${Math.round(Number(hue) || 0)} 85% 55%)`;
+        node.title = excluded ? tr("除外する色相", "Excluded hue") : tr("対象に含める色相", "Included hue");
+        host.append(node);
+      };
+      (layer.settings.targetSamples || []).forEach((hue) => append(hue, false));
+      (layer.settings.targetExcluded || []).forEach((hue) => append(hue, true));
     }
 
     function renderBrightnessProperties(layer) {
@@ -1060,7 +1366,6 @@
         ${controlMarkup("brightness", tr("明るさ", "Brightness"), layer.settings.brightness, -100, 100, 1)}
         ${controlMarkup("contrast", tr("コントラスト", "Contrast"), layer.settings.contrast, -100, 100, 1)}
         ${controlMarkup("gamma", tr("ガンマ", "Gamma"), layer.settings.gamma, 0.2, 3, 0.01)}
-        ${controlMarkup("layerOpacity", tr("レイヤー不透明度（%）", "Layer opacity (%)"), Math.round(layer.opacity * 100), 0, 100, 1)}
         ${adjustmentMaskMarkup()}`;
     }
 
@@ -1086,7 +1391,6 @@
         <canvas class="quick-retouch-curve" data-retouch-curve width="282" height="282"></canvas>
         <div class="quick-retouch-curve-values"><label>${tr("入力", "Input")}<input type="number" data-retouch-curve-x min="0" max="255" value="${selected.x}"></label><label>${tr("出力", "Output")}<input type="number" data-retouch-curve-y min="0" max="255" value="${selected.y}"></label></div>
         <div class="quick-retouch-button-row two"><button type="button" data-retouch-curve-action="delete">${tr("ポイントを削除", "Delete Point")}</button><button type="button" data-retouch-curve-action="reset">${tr("リセット", "Reset")}</button></div>
-        ${controlMarkup("layerOpacity", tr("レイヤー不透明度（%）", "Layer opacity (%)"), Math.round(layer.opacity * 100), 0, 100, 1)}
         ${adjustmentMaskMarkup()}`;
       propertiesHost.querySelector("[data-retouch-curve-channel]").value = settings.channel;
       drawCurveEditor(layer);
@@ -1151,22 +1455,21 @@
     function renderProperties() {
       if (!source) {
         propertiesHost.innerHTML = "";
+        if (propertiesPanel) propertiesPanel.hidden = true;
         return;
       }
       const layer = activeLayer();
-      dialog.querySelector("[data-retouch-properties-title]").textContent = activeTarget.kind === "selection"
-        ? tr("選択範囲をブラシ編集", "Edit Selection")
-        : activeTarget.kind === "mask"
-          ? tr("レイヤーマスク", "Layer Mask")
-          : activeTarget.kind === "original"
-            ? tr("元画像", "Original")
-            : layer?.name || tr("プロパティ", "Properties");
-      if (activeTarget.kind === "selection") renderPaintProperties(null, true);
-      else if (activeTarget.kind === "paint") renderPaintProperties(layer, false);
-      else if (activeTarget.kind === "mask") renderPaintProperties(layer, true);
-      else if (activeTarget.kind === "original") {
-        propertiesHost.innerHTML = `<div class="quick-retouch-status-note">${tr("元画像は非破壊編集の基準として保持され、削除・並べ替え・直接編集はできません。", "The original is preserved as the protected non-destructive source and cannot be deleted, reordered, or painted directly.")}</div>`;
-      } else if (layer?.adjustmentType === "hue_saturation") renderHueProperties(layer);
+      if (layer?.adjustmentType !== "hue_saturation") hueSampleMode = "";
+      const shouldShow = activeTarget.kind === "mask" || (activeTarget.kind === "adjustment" && layer?.type === "adjustment");
+      const propertiesToggle = dialog.querySelector('[data-retouch-panel-toggle="properties"]');
+      if (propertiesToggle) propertiesToggle.disabled = !shouldShow;
+      if (propertiesPanel) propertiesPanel.hidden = !shouldShow;
+      if (!shouldShow) { propertiesHost.innerHTML = ""; return; }
+      dialog.querySelector("[data-retouch-properties-title]").textContent = activeTarget.kind === "mask"
+        ? tr("レイヤーマスク", "Layer Mask")
+        : layer?.name || tr("プロパティ", "Properties");
+      if (activeTarget.kind === "mask") renderPaintProperties(layer, true);
+      else if (layer?.adjustmentType === "hue_saturation") renderHueProperties(layer);
       else if (layer?.adjustmentType === "brightness_contrast") renderBrightnessProperties(layer);
       else if (layer?.adjustmentType === "curves") renderCurvesProperties(layer);
       bindPropertyEvents();
@@ -1209,6 +1512,7 @@
       if (key === "selectionModifyRadius") return core.clamp(value, 1, 32);
       if (key === "wandTolerance" || key === "colorRangeTolerance") return core.clamp(value, 0, 100);
       if (key === "hue") return core.clamp(value, -180, 180);
+      if (key === "targetWidth" || key === "targetSoftness") return core.clamp(value, key === "targetWidth" ? 1 : 0, 90);
       if (["saturation", "lightness", "brightness", "contrast"].includes(key)) return core.clamp(value, -100, 100);
       if (key === "gamma") return core.clamp(value, 0.2, 3);
       return value;
@@ -1223,7 +1527,7 @@
       else if (key === "selectionFeather") selectionFeather = value;
       else if (key === "selectionModifyRadius") selectionModifyRadius = value;
       else if (key === "wandTolerance") wandTolerance = value;
-      else if (key === "colorRangeTolerance") { colorRangeTolerance = value; recalculateColorRange(); }
+      else if (key === "colorRangeTolerance") { colorRangeTolerance = value; recalculateColorRange({ preview: true }); }
       else if (key === "layerOpacity" && layer) layer.opacity = value / 100;
       else if (layer?.settings && key in layer.settings) layer.settings[key] = value;
       saveSettings();
@@ -1258,6 +1562,7 @@
 
     function selectionAction(action) {
       if (!selectionCanvas) return;
+      if (action !== "none" && pendingColorRangeMask) clearColorRangeState(true);
       let selection = maskData(selectionCanvas);
       if (action === "reselect") {
         if (!lastDeselectedSelection || lastDeselectedSelection.length !== selection.length) {
@@ -1267,11 +1572,17 @@
         pushHistory();
         selection = new Uint8ClampedArray(lastDeselectedSelection);
       } else {
+        if (action === "invert" && !core.maskHasSelection(selection)) {
+          setStatus(tr("反転する選択範囲がありません。", "There is no selection to invert."), "info");
+          return;
+        }
         pushHistory();
         if (action === "all") selection.fill(255);
         else if (action === "none") {
           if (core.maskHasSelection(selection)) lastDeselectedSelection = selection.slice();
           selection.fill(0);
+          clearColorRangeState(true);
+          setStatus(tr("選択範囲と色域選択候補を解除しました。", "Selection and Color Range preview were cleared."), "info");
         }
         else if (action === "invert") selection = core.invertMask(selection);
         else if (action === "expand") selection = core.expandMask(selection, source.width, source.height, selectionModifyRadius);
@@ -1283,9 +1594,31 @@
       schedulePreview(0);
     }
 
+    function toggleQuickMask() {
+      if (!source) return;
+      if (activeTarget.kind === "selection") {
+        activeTarget = quickMaskReturnTarget || { kind: "paint", layerId: layers.find((layer) => layer.type === "paint")?.id || "" };
+        quickMaskReturnTarget = null;
+        setStatus(tr("クイックマスクを終了しました。", "Quick Mask closed."), "ready");
+      } else {
+        quickMaskReturnTarget = { ...activeTarget };
+        activeTarget = { kind: "selection", layerId: "" };
+        activeTool = "brush";
+        selectionDisplay = "overlay";
+        lastVisibleSelectionDisplay = "overlay";
+        setStatus(tr("クイックマスク：赤い部分は選択外です。ブラシで選択へ追加、消しゴムで削除します。", "Quick Mask: red areas are outside the selection. Brush adds; Eraser subtracts."), "ready");
+      }
+      renderTools();
+      renderToolOptions();
+      renderLayers();
+      renderProperties();
+      renderSelectionPanel();
+      schedulePreview(0);
+    }
+
     function bindSelectionPanelEvents() {
       selectionHost.querySelector("[data-retouch-selection-visible]")?.addEventListener("click", () => {
-        if (selectionDisplay === "hidden") selectionDisplay = lastVisibleSelectionDisplay || "boundary";
+        if (selectionDisplay === "hidden") selectionDisplay = lastVisibleSelectionDisplay || "overlay";
         else {
           lastVisibleSelectionDisplay = selectionDisplay;
           selectionDisplay = "hidden";
@@ -1314,18 +1647,7 @@
         control.addEventListener("change", endControlHistory);
         control.addEventListener("blur", endControlHistory);
       });
-      selectionHost.querySelector("[data-retouch-selection-edit]")?.addEventListener("click", () => {
-        activeTarget = { kind: "selection", layerId: "" };
-        activeTool = "brush";
-        selectionDisplay = "overlay";
-        lastVisibleSelectionDisplay = "overlay";
-        renderTools();
-        renderToolOptions();
-        renderLayers();
-        renderProperties();
-        renderSelectionPanel();
-        schedulePreview(0);
-      });
+      selectionHost.querySelector("[data-retouch-quick-mask]")?.addEventListener("click", toggleQuickMask);
     }
     function bindPropertyEvents() {
       propertiesHost.querySelectorAll("[data-retouch-setting],[data-retouch-setting-number]").forEach((control) => {
@@ -1370,11 +1692,31 @@
         layer.settings.colorize = event.target.checked;
         schedulePreview();
       });
+      propertiesHost.querySelector("[data-retouch-hs-target]")?.addEventListener("change", (event) => {
+        const layer = activeLayer();
+        if (!layer?.settings) return;
+        pushHistory();
+        layer.settings.targetColor = event.target.value;
+        if (event.target.value !== "custom") {
+          layer.settings.targetSamples = [];
+          layer.settings.targetExcluded = [];
+        }
+        hueSampleMode = "";
+        renderProperties();
+        updateCanvasCursor();
+        schedulePreview(0);
+      });
+      propertiesHost.querySelectorAll("[data-retouch-hs-sample-mode]").forEach((button) => {
+        button.onclick = () => {
+          const next = button.dataset.retouchHsSampleMode;
+          hueSampleMode = hueSampleMode === next ? "" : next;
+          renderProperties();
+          updateCanvasCursor();
+        };
+      });
       propertiesHost.querySelector("[data-retouch-color-range='apply']")?.addEventListener("click", applyColorRange);
       propertiesHost.querySelector("[data-retouch-color-range='clear']")?.addEventListener("click", () => {
-        colorRangeSamples = [];
-        colorRangeExcluded = [];
-        pendingColorRangeMask = null;
+        clearColorRangeState(true);
         renderColorSamples();
         renderToolOptions();
         schedulePreview(0);
@@ -1508,17 +1850,44 @@
       };
     }
 
+    const freehandLassoIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 6.5c2.8-3 8.9-2.8 11.9.1 3.2 3.1 1.7 8.2-2.2 10-4.2 1.9-10.2.3-11.1-3.7-.7-3.1 2.1-5.1 5.2-4.5 2.7.5 3.5 3.4 1.8 5.2-1.1 1.2-3.2 1.2-4.2-.1"/><path d="M7 19c1.2-.7 2.5-.7 3.7.1"/></svg>';
+    const rectangleSelectionIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx=".5" stroke-dasharray="3 2"/></svg>';
+    const ellipseSelectionIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="8" ry="6.5" stroke-dasharray="3 2"/></svg>';
+
+    function closeShapeSelectionMenu() { dialog.querySelector(".quick-retouch-shape-menu")?.setAttribute("hidden", ""); }
+    function openShapeSelectionMenu(anchor) {
+      let menu = dialog.querySelector(".quick-retouch-shape-menu");
+      if (!menu) {
+        menu = document.createElement("div");
+        menu.className = "quick-retouch-shape-menu";
+        menu.innerHTML = `<button type="button" data-shape-selection="rectangle">${tr("長方形選択", "Rectangle Select")}</button><button type="button" data-shape-selection="ellipse">${tr("楕円形選択", "Ellipse Select")}</button>`;
+        menu.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-shape-selection]");
+          if (!button) return;
+          shapeSelectionMode = button.dataset.shapeSelection;
+          closeShapeSelectionMenu();
+          activateTool("rectangle");
+        });
+        dialog.append(menu);
+      }
+      menu.querySelectorAll("[data-shape-selection]").forEach((button) => button.classList.toggle("active", button.dataset.shapeSelection === shapeSelectionMode));
+      menu.hidden = false;
+      const rect = anchor.getBoundingClientRect();
+      menu.style.left = `${Math.min(rect.right + 5, root.innerWidth - menu.offsetWidth - 8)}px`;
+      menu.style.top = `${Math.min(rect.top, root.innerHeight - menu.offsetHeight - 8)}px`;
+    }
+
     function toolDefinitions() {
       return [
         { group: tr("描画", "Paint") },
         { id: "brush", icon: "🖌", label: tr("ブラシ", "Brush"), key: "B" },
         { id: "eraser", icon: "▰", label: tr("消しゴム", "Eraser"), key: "E" },
-        { id: "eyedropper", icon: "⌞", label: tr("スポイト", "Eyedropper"), key: "I" },
+        { id: "eyedropper", icon: "⌞", label: tr("描画色スポイト", "Paint Color Eyedropper"), key: "I" },
         { group: tr("選択", "Selection") },
-        { id: "rectangle", icon: "▣", label: tr("矩形選択", "Rectangle Select"), key: "M" },
-        { id: "lasso", icon: "◯", label: tr("投げ縄選択", "Freehand Lasso"), key: "L" },
+        { id: "lasso", icon: freehandLassoIcon, label: tr("投げ縄選択", "Freehand Lasso"), key: "L" },
+        { id: "rectangle", icon: shapeSelectionMode === "ellipse" ? ellipseSelectionIcon : rectangleSelectionIcon, label: shapeSelectionMode === "ellipse" ? tr("楕円形選択", "Ellipse Select") : tr("長方形選択", "Rectangle Select"), key: "M", flyout: true },
         { id: "wand", icon: "✦", label: tr("自動選択", "Magic Wand"), key: "W" },
-        { id: "color_range", icon: "◎", label: tr("色域選択", "Color Range"), key: "U" },
+        { id: "color_range", icon: "◎", label: tr("色から選択", "Select by Color"), key: "U" },
         { group: tr("表示", "View") },
         { id: "hand", icon: "✋", label: tr("手のひら", "Hand"), key: "H" },
         { id: "zoom", icon: "🔍", label: tr("ズーム", "Zoom"), key: "Z" },
@@ -1527,6 +1896,7 @@
 
     function activateTool(id) {
       activeTool = id;
+      hueSampleMode = "";
       lassoPoints = [];
       pointerState = null;
       pendingColorRangeMask = id === "color_range" ? pendingColorRangeMask : null;
@@ -1540,6 +1910,7 @@
       updateCanvasCursor();
       updateBrushRingStyle();
       updateBrushRing();
+      saveSettings();
       schedulePreview(0);
     }
 
@@ -1559,7 +1930,18 @@
         button.classList.toggle("active", activeTool === definition.id);
         button.title = `${definition.label} (${definition.key})`;
         button.innerHTML = `<span>${definition.icon}</span><span>${definition.label}</span>`;
-        button.onclick = () => activateTool(definition.id);
+        if (definition.flyout) {
+          button.classList.add("has-flyout");
+          let holdTimer = 0;
+          let held = false;
+          button.onpointerdown = (event) => { if (event.button === 0) holdTimer = root.setTimeout(() => { held = true; openShapeSelectionMenu(button); }, 420); };
+          const cancelHold = () => { clearTimeout(holdTimer); holdTimer = 0; };
+          button.onpointerup = cancelHold;
+          button.onpointercancel = cancelHold;
+          button.onpointerleave = cancelHold;
+          button.oncontextmenu = (event) => { event.preventDefault(); cancelHold(); openShapeSelectionMenu(button); };
+          button.onclick = () => { if (held) { held = false; return; } closeShapeSelectionMenu(); activateTool(definition.id); };
+        } else button.onclick = () => { closeShapeSelectionMenu(); activateTool(definition.id); };
         nodes.push(button);
       }
       toolsHost.replaceChildren(...nodes);
@@ -1583,7 +1965,7 @@
         ["replace", tr("新規", "New")],
         ["add", tr("追加", "Add")],
         ["subtract", tr("削除", "Subtract")],
-        ["intersect", tr("共通", "Intersect")],
+        ["intersect", tr("絞り込み", "Refine")],
       ];
       const effective = selectionOperationForModifiers();
       const temporary = effective !== selectionOperation;
@@ -1603,15 +1985,15 @@
           ${compactOption("brushSize", tr("サイズ", "Size"), Math.round(brush.size), 1, maxBrush, 1, " px")}
           ${compactOption("brushHardness", tr("硬さ", "Hardness"), Math.round(brush.hardness * 100), 0, 100, 1, "%")}
           ${compactOption("brushOpacity", tr("不透明度", "Opacity"), Math.round(brush.opacity * 100), 1, 100, 1, "%")}
-          ${mask ? `<span class="quick-retouch-option-note">${tr("マスク編集：ブラシで追加、消しゴムで削除", "Mask edit: brush adds, eraser removes")}</span>` : `<label class="quick-retouch-option-color"><span>${tr("描画色", "Color")}</span><input type="color" data-tool-color value="${brush.color}"></label>`}`;
+          ${mask ? `<span class="quick-retouch-option-note">${tr("マスク編集：ブラシで追加、消しゴムで削除", "Mask edit: brush adds, eraser removes")}</span>` : activeTool === "brush" ? `<label class="quick-retouch-option-color quick-retouch-drawing-color"><span>${tr("描画色", "Color")}</span><input type="color" data-tool-color value="${brush.color}"></label>` : ""}`;
       } else if (activeTool === "eyedropper") {
-        toolOptionsHost.innerHTML = `<strong>${tr("スポイト", "Eyedropper")}</strong><span class="quick-retouch-option-note">${tr("クリックした色をブラシの描画色に設定します。Alt＋クリックでも一時的に使用できます。", "Click to set the brush foreground color. Alt-click also samples temporarily.")}</span>`;
+        toolOptionsHost.innerHTML = `<strong>${tr("描画色スポイト", "Paint Color Eyedropper")}</strong><span class="quick-retouch-option-note">${tr("クリックした色をブラシの描画色に設定します。Alt＋クリックでも一時的に使用できます。", "Click to set the brush foreground color. Alt-click also samples temporarily.")}</span>`;
       } else if (["rectangle", "lasso", "wand", "color_range"].includes(activeTool)) {
-        toolOptionsHost.innerHTML = `<strong>${({rectangle:tr("矩形選択", "Rectangle Select"),lasso:tr("投げ縄選択", "Freehand Lasso"),wand:tr("自動選択", "Magic Wand"),color_range:tr("色域選択", "Color Range")})[activeTool]}</strong>
+        toolOptionsHost.innerHTML = `<strong>${({rectangle:shapeSelectionMode === "ellipse" ? tr("楕円形選択", "Ellipse Select") : tr("長方形選択", "Rectangle Select"),lasso:tr("投げ縄選択", "Freehand Lasso"),wand:tr("自動選択（魔法の杖）", "Magic Wand"),color_range:tr("色から選択", "Select by Color")})[activeTool]}</strong>
           ${selectionOperationMarkup()}
           ${compactOption("selectionFeather", tr("ぼかし", "Feather"), selectionFeather, 0, 40, 1, " px")}
-          ${activeTool === "wand" ? `${compactOption("wandTolerance", tr("許容値", "Tolerance"), wandTolerance, 0, 100, 1)}<label class="quick-retouch-option-check"><input type="checkbox" data-tool-check="wandContiguous" ${wandContiguous ? "checked" : ""}><span>${tr("連続領域のみ", "Contiguous")}</span></label>` : ""}
-          ${activeTool === "color_range" ? (() => { const effectiveSampleMode = colorSampleModeForModifiers(); const temporarySample = effectiveSampleMode !== colorSampleMode; return `${compactOption("colorRangeTolerance", tr("許容範囲", "Tolerance"), colorRangeTolerance, 0, 100, 1)}<div class="quick-retouch-option-group"><span>${tr("スポイト", "Sampler")}</span><div class="quick-retouch-segmented"><button type="button" data-color-sample-mode="replace" class="${effectiveSampleMode === "replace" ? `active${temporarySample ? " temporary" : ""}` : ""}">${tr("基準", "Set")}</button><button type="button" data-color-sample-mode="add" class="${effectiveSampleMode === "add" ? `active${temporarySample ? " temporary" : ""}` : ""}">＋</button><button type="button" data-color-sample-mode="exclude" class="${effectiveSampleMode === "exclude" ? `active${temporarySample ? " temporary" : ""}` : ""}">−</button></div></div><div class="quick-retouch-option-samples" data-tool-color-samples></div><button type="button" data-tool-color-range="apply">${tr("選択へ適用", "Apply")}</button><button type="button" data-tool-color-range="clear">${tr("クリア", "Clear")}</button>`; })() : ""}
+          ${activeTool === "wand" ? `${compactOption("wandTolerance", tr("許容値", "Tolerance"), wandTolerance, 0, 100, 1)}<label class="quick-retouch-option-check"><input type="checkbox" data-tool-check="wandContiguous" ${wandContiguous ? "checked" : ""}><span>${tr("隣接部分のみ", "Contiguous")}</span></label><label class="quick-retouch-option-check" title="${tr("表示レイヤーの合成結果を参照", "Sample the visible merged result")}"><input type="checkbox" data-tool-check="wandSampleMerged" ${wandSampleMerged ? "checked" : ""}><span>${tr("表示参照", "Merged")}</span></label><label class="quick-retouch-option-check" title="${tr("選択境界のギザギザを滑らかにします", "Smooths jagged selection edges")}"><input type="checkbox" data-tool-check="wandAntialias" ${wandAntialias ? "checked" : ""}><span>Anti-alias</span></label>` : ""}
+          ${activeTool === "color_range" ? `${compactOption("colorRangeTolerance", tr("許容範囲", "Tolerance"), colorRangeTolerance, 0, 100, 1)}<label class="quick-retouch-option-check" title="${tr("表示レイヤーの合成結果を参照", "Sample the visible merged result")}"><input type="checkbox" data-tool-check="colorRangeSampleMerged" ${colorRangeSampleMerged ? "checked" : ""}><span>${tr("表示参照", "Merged")}</span></label><span class="quick-retouch-option-note">${tr("画像をクリックすると選択へ即時反映します。", "Click the image to update the selection immediately.")}</span>` : ""}
           <span class="quick-retouch-option-note">${tr("Shift：追加／Alt：削除／Shift＋Alt：共通部分", "Shift: add / Alt: subtract / Shift+Alt: intersect")}</span>`;
       } else if (activeTool === "hand") {
         toolOptionsHost.innerHTML = `<strong>${tr("手のひら", "Hand")}</strong><span class="quick-retouch-option-note">${tr("ドラッグ、Space＋左ドラッグ、またはマウス中ボタンドラッグでキャンバスを移動します。", "Pan by dragging, Space-left-dragging, or middle-mouse dragging.")}</span>`;
@@ -1651,13 +2033,24 @@
       });
       toolOptionsHost.querySelectorAll("[data-tool-setting]").forEach((control) => {
         const key = control.dataset.toolSetting;
+        let wheelCommitTimer = 0;
         control.onpointerdown = beginControlHistory;
         control.oninput = () => {
           applySetting(key, control.value);
           const output = toolOptionsHost.querySelector(`[data-tool-output="${key}"]`);
           if (output) output.textContent = `${control.value}${["brushSize", "selectionFeather"].includes(key) ? " px" : ["brushHardness", "brushOpacity"].includes(key) ? "%" : ""}`;
         };
-        control.onchange = endControlHistory;
+        control.onchange = () => { if (key === "colorRangeTolerance") recalculateColorRange({ preview: false }); endControlHistory(); };
+        control.onwheel = (event) => {
+          event.preventDefault();
+          beginControlHistory();
+          const step = Number(control.step) || 1;
+          const amount = step * (event.shiftKey ? 5 : 1) * (event.deltaY < 0 ? 1 : -1);
+          control.value = String(core.clamp(Number(control.value) + amount, Number(control.min), Number(control.max)));
+          control.oninput();
+          clearTimeout(wheelCommitTimer);
+          wheelCommitTimer = root.setTimeout(() => { if (key === "colorRangeTolerance") recalculateColorRange({ preview: false }); endControlHistory(); }, 180);
+        };
       });
       toolOptionsHost.querySelector("[data-tool-color]")?.addEventListener("input", (event) => {
         brush.color = event.target.value;
@@ -1669,20 +2062,19 @@
         wandContiguous = event.target.checked;
         saveSettings();
       });
-      toolOptionsHost.querySelectorAll("[data-color-sample-mode]").forEach((button) => {
-        button.onclick = () => {
-          colorSampleMode = button.dataset.colorSampleMode;
-          renderToolOptions();
-          updateCanvasCursor();
-        };
+      toolOptionsHost.querySelector("[data-tool-check='wandSampleMerged']")?.addEventListener("change", (event) => {
+        wandSampleMerged = event.target.checked;
+        saveSettings();
       });
-      toolOptionsHost.querySelector("[data-tool-color-range='apply']")?.addEventListener("click", applyColorRange);
-      toolOptionsHost.querySelector("[data-tool-color-range='clear']")?.addEventListener("click", () => {
-        colorRangeSamples = [];
-        colorRangeExcluded = [];
-        pendingColorRangeMask = null;
-        renderToolOptions();
-        schedulePreview(0);
+      toolOptionsHost.querySelector("[data-tool-check='wandAntialias']")?.addEventListener("change", (event) => {
+        wandAntialias = event.target.checked;
+        saveSettings();
+      });
+      toolOptionsHost.querySelector("[data-tool-check='colorRangeSampleMerged']")?.addEventListener("change", (event) => {
+        pushHistory();
+        colorRangeSampleMerged = event.target.checked;
+        saveSettings();
+        recalculateColorRange({ preview: false });
       });
       toolOptionsHost.querySelectorAll("[data-tool-zoom]").forEach((button) => {
         button.onclick = () => {
@@ -1702,15 +2094,15 @@
       renderToolOptions();
       schedulePreview(0);
     }
-    function sourcePixelAt(point) {
+    function sourcePixelAt(point, imageData = sourceImageData) {
       const x = Math.max(0, Math.min(source.width - 1, Math.floor(point.x)));
       const y = Math.max(0, Math.min(source.height - 1, Math.floor(point.y)));
       const offset = (y * source.width + x) * 4;
       return {
-        r: sourceImageData.data[offset],
-        g: sourceImageData.data[offset + 1],
-        b: sourceImageData.data[offset + 2],
-        a: sourceImageData.data[offset + 3],
+        r: imageData.data[offset],
+        g: imageData.data[offset + 1],
+        b: imageData.data[offset + 2],
+        a: imageData.data[offset + 3],
       };
     }
 
@@ -1727,20 +2119,53 @@
       };
     }
 
-    function recalculateColorRange() {
+    function clearColorRangeState(clearSamples = true) {
+      clearTimeout(colorRangeRecalcTimer);
+      colorRangeRecalcGeneration += 1;
+      pendingColorRangeMask = null;
+      colorRangeSeedPoint = null;
+      colorRangeBaseSelection = null;
+      if (clearSamples) {
+        colorRangeSamples = [];
+        colorRangeExcluded = [];
+        colorSampleMode = "replace";
+      }
+    }
+
+    function cancelColorRangePreview() {
+      if (!pendingColorRangeMask && !colorRangeSamples.length && !colorRangeExcluded.length) return false;
+      clearColorRangeState(true);
+      renderToolOptions();
+      renderProperties();
+      schedulePreview(0);
+      setStatus(tr("色域選択の候補をキャンセルしました。", "Color Range preview was cancelled."), "info");
+      return true;
+    }
+
+    function recalculateColorRange({ preview = false } = {}) {
+      clearTimeout(colorRangeRecalcTimer);
+      const generation = ++colorRangeRecalcGeneration;
       if (!sourceImageData || !colorRangeSamples.length) {
         pendingColorRangeMask = null;
         schedulePreview(0);
         return;
       }
       setStatus(tr("色域を計算しています…", "Calculating Color Range…"));
-      setTimeout(() => {
-        pendingColorRangeMask = core.colorRangeMask(sourceImageData, colorRangeSamples, colorRangeExcluded, colorRangeTolerance);
-        renderColorSamples();
-        renderToolOptions();
+      colorRangeRecalcTimer = root.setTimeout(() => {
+        if (generation !== colorRangeRecalcGeneration) return;
+        const reference = activeReferenceImageData(colorRangeSampleMerged);
+        const longest = Math.max(reference.width, reference.height);
+        const sampleStep = preview ? (longest > 1800 ? 4 : longest > 900 ? 2 : 1) : 1;
+        let incoming = core.colorRangeMask(reference, colorRangeSamples, colorRangeExcluded, colorRangeTolerance, sampleStep);
+        if (selectionFeather > 0) incoming = core.featherMask(incoming, source.width, source.height, selectionFeather);
+        if (generation !== colorRangeRecalcGeneration) return;
+        const base = colorRangeBaseSelection || maskData(selectionCanvas);
+        putMask(selectionCanvas, core.combineMasks(base, incoming, colorRangeOperation));
+        pendingColorRangeMask = null;
+        renderSelectionPanel();
         schedulePreview(0);
-        setStatus(tr("色域プレビューです。「色域を選択へ反映」を押してください。", "Color Range preview. Click Apply Color Range."), "ready");
-      }, 0);
+        setStatus(preview ? tr("色域を簡易表示しています…", "Showing a fast Color Range preview…") : tr("色域を選択へ反映しました。", "Color Range was applied to the Selection."), "ready");
+      }, preview ? 90 : 0);
     }
 
     function applyColorRange() {
@@ -1748,6 +2173,7 @@
       pushHistory();
       combineSelection(pendingColorRangeMask);
       pendingColorRangeMask = null;
+      colorRangeSeedPoint = null;
       renderToolOptions();
       setStatus(tr("色域を選択範囲へ反映しました。", "Color Range was applied to the Selection."), "ready");
     }
@@ -1764,23 +2190,25 @@
       const stampContext = stamp.getContext("2d", { willReadFrequently: true });
       const localX = x - left;
       const localY = y - top;
-      const hardnessRadius = radius * core.clamp(brush.hardness, 0, 1);
-      const gradient = stampContext.createRadialGradient(localX, localY, Math.max(0, hardnessRadius), localX, localY, radius);
+      const hardness = core.clamp(brush.hardness, 0, 1);
+      const hardnessRadius = Math.max(0, Math.min(radius - 0.01, radius * hardness));
+      const hardnessStop = Math.max(0.001, Math.min(0.999, hardness));
+      const gradient = stampContext.createRadialGradient(localX, localY, hardnessRadius, localX, localY, radius);
       const alpha = core.clamp(brush.opacity, 0, 1);
       const maskTarget = activeIsMask();
       if (maskTarget) {
         const value = erase ? 0 : 255;
         gradient.addColorStop(0, `rgba(${value},${value},${value},${alpha})`);
-        gradient.addColorStop(Math.max(0.001, brush.hardness), `rgba(${value},${value},${value},${alpha})`);
+        gradient.addColorStop(hardnessStop, `rgba(${value},${value},${value},${alpha})`);
         gradient.addColorStop(1, `rgba(${value},${value},${value},0)`);
       } else if (erase) {
         gradient.addColorStop(0, `rgba(0,0,0,${alpha})`);
-        gradient.addColorStop(Math.max(0.001, brush.hardness), `rgba(0,0,0,${alpha})`);
+        gradient.addColorStop(hardnessStop, `rgba(0,0,0,${alpha})`);
         gradient.addColorStop(1, "rgba(0,0,0,0)");
       } else {
         const color = parseHexColor(brush.color);
         gradient.addColorStop(0, `rgba(${color.r},${color.g},${color.b},${alpha})`);
-        gradient.addColorStop(Math.max(0.001, brush.hardness), `rgba(${color.r},${color.g},${color.b},${alpha})`);
+        gradient.addColorStop(hardnessStop, `rgba(${color.r},${color.g},${color.b},${alpha})`);
         gradient.addColorStop(1, `rgba(${color.r},${color.g},${color.b},0)`);
       }
       stampContext.fillStyle = gradient;
@@ -1789,7 +2217,8 @@
       stampContext.fill();
 
       const targetContext = canvas.getContext("2d", { willReadFrequently: true });
-      const constrain = activeTarget.kind !== "selection" && core.maskHasSelection(maskData(selectionCanvas));
+      const selectionMask = maskData(selectionCanvas);
+      const constrain = activeTarget.kind !== "selection" && core.maskHasSelection(selectionMask);
       if (!constrain) {
         targetContext.save();
         if (!maskTarget && erase) targetContext.globalCompositeOperation = "destination-out";
@@ -1801,9 +2230,13 @@
       const stampData = stampContext.getImageData(0, 0, width, height).data;
       const targetImage = targetContext.getImageData(left, top, width, height);
       const targetData = targetImage.data;
-      const selectionData = selectionCanvas.getContext("2d", { willReadFrequently: true }).getImageData(left, top, width, height).data;
+      const effectiveMask = effectiveSelectionMask();
       for (let offset = 0; offset < targetData.length; offset += 4) {
-        const sourceAlpha = stampData[offset + 3] / 255 * (selectionData[offset] / 255);
+        const localPixel = offset / 4;
+        const localX = localPixel % width;
+        const localY = Math.floor(localPixel / width);
+        const maskValue = effectiveMask[(top + localY) * source.width + left + localX] || 0;
+        const sourceAlpha = stampData[offset + 3] / 255 * (maskValue / 255);
         if (sourceAlpha <= 0) continue;
         if (maskTarget) {
           const sourceValue = erase ? 0 : 255;
@@ -1842,6 +2275,7 @@
       let cursorTool = activeTool;
       if (pointerState?.mode === "pan") cursorTool = "panning";
       else if (spaceDown) cursorTool = "hand";
+      else if (hueSampleMode) cursorTool = `color-range-${hueSampleMode}`;
       else if (temporaryEyedropperActive(event)) cursorTool = "eyedropper-temporary";
       else if (activeTool === "zoom" && (event?.altKey || altDown)) cursorTool = "zoom-out";
       else if (activeTool === "color_range") cursorTool = `color-range-${colorSampleModeForModifiers(Boolean(event?.shiftKey || shiftDown), Boolean(event?.altKey || altDown))}`;
@@ -1929,6 +2363,26 @@
       }
       if (event.button !== 0) return;
       const point = fullPoint(event);
+      const hueLayer = activeLayer();
+      if (hueSampleMode && hueLayer?.adjustmentType === "hue_saturation") {
+        event.preventDefault();
+        pushHistory();
+        const color = previewPixelAt(point);
+        const hueDegrees = Math.round(core.rgbToHsl(color.r, color.g, color.b)[0] * 360) % 360;
+        hueLayer.settings.targetColor = "custom";
+        hueLayer.settings.targetSamples = Array.isArray(hueLayer.settings.targetSamples) ? hueLayer.settings.targetSamples : [];
+        hueLayer.settings.targetExcluded = Array.isArray(hueLayer.settings.targetExcluded) ? hueLayer.settings.targetExcluded : [];
+        if (hueSampleMode === "exclude") hueLayer.settings.targetExcluded.push(hueDegrees);
+        else if (hueSampleMode === "add") hueLayer.settings.targetSamples.push(hueDegrees);
+        else {
+          hueLayer.settings.targetSamples = [hueDegrees];
+          hueLayer.settings.targetExcluded = [];
+        }
+        renderProperties();
+        schedulePreview(0);
+        setStatus(tr("色相・彩度の対象色を取得しました。", "Hue / Saturation target color sampled."), "ready");
+        return;
+      }
       if (event.altKey && !activeIsMask() && ["brush", "eraser"].includes(activeTool)) {
         event.preventDefault();
         const color = previewPixelAt(point);
@@ -1952,7 +2406,7 @@
         return;
       }
       if (activeTool === "rectangle") {
-        pointerState = { mode: "rectangle", pointerId: event.pointerId, start: point, current: point, operation: effectiveSelectionOperation(event) };
+        pointerState = { mode: "rectangle", shape: shapeSelectionMode, pointerId: event.pointerId, start: point, current: point, operation: effectiveSelectionOperation(event) };
         try { resultCanvas.setPointerCapture(event.pointerId); } catch {}
         schedulePreview(0);
         return;
@@ -1969,23 +2423,27 @@
         setStatus(tr("自動選択を計算しています…", "Calculating Magic Wand selection…"));
         const operation = effectiveSelectionOperation(event);
         setTimeout(() => {
-          const color = sourcePixelAt(point);
-          const mask = wandContiguous
-            ? core.floodSelect(sourceImageData, point.x, point.y, wandTolerance)
-            : core.colorRangeMask(sourceImageData, [color], [], wandTolerance);
+          const reference = activeReferenceImageData(wandSampleMerged);
+          const color = sourcePixelAt(point, reference);
+          let mask = wandContiguous
+            ? core.floodSelect(reference, point.x, point.y, wandTolerance)
+            : core.colorRangeMask(reference, [color], [], wandTolerance);
+          if (wandAntialias) mask = core.featherMask(mask, source.width, source.height, 1);
           combineSelection(mask, operation);
           setStatus(tr("自動選択を反映しました。", "Magic Wand selection applied."), "ready");
         }, 0);
         return;
       }
       if (activeTool === "color_range") {
-        const color = sourcePixelAt(point);
-        const mode = colorSampleModeForModifiers(Boolean(event.shiftKey), Boolean(event.altKey));
-        if (mode === "exclude") colorRangeExcluded.push(color);
-        else if (mode === "add") colorRangeSamples.push(color);
-        else { colorRangeSamples = [color]; colorRangeExcluded = []; }
-        recalculateColorRange();
-        renderToolOptions();
+        const reference = activeReferenceImageData(colorRangeSampleMerged);
+        const color = sourcePixelAt(point, reference);
+        pushHistory();
+        colorRangeBaseSelection = maskData(selectionCanvas);
+        colorRangeOperation = effectiveSelectionOperation(event);
+        colorRangeSamples = [color];
+        colorRangeExcluded = [];
+        colorRangeSeedPoint = { x: point.x, y: point.y };
+        recalculateColorRange({ preview: false });
         return;
       }
       if (activeTool === "eyedropper") {
@@ -1999,7 +2457,9 @@
       if (["brush", "eraser"].includes(activeTool)) {
         const canvas = activePaintCanvas();
         if (!canvas) {
-          setStatus(tr("ペイントレイヤー、選択範囲、または調整レイヤーマスクを選択してください。", "Select a Paint layer, the Selection, or an adjustment mask."), "error");
+          setStatus(activeTarget.kind === "base" && baseLayerState.locked
+            ? tr("ベース画像はロックされています。レイヤーの鍵をクリックして解除してください。", "The Base Image is locked. Click the layer lock to unlock it.")
+            : tr("ペイントレイヤー、ベース画像、選択範囲、または調整レイヤーマスクを選択してください。", "Select a Paint layer, the Base Image, the Selection, or an adjustment mask."), "error");
           return;
         }
         pushHistory();
@@ -2064,7 +2524,8 @@
       if (pointerState.mode === "rectangle") {
         const end = fullPoint(event);
         pushHistory();
-        combineSelection(core.rectangleMask(source.width, source.height, pointerState.start.x, pointerState.start.y, end.x, end.y), pointerState.operation);
+        const mask = pointerState.shape === "ellipse" ? core.ellipseMask(source.width, source.height, pointerState.start.x, pointerState.start.y, end.x, end.y) : core.rectangleMask(source.width, source.height, pointerState.start.x, pointerState.start.y, end.x, end.y);
+        combineSelection(mask, pointerState.operation);
       } else if (pointerState.mode === "lasso") {
         finishLasso(pointerState.operation);
       }
@@ -2077,9 +2538,22 @@
       renderSelectionPanel();
       schedulePreview(0);
     }
+    function handleResultPointerCancel(event) {
+      if (["rectangle", "lasso"].includes(pointerState?.mode)) {
+        pointerState = null;
+        lassoPoints = [];
+        if (resultCanvas.hasPointerCapture(event.pointerId)) resultCanvas.releasePointerCapture(event.pointerId);
+        updateCanvasCursor(event);
+        schedulePreview(0);
+        return;
+      }
+      handleResultPointerUp(event);
+    }
     async function renderFullBlob() {
       const started = performance.now();
-      const sourceData = sourceCanvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, source.width, source.height);
+      const sourceData = baseLayerState.visible
+        ? baseCanvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, source.width, source.height)
+        : new ImageData(transparentPixels(source.width, source.height), source.width, source.height);
       const payload = [];
       const masks = new Map();
       for (const layer of layers) {
@@ -2129,7 +2603,7 @@
           options.setStatus?.(tr("簡易レタッチ結果を新しい画像レイヤーへ適用しました。", "Quick Retouch was applied as a new image layer."), "saved");
         }
         setStatus(tr(`適用完了（${(elapsed / 1000).toFixed(1)}秒）`, `Applied in ${(elapsed / 1000).toFixed(1)} seconds.`), "ready");
-        dialog.close();
+        closeDialog();
       } catch (error) {
         setStatus(error?.message || tr("簡易レタッチを適用できませんでした。", "Quick Retouch could not be applied."), "error");
       } finally {
@@ -2141,21 +2615,14 @@
     }
 
     function resetDocument() {
-      if (!source) return;
+      if (!source || !initialDocumentSnapshot) return;
+      const confirmed = typeof root.confirm !== "function" || root.confirm(
+        tr("Quick Retouch開始後の編集内容をすべて破棄して、開始時の状態へ戻しますか？", "Discard all edits made since Quick Retouch opened and return to the starting state?"),
+      );
+      if (!confirmed) return;
       pushHistory();
-      selectionCanvas = maskCanvas(source.width, source.height, 0);
-      layers = [];
-      const initialPaint = addPaintLayer(false);
-      activeTarget = { kind: "paint", layerId: initialPaint?.id || "" };
-      activeTool = "brush";
-      selectionDisplay = "boundary";
-      lastDeselectedSelection = null;
-      renderTools();
-      renderToolOptions();
-      renderSelectionPanel();
-      renderLayers();
-      renderProperties();
-      schedulePreview(0);
+      restoreSnapshot(initialDocumentSnapshot);
+      setStatus(tr("Quick Retouchを開始時の状態へ戻しました。Undoでリセット直前へ戻せます。", "Returned to the starting state. Undo restores the state before reset."), "ready");
     }
 
     function applyLanguage() {
@@ -2163,12 +2630,23 @@
       dialog.querySelector("[data-retouch-selection-title]").textContent = tr("選択範囲", "Selection");
       dialog.querySelector("[data-retouch-layers-title]").textContent = tr("レイヤー", "Layers");
       dialog.querySelector("[data-retouch-properties-title]").textContent = tr("プロパティ", "Properties");
-      dialog.querySelector('[data-retouch-action="choose-file"]').textContent = tr("画像を変更", "Change Image");
-      dialog.querySelector('[data-retouch-action="fit-view"]').textContent = tr("全体表示", "Fit");
-      dialog.querySelector('[data-retouch-action="hold-original"]').textContent = tr("元画像を表示（長押し）", "Hold for Original");
-      dialog.querySelector('[data-retouch-action="split-compare"]').textContent = tr("左右比較", "Split Compare");
+      dialog.querySelectorAll('[data-retouch-action="choose-file"]').forEach((button) => { button.textContent = tr("ファイルを選択", "Choose File"); });
+      dialog.querySelectorAll('[data-retouch-action="toggle-source-picker"]').forEach((button) => { if (button.tagName === "BUTTON") button.textContent = tr("画像を変更", "Change Image"); });
+      dialog.querySelector('[data-retouch-action="fit-view"]').textContent = tr("全体", "Fit");
+      dialog.querySelector('[data-retouch-action="hold-original"]').textContent = tr("編集前を表示（長押し）", "Hold to View Before");
+      const compareLabels = {
+        none: tr("なし", "None"),
+        vertical: tr("左右", "L/R"),
+        horizontal: tr("上下", "T/B"),
+      };
+      dialog.querySelectorAll("[data-retouch-compare-mode]").forEach((button) => {
+        button.textContent = compareLabels[button.dataset.retouchCompareMode] || button.dataset.retouchCompareMode;
+        button.classList.toggle("active", button.dataset.retouchCompareMode === compareMode);
+        button.setAttribute("aria-pressed", String(button.dataset.retouchCompareMode === compareMode));
+      });
       dialog.querySelector('[data-retouch-action="cancel"]').textContent = tr("キャンセル", "Cancel");
-      dialog.querySelector('[data-retouch-action="reset"]').textContent = tr("編集をリセット", "Reset Edit");
+      dialog.querySelector('[data-retouch-action="reset"]').textContent = tr("開始時に戻す", "Return to Start");
+      dialog.querySelector('[data-retouch-action="reset"]').title = tr("Quick Retouchを開いた時点の状態へ戻します", "Return to the state when Quick Retouch was opened");
       applyButton.textContent = currentMode() === "comic"
         ? tr("新しいページ画像として適用", "Apply as New Page Image")
         : tr("一枚画像へ適用", "Apply to Single Image");
@@ -2179,8 +2657,6 @@
       dialog.querySelector('[data-retouch-panel-toggle="selection"]').textContent = tr("選択範囲", "Selection");
       dialog.querySelector('[data-retouch-panel-toggle="layers"]').textContent = tr("レイヤー", "Layers");
       dialog.querySelector('[data-retouch-panel-toggle="properties"]').textContent = tr("プロパティ", "Properties");
-      const zoom = dialog.querySelector("[data-retouch-zoom]");
-      if (zoom?.options?.length) zoom.options[0].textContent = tr("画面に合わせる", "Fit");
       renderTools();
       renderToolOptions();
       renderSelectionPanel();
@@ -2194,6 +2670,7 @@
 
     function applyGeometry() {
       const geometry = readGeometry();
+      dialog.classList.toggle("maximized", geometry.maximized === true);
       if (Number.isFinite(Number(geometry.width))) dialog.style.width = `${Math.max(940, Math.min(innerWidth - 12, Number(geometry.width)))}px`;
       if (Number.isFinite(Number(geometry.height))) dialog.style.height = `${Math.max(620, Math.min(innerHeight - 12, Number(geometry.height)))}px`;
       if (Number.isFinite(Number(geometry.left))) dialog.style.left = `${Math.max(6, Math.min(innerWidth - dialog.offsetWidth - 6, Number(geometry.left)))}px`;
@@ -2201,9 +2678,14 @@
     }
 
     function saveGeometry() {
-      if (!dialog.open || dialog.classList.contains("maximized")) return;
+      if (!dialog.open) return;
+      const previous = readGeometry();
+      const maximized = dialog.classList.contains("maximized");
       const rect = dialog.getBoundingClientRect();
-      try { localStorage.setItem(GEOMETRY_KEY, JSON.stringify({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })); }
+      const geometry = maximized
+        ? { ...previous, maximized: true }
+        : { left: rect.left, top: rect.top, width: rect.width, height: rect.height, maximized: false };
+      try { localStorage.setItem(GEOMETRY_KEY, JSON.stringify(geometry)); }
       catch {}
     }
 
@@ -2350,14 +2832,16 @@
     }
 
     function closeDialog() {
-      if (dialog.open) dialog.close();
+      if (!dialog.open) return;
+      saveGeometry();
+      savePanelState();
+      saveSettings();
+      dialog.close();
     }
 
     launcher.addEventListener("click", openDialog);
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); closeDialog(); });
     dialog.addEventListener("close", () => {
-      saveGeometry();
-      savePanelState();
       brushRing.classList.remove("visible", "painting", "resizing");
       pointerState = null;
       brushRingClient = null;
@@ -2371,6 +2855,7 @@
     dialog.querySelector('[data-retouch-action="cancel"]').onclick = closeDialog;
     dialog.querySelector('[data-retouch-action="maximize"]').onclick = () => {
       dialog.classList.toggle("maximized");
+      saveGeometry();
       requestAnimationFrame(() => { setupFloatingPanels(); applyViewZoom(); });
     };
     dialog.querySelector('[data-retouch-action="undo"]').onclick = undoAction;
@@ -2382,13 +2867,22 @@
     originalButton.onpointerup = hideOriginal;
     originalButton.onpointercancel = hideOriginal;
     originalButton.onpointerleave = hideOriginal;
-    dialog.querySelector('[data-retouch-action="split-compare"]').onclick = (event) => {
-      splitCompare = !splitCompare;
-      event.currentTarget.classList.toggle("active", splitCompare);
-      schedulePreview(0);
-    };
+    dialog.querySelectorAll("[data-retouch-compare-mode]").forEach((button) => {
+      button.onclick = () => {
+        compareMode = ["none", "vertical", "horizontal"].includes(button.dataset.retouchCompareMode)
+          ? button.dataset.retouchCompareMode
+          : "none";
+        dialog.querySelectorAll("[data-retouch-compare-mode]").forEach((item) => {
+          item.classList.toggle("active", item.dataset.retouchCompareMode === compareMode);
+          item.setAttribute("aria-pressed", String(item.dataset.retouchCompareMode === compareMode));
+        });
+        schedulePreview(0);
+      };
+    });
     dialog.querySelector('[data-retouch-action="fit-view"]').onclick = () => setViewZoom("fit");
-    dialog.querySelector('[data-retouch-zoom]').onchange = (event) => setViewZoom(event.target.value === "fit" ? "fit" : Number(event.target.value));
+    dialog.querySelector('[data-retouch-action="zoom-out"]').onclick = () => zoomBy(0.8);
+    dialog.querySelector('[data-retouch-action="zoom-in"]').onclick = () => zoomBy(1.25);
+    dialog.querySelector('[data-retouch-zoom]').onchange = (event) => setViewZoom(Number(event.target.value));
     dialog.querySelectorAll("[data-retouch-panel-toggle]").forEach((button) => {
       button.onclick = () => togglePanel(button.dataset.retouchPanelToggle);
     });
@@ -2422,12 +2916,28 @@
     dialog.querySelectorAll("[data-retouch-add]").forEach((button) => {
       button.onclick = () => button.dataset.retouchAdd === "paint" ? addPaintLayer() : addAdjustment(button.dataset.retouchAdd);
     });
-    dialog.querySelector('[data-retouch-action="choose-file"]').onclick = () => fileInput.click();
+    dialog.querySelectorAll('[data-retouch-action="choose-file"]').forEach((button) => { button.onclick = (event) => { event.stopPropagation(); fileInput.click(); }; });
+    dialog.querySelectorAll('[data-retouch-action="toggle-source-picker"]').forEach((node) => { node.addEventListener("click", (event) => { if (node.tagName === "BUTTON") event.stopPropagation(); showSourcePicker(false).catch((error) => setStatus(String(error?.message || error), "error")); }); });
     fileInput.onchange = async () => {
       const file = fileInput.files?.[0];
       fileInput.value = "";
       if (file) await setSource({ blob: file, name: file.name, source_kind: "external" });
     };
+
+    sourceDrop?.addEventListener("dragover", (event) => {
+      if (![...(event.dataTransfer?.types || [])].includes("Files")) return;
+      event.preventDefault();
+      sourceDrop.classList.add("drag-active");
+    });
+    sourceDrop?.addEventListener("dragleave", () => sourceDrop.classList.remove("drag-active"));
+    sourceDrop?.addEventListener("drop", async (event) => {
+      const file = [...(event.dataTransfer?.files || [])].find((item) => /^image\/(?:png|jpeg|webp)$/i.test(item.type));
+      if (!file) return;
+      event.preventDefault();
+      event.stopPropagation();
+      sourceDrop.classList.remove("drag-active");
+      await setSource({ blob: file, name: file.name, source_kind: "external" });
+    });
 
     const dropZone = dialog.querySelector("[data-retouch-drop-zone]");
     dropZone.addEventListener("dragover", (event) => {
@@ -2455,12 +2965,12 @@
     resultCanvas.addEventListener("pointerdown", handleResultPointerDown);
     resultCanvas.addEventListener("pointermove", handleResultPointerMove);
     resultCanvas.addEventListener("pointerup", handleResultPointerUp);
-    resultCanvas.addEventListener("pointercancel", handleResultPointerUp);
+    resultCanvas.addEventListener("pointercancel", handleResultPointerCancel);
     resultCanvas.addEventListener("lostpointercapture", handleResultPointerUp);
     resultCanvas.addEventListener("pointerenter", updateBrushRing);
     resultCanvas.addEventListener("pointerleave", (event) => updateBrushRing(event));
     root.addEventListener("pointerup", handleResultPointerUp);
-    root.addEventListener("pointercancel", handleResultPointerUp);
+    root.addEventListener("pointercancel", handleResultPointerCancel);
     root.addEventListener("blur", () => {
       if (!dialog.open || !pointerState) return;
       pointerState = null;
@@ -2471,7 +2981,7 @@
       schedulePreview(0);
     });
     compareDivider.addEventListener("pointerdown", (event) => {
-      if (!splitCompare) return;
+      if (compareMode === "none") return;
       event.preventDefault();
       pointerState = { mode: "compare", pointerId: event.pointerId };
       try { compareDivider.setPointerCapture(event.pointerId); } catch {}
@@ -2479,7 +2989,9 @@
     compareDivider.addEventListener("pointermove", (event) => {
       if (pointerState?.mode !== "compare" || pointerState.pointerId !== event.pointerId) return;
       const rect = stage.getBoundingClientRect();
-      compareSplit = core.clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0.05, 0.95);
+      compareSplit = compareMode === "horizontal"
+        ? core.clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0.05, 0.95)
+        : core.clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0.05, 0.95);
       schedulePreview(0);
     });
     compareDivider.addEventListener("pointerup", (event) => {
@@ -2538,11 +3050,15 @@
       else if (modifier && key === "1") { event.preventDefault(); setViewZoom(1); }
       else if (modifier && (event.key === "+" || event.key === "=")) { event.preventDefault(); zoomBy(1.25); }
       else if (modifier && event.key === "-") { event.preventDefault(); zoomBy(0.8); }
+      else if (event.key === "Escape" && cancelColorRangePreview()) { event.preventDefault(); }
+      else if (event.key === "Escape" && hueSampleMode) { event.preventDefault(); hueSampleMode = ""; renderProperties(); updateCanvasCursor(); }
+      else if (event.key === "Escape" && pointerState?.mode === "rectangle") { event.preventDefault(); pointerState = null; schedulePreview(0); }
       else if (event.key === "Escape" && lassoPoints.length) { event.preventDefault(); lassoPoints = []; pointerState = null; schedulePreview(0); }
       else if (event.key === "[") { brush.size = Math.max(1, Math.round(brush.size * 0.85)); syncPairedControls("brushSize", brush.size); renderToolOptions(); updateBrushRing(); showBrushSizeHud(); saveSettings(); }
       else if (event.key === "]") { brush.size = Math.min(Math.max(500, Math.min(source?.width || 500, source?.height || 500)), Math.round(brush.size * 1.18)); syncPairedControls("brushSize", brush.size); renderToolOptions(); updateBrushRing(); showBrushSizeHud(); saveSettings(); }
       else if (event.key === " ") { spaceDown = true; event.preventDefault(); refreshModifierUi(event); }
       else if (event.key === "\\") { showOriginalOnResult = true; schedulePreview(0); }
+      else if (key === "q") { event.preventDefault(); toggleQuickMask(); }
       else if (event.key === "Tab") {
         event.preventDefault();
         const panels = [...dialog.querySelectorAll("[data-retouch-panel]")];

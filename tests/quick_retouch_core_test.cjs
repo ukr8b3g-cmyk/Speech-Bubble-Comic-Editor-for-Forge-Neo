@@ -16,6 +16,9 @@ const core = require("../web/project/quick-retouch-core.js");
 {
   const mask = core.rectangleMask(5, 5, 1, 1, 4, 4);
   assert.equal(mask.reduce((count, value) => count + (value > 0 ? 1 : 0), 0), 9);
+  const ellipse = core.ellipseMask(7, 7, 1, 1, 6, 6);
+  assert.equal(ellipse[3 * 7 + 3], 255);
+  assert.equal(ellipse[1 * 7 + 1], 0);
   const polygon = core.polygonMask(6, 6, [
     { x: 1, y: 1 },
     { x: 5, y: 1 },
@@ -72,6 +75,31 @@ const core = require("../web/project/quick-retouch-core.js");
 }
 
 {
+  const yellowShifted = core.hueSaturationPixel(255, 220, 0, {
+    hue: 45,
+    saturation: 0,
+    lightness: 0,
+    colorize: false,
+    targetColor: "yellow",
+    targetWidth: 30,
+    targetSoftness: 20,
+  });
+  const blueProtected = core.hueSaturationPixel(0, 80, 255, {
+    hue: 45,
+    saturation: 0,
+    lightness: 0,
+    colorize: false,
+    targetColor: "yellow",
+    targetWidth: 30,
+    targetSoftness: 20,
+  });
+  assert.notDeepEqual(yellowShifted, [255, 220, 0]);
+  assert.deepEqual(blueProtected, [0, 80, 255]);
+  assert.equal(core.hueTargetWeight(60, { targetColor: "yellow", targetWidth: 20, targetSoftness: 20 }), 1);
+  assert.equal(core.hueTargetWeight(240, { targetColor: "yellow", targetWidth: 20, targetSoftness: 20 }), 0);
+}
+
+{
   const image = {
     width: 3,
     height: 1,
@@ -110,6 +138,26 @@ const core = require("../web/project/quick-retouch-core.js");
   assert.ok(output[0] > output[1]);
   assert.ok(output[0] > 170);
   assert.equal(output[3], 255);
+}
+
+{
+  const source = new Uint8ClampedArray([
+    255, 0, 0, 255,
+    255, 0, 0, 255,
+  ]);
+  const selectedEyes = new Uint8ClampedArray([255, 0]);
+  const inverted = core.invertMask(selectedEyes);
+  const layers = [{
+    id: "hue",
+    type: "adjustment",
+    visible: true,
+    opacity: 1,
+    adjustmentType: "hue_saturation",
+    settings: { hue: 120, saturation: 0, lightness: 0, colorize: false, targetColor: "master" },
+  }];
+  const output = core.renderStack(source, layers, new Map([["hue", inverted]]));
+  assert.deepEqual([...output.slice(0, 4)], [255, 0, 0, 255], "inverted mask must protect the originally selected eye pixel");
+  assert.ok(output[5] > 220 && output[4] < 30, "outside the original selection should receive the H/S adjustment");
 }
 
 console.log("quick_retouch_core_test: OK");

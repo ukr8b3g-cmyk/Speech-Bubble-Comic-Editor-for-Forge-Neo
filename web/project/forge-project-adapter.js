@@ -141,35 +141,51 @@
     }
 
     async function importSelectedForgeImage() {
-      setStatus(tr("Forgeの選択画像を取得しています…", "Getting the selected Forge image…"));
-      const received = await galleryModule.waitForGalleryImage();
-      const asset = await api.uploadImage(projectId, received.blob, {
-        name: received.name,
-        sourceKind: "forge-gallery",
-        sourceTab: received.sourceTab,
-      });
-      const duplicate = importedAssetIds.has(asset.id);
-      importedAssetIds.add(asset.id);
-      const blob = duplicate
-        ? await api.imageBlob(projectId, asset.id)
-        : received.blob;
-      const result = await runtime.importProjectImage?.({
-        asset,
-        blob,
-        assignToSelectedPanel: runtime.forgeImportBehavior?.() !== "tray_only",
-        duplicate,
-      });
-      if (result === false) {
-        throw new Error(tr("Comic Panel Editorへ画像を追加できませんでした。", "Could not add the image to Comic Panel Editor."));
+      const importButton = document.querySelector("[data-forge-project-import]");
+      if (importButton) {
+        importButton.disabled = true;
+        importButton.setAttribute("aria-busy", "true");
       }
-      markDirty();
-      setStatus(
-        duplicate
-          ? tr("同じ画像を再利用しました。", "Reused the existing image.")
-          : tr("Forge画像をページ画像へ追加しました。", "Added the Forge image to Page Images."),
-        "ready",
-      );
-      return asset;
+      try {
+        setStatus(tr("Forgeの選択画像を取得しています…", "Getting the selected Forge image…"));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const received = await galleryModule.waitForGalleryImage();
+        setStatus(tr("画像を追加しています…", "Adding the image…"));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const asset = await api.uploadImage(projectId, received.blob, {
+          name: received.name,
+          sourceKind: "forge-gallery",
+          sourceTab: received.sourceTab,
+        });
+        const duplicate = importedAssetIds.has(asset.id);
+        importedAssetIds.add(asset.id);
+        const blob = duplicate
+          ? await api.imageBlob(projectId, asset.id)
+          : received.blob;
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const result = await runtime.importProjectImage?.({
+          asset,
+          blob,
+          assignToSelectedPanel: runtime.forgeImportBehavior?.() !== "tray_only",
+          duplicate,
+        });
+        if (result === false) {
+          throw new Error(tr("Comic Panel Editorへ画像を追加できませんでした。", "Could not add the image to Comic Panel Editor."));
+        }
+        markDirty();
+        setStatus(
+          duplicate
+            ? tr("同じ画像を再利用しました。", "Reused the existing image.")
+            : tr("Forge画像をページ画像へ追加しました。", "Added the Forge image to Page Images."),
+          "ready",
+        );
+        return asset;
+      } finally {
+        if (importButton) {
+          importButton.disabled = false;
+          importButton.removeAttribute("aria-busy");
+        }
+      }
     }
 
     function notifyProjectId(nextProjectId) {

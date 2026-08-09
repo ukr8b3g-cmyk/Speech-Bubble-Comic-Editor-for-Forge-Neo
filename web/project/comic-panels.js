@@ -28,6 +28,14 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  function normalizeImageCrop(value = {}) {
+    const x = clamp(finite(value?.x, 0), 0, 0.99);
+    const y = clamp(finite(value?.y, 0), 0, 0.99);
+    const w = clamp(finite(value?.w, 1), 0.01, 1 - x);
+    const h = clamp(finite(value?.h, 1), 0.01, 1 - y);
+    return { x, y, w, h };
+  }
+
   function normalizeBackgroundPattern(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     const result = {};
@@ -61,6 +69,8 @@
       image_scale: clamp(finite(values.image_scale, 1), 0.05, 20),
       image_offset_x: finite(values.image_offset_x, 0),
       image_offset_y: finite(values.image_offset_y, 0),
+      image_rotation: Math.round(clamp(finite(values.image_rotation, 0), -180, 180)),
+      image_crop: normalizeImageCrop(values.image_crop),
       background: /^#[0-9a-f]{6}$/i.test(String(values.background || ""))
         ? String(values.background)
         : "#ffffff",
@@ -501,6 +511,8 @@
       merged.image_scale = other.image_scale;
       merged.image_offset_x = other.image_offset_x;
       merged.image_offset_y = other.image_offset_y;
+      merged.image_rotation = other.image_rotation;
+      merged.image_crop = normalizeImageCrop(other.image_crop);
     }
     if (!merged.tone && other.tone) merged.tone = normalizeTone(other.tone);
     return {
@@ -567,6 +579,7 @@
     MIN_PANEL_SIZE,
     clamp,
     clone,
+    normalizeImageCrop,
     panelNode,
     headingNode,
     createHeadings,

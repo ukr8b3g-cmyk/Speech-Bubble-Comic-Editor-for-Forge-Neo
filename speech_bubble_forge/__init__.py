@@ -1,3 +1,3 @@
 """Standalone rendering and API support for Forge Neo."""
 
-__version__ = "0.7.4"
+__version__ = "0.7.10"

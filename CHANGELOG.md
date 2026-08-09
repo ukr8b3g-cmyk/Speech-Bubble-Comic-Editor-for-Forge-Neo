@@ -1,5 +1,124 @@
 # Changelog
 
+## [0.7.10] - Unreleased
+
+### Added
+
+- Four-Panel Manga panel images now expose non-destructive Edit Crop / Reset Crop controls in image Properties.
+- Comic Layout panel images expose the same crop controls and persist crop rectangles per panel image.
+- A shared crop overlay provides eight edge/corner handles, crop-box dragging, Reset, Apply, Cancel, Enter, and Escape without increasing the editor dock height.
+- Four-Panel Manga and Comic Layout support crop entry from the Properties button, C key, and image double-click.
+
+### Changed
+
+- Cropped panel images are rendered from the selected source rectangle and then use the existing Cover / Contain, scale, and offset behavior.
+- Assigning a new image to a panel resets that panel image crop to the full source image.
+- The Single Image C-key route now requires the selected editor object itself to be an image instead of falling back to another visible image layer.
+- Comic panel core files are now recorded as Forge-adapted files because panel crop state is persisted there.
+
+### Fixed
+
+- Crop editing is no longer limited to Single Image mode; Four-Panel Manga and Comic Layout panel images now retain and render non-destructive crop state.
+
+## [0.7.9] - Unreleased
+
+### Added
+
+- Comic Panel Editor image layers now support non-destructive crop data, with Edit Crop / Reset Crop controls in image Properties.
+- Crop mode can also be entered by double-clicking a selected image or pressing C, and shows a temporary Confirm / Cancel / Reset toolbar over the canvas.
+- Multi-selection Properties now provides icon-only alignment and distribution controls for normal movable objects, including text, bubbles, SFX, stamps, and image layers.
+- Alignment reference can be Selection Objects, the common Panel, or the Page. Alignment is available for 2+ editable objects; distribution for 3+.
+
+### Changed
+
+- Single Image replacement paths now use shared replacement behavior instead of keeping the dimensions of the first loaded image.
+- When replacing the primary Single Image, an otherwise empty page automatically adopts the new image dimensions; an edited page asks whether to resize the canvas or preserve the current canvas.
+- Explicit +Image remains an additive image-layer action while direct replacement, local drop/file replacement, and Forge source replacement use the replacement path.
+
+### Fixed
+
+- Replacing a portrait Single Image with a landscape image (or the reverse) no longer leaves the page canvas stuck at the previous aspect ratio when resize is selected or safe to perform automatically.
+- Crop confirmation/reset and alignment/distribution are recorded as editor history operations for Undo / Redo.
+
+## [0.7.8] - Unreleased
+
+### Changed
+
+- Quick Retouch checkboxes are visually standardized to 16 × 16 px while their label rows remain easy to click.
+- Brush drawing color is kept inline with Size / Hardness / Opacity; Eraser hides the unused drawing-color control.
+- Compare view is now a direct three-button control: None / Left-Right / Top-Bottom.
+- Zoom controls are compact: Fit, minus, a narrow percentage selector, and plus.
+- Magic Wand labels are shortened to Contiguous / Merged / AA with explanatory tooltips.
+- Color Range uses clearer Set / + Add / − Exclude sampling and the actions “Confirm Selection” / “Clear Preview”.
+- The permanently disabled Blend selector is removed from Layers until blend modes are implemented; layer opacity remains available.
+- Forge selected-image import yields to the UI between acquisition, upload, and placement, prevents double clicks while busy, and batches image-tray/canvas refreshes to reduce stalls.
+
+### Fixed
+
+- Repeated image decoding during Comic / Comic Layout imports no longer triggers a tray render and full canvas render for every intermediate image; refresh happens after the batch.
+- Quick Retouch cache/build identifiers are updated for 0.7.8.
+
+
+## [0.7.7] - Unreleased
+
+### Changed
+
+- Quick Retouch now uses one current Selection Mask; the separate global Protection Range UI has been removed.
+- The Selection panel is compact and Photoshop-like, with Select All, Deselect, Invert, Boundary / Mask / Hidden, feather, expand / contract, and Quick Mask.
+- Quick Mask is toggled with Q; red overlay means outside the current selection, while Brush adds and Eraser subtracts.
+- Selection tools are ordered Lasso, Rectangle, Magic Wand, Color Range and share New / Add / Subtract / Intersect options.
+- Paint and Base Image no longer use a dedicated Properties panel; layer opacity is controlled in the Layers panel. Properties is reserved for adjustment layers and masks.
+- Hue / Saturation, Saturation, Lightness, Brightness, and Contrast controls use visual gradient sliders; advanced H/S target sampling is collapsed by default.
+- Quick Retouch image input now uses the same expandable source-picker pattern as Background Removal and Comic Conversion, including page/image candidates, drag and drop, and file selection.
+- Selection history no longer stores the removed Protection mask and the history budget is raised to 32 steps / 512 MiB while retaining one history entry per stroke or completed control drag.
+
+### Fixed
+
+- Inverting the current selection now feeds the inverted mask directly into newly created adjustment layer masks without subtracting a second protection mask.
+- Deselect and Color Range cancellation operate on the single current selection model, reducing cases where a hidden secondary mask made H/S scope appear reversed.
+
+## [0.7.6] - Unreleased
+
+### Fixed
+
+- Undo and Redo snapshots now include selection display state, previous selection, Color Range preview/samples, Hue/Saturation sampler mode, brush colors, zoom, free pan, and comparison state
+- Deselect and Ctrl+D now clear both the confirmed selection and any Color Range preview/samples, while Protection remains independent
+- Escape cancels an active Color Range preview without destroying the previously confirmed selection
+- Return to Start now restores a single immutable document snapshot instead of rebuilding only some canvases and layers
+- Return to Start is undoable, so Undo restores the state immediately before the reset
+- Inverting a selection before creating an adjustment layer copies the current inverted selection minus Protection into the new layer mask
+
+### Changed
+
+- “Hold for Original” is renamed to “Hold to View Before”
+- Comparison is now selectable as none, left/right split, or top/bottom split
+- The reset action is renamed to “Return to Start” and asks for confirmation before discarding edits
+- History capacity is increased to 24 steps and 384 MiB while retaining bounded memory behavior
+- Project Editor and Quick Retouch cache identifiers are updated for 0.7.6
+
+## [0.7.5] - Unreleased
+
+### Added
+
+- Quick Retouch now includes an independent red Protection Mask that can be built from the current selection and subtracted from painting, erasing, and adjustment-layer masks
+- Magic Wand options now include tolerance, contiguous selection, sampling the visible composite, and anti-aliasing
+- Color Range now supports contiguous mode, visible-composite sampling, and distinct set/add/exclude sampler states with a purple preview
+- Hue / Saturation adjustments can target Master, Reds, Yellows, Greens, Cyans, Blues, Magentas, or custom sampled hue ranges
+- Quick Retouch restores the last active tool, editable target, selection display, floating-panel layout, normal window geometry, and maximized state
+
+### Changed
+
+- The former permanently locked Original layer is now an editable Base Image layer with visibility and lock toggles
+- Base Image pixels can be painted or erased directly after unlock, while the source used by Page Images and hold-to-view Original remains available outside the editable layer
+- Selection display now defaults to the blue/cyan mask overlay instead of boundary-only display
+- New adjustment-layer masks are created from the effective selection after subtracting the Protection Mask
+- Base Image can be duplicated into a paint layer, but cannot be deleted or moved out of its base position
+
+### Fixed
+
+- Selection and protection overlays remain visually distinct: confirmed selection is blue/cyan, Color Range preview is purple, and protected pixels are red
+- Direct Base Image editing participates in Quick Retouch Undo / Redo snapshots together with visibility, lock state, and Protection Mask data
+
 ## [0.7.4] - Unreleased
 
 ### Fixed

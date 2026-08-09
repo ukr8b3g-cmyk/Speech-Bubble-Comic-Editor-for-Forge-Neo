@@ -1,16 +1,31 @@
-Quick Retouch cache, cursor overlay, and free-pan fix 0.7.4
+Quick Retouch compact controls and Forge image-import responsiveness update 0.7.8
 
 Runtime changes:
 - web/project/quick-retouch.js
 - web/project/quick-retouch.css
 - web/project-editor.html
 - javascript/speech_bubble_project_bridge.js
+- web/project/forge-project-adapter.js
+- web/project/comic-editor.js
+- web/project/general-comic-editor.js
 
-Version/documentation changes:
+Version / documentation:
 - metadata.ini
 - speech_bubble_forge/__init__.py
+- README.md
 - CHANGELOG.md
 - PACKAGE_INFO_JA.txt
 - BUILD_VALIDATION.txt
+- QUICK_RETOUCH_0.7.8_COMPACT_CONTROLS_TEST_GUIDE_JA.md
 
-The source image, project schema, save format, adjustment processing, background removal, and comic modes are unchanged.
+Tests:
+- tests/quick_retouch_integration_test.cjs
+- tests/quick_retouch_simplified_ui_test.cjs
+- tests/project_import_responsiveness_test.cjs
+
+Unchanged architecture:
+- Project Schema / project save format
+- Project API
+- Background Removal processing
+- Comic Conversion processing
+- Single Image / 4-Panel Manga / Comic mode architecture

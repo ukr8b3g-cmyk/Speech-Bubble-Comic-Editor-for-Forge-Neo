@@ -1,18 +1,34 @@
-Speech Bubble Comic Editor for Forge Neo 0.7.4
-Quick Retouch cache, cursor overlay, and free-pan fix
+Speech Bubble Comic Editor for Forge Neo 0.7.10
+Comic Panel Editor three-mode non-destructive crop update
 
-Validation completed in the build container:
-- JavaScript / CommonJS syntax: 46 files passed node --check
-- Node regression tests: 18 functional tests passed
-- Node browser smoke tests: 2 skipped because the Node Playwright package is unavailable
-- Independent Chromium UI test via Python Playwright: PASS
-  - runtime version reports 0.7.4
-  - Brush outline exists inside the modal dialog top layer and is visible
-  - Eyedropper and Magic Wand resolve to dedicated URL cursors
-  - middle-mouse drag changes the independent canvas pan offset while the image fits
-  - Fit resets the pan offset to the centered position
-- Python compile: 22 files passed
-- Python pytest: 46 passed
-- Quick Retouch integration test verifies the 0.7.4 cache key, dialog overlay placement, free-pan state, and Project Editor build query
+Implemented:
+- Single Image crop behavior retained from 0.7.9
+- Four-Panel Manga panel image Properties: Edit Crop / Reset Crop
+- Comic Layout panel image Properties: Edit Crop / Reset Crop
+- Shared non-destructive crop overlay with 8 resize handles and crop-box move
+- Apply / Cancel / Reset plus Enter / Escape
+- C-key and image double-click crop entry in all three editor modes
+- Crop state persisted as normalized image_crop per panel image
+- Cropped source rectangle rendered before existing Cover / Contain / scale / offset
+- New panel-image assignment resets crop to the full source image
+- Crop commit/reset use existing editor Undo / Redo history
+- Single Image C-key now requires the selected object itself to be an image
+- Single Image portrait/landscape replacement canvas tracking retained
 
-Manual Forge Neo acceptance is still required for host cache replacement, native mouse-device behavior, cursor appearance, and final PNG application in the user's installation.
+Automated validation:
+- JavaScript syntax: 27 .js files PASS
+- Project Editor inline JavaScript: 2 script blocks PASS
+- Node regression tests: 22 PASS, 2 browser tests SKIP (Playwright unavailable)
+- Python pytest: 46 PASS
+- 0.7.10 three-mode crop static/core regression: PASS
+
+Browser validation note:
+- Browser pointer automation was not run because Playwright is unavailable in the Node test environment.
+- Final mouse feel and Forge Neo host integration should be checked with the included 0.7.10 manual test guide.
+
+Manual Forge Neo checks recommended:
+- Four-Panel Manga: Properties crop button, C key, double-click, Undo/Redo
+- Comic Layout: same crop routes plus Cover / Contain / scale / offset after cropping
+- Save/reload preserves per-panel image_crop
+- Replacing a panel image resets crop to full source
+- Single Image portrait -> landscape and landscape -> portrait replacement keeps 0.7.9 canvas-size behavior

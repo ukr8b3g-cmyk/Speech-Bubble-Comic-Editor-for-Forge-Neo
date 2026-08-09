@@ -150,6 +150,26 @@
     return output;
   }
 
+  function ellipseMask(width, height, x0, y0, x1, y1) {
+    const output = createMask(width, height);
+    const left = Math.max(0, Math.min(width, Math.floor(Math.min(x0, x1))));
+    const right = Math.max(0, Math.min(width, Math.ceil(Math.max(x0, x1))));
+    const top = Math.max(0, Math.min(height, Math.floor(Math.min(y0, y1))));
+    const bottom = Math.max(0, Math.min(height, Math.ceil(Math.max(y0, y1))));
+    const radiusX = Math.max(0.5, (right - left) / 2);
+    const radiusY = Math.max(0.5, (bottom - top) / 2);
+    const centerX = left + radiusX;
+    const centerY = top + radiusY;
+    for (let y = top; y < bottom; y += 1) {
+      for (let x = left; x < right; x += 1) {
+        const dx = (x + 0.5 - centerX) / radiusX;
+        const dy = (y + 0.5 - centerY) / radiusY;
+        if (dx * dx + dy * dy <= 1) output[y * width + x] = 255;
+      }
+    }
+    return output;
+  }
+
   function pointInPolygon(x, y, points) {
     let inside = false;
     for (let index = 0, previous = points.length - 1; index < points.length; previous = index++) {
@@ -240,13 +260,16 @@
     return output;
   }
 
-  function colorRangeMask(imageData, samples, excludedSamples = [], tolerance = 36) {
+  function colorRangeMask(imageData, samples, excludedSamples = [], tolerance = 36, sampleStep = 1) {
     const output = createMask(imageData.width, imageData.height);
     const include = Array.isArray(samples) ? samples.filter(Boolean) : [];
     const exclude = Array.isArray(excludedSamples) ? excludedSamples.filter(Boolean) : [];
     if (!include.length) return output;
     const threshold = Math.max(0, Number(tolerance) || 0) * 4.5;
-    for (let index = 0; index < output.length; index += 1) {
+    const step = Math.max(1, Math.floor(Number(sampleStep) || 1));
+    for (let y = 0; y < imageData.height; y += step) {
+      for (let x = 0; x < imageData.width; x += step) {
+      const index = y * imageData.width + x;
       const offset = index * 4;
       const r = imageData.data[offset];
       const g = imageData.data[offset + 1];
@@ -268,7 +291,14 @@
           break;
         }
       }
-      if (!blocked) output[index] = 255;
+      if (!blocked) {
+        const blockRight = Math.min(imageData.width, x + step);
+        const blockBottom = Math.min(imageData.height, y + step);
+        for (let blockY = y; blockY < blockBottom; blockY += 1) {
+          output.fill(255, blockY * imageData.width + x, blockY * imageData.width + blockRight);
+        }
+      }
+      }
     }
     return output;
   }
@@ -382,8 +412,56 @@
     ];
   }
 
+  const HUE_FAMILY_CENTERS = Object.freeze({
+    red: 0,
+    yellow: 60,
+    green: 120,
+    cyan: 180,
+    blue: 240,
+    magenta: 300,
+  });
+
+  function circularHueDistance(left, right) {
+    const delta = Math.abs((((Number(left) || 0) - (Number(right) || 0)) % 360 + 360) % 360);
+    return Math.min(delta, 360 - delta);
+  }
+
+  function hueTargetWeight(hueDegrees, settings = {}) {
+    const target = String(settings.targetColor || "master");
+    if (target === "master") return 1;
+    const included = Array.isArray(settings.targetSamples) ? settings.targetSamples : [];
+    const excluded = Array.isArray(settings.targetExcluded) ? settings.targetExcluded : [];
+    const center = HUE_FAMILY_CENTERS[target];
+    const centers = included.length
+      ? included.map((value) => ((Number(value) || 0) % 360 + 360) % 360)
+      : Number.isFinite(center) ? [center] : [];
+    if (!centers.length) return 0;
+    const inner = clamp(settings.targetWidth ?? 30, 1, 90);
+    const softness = clamp(settings.targetSoftness ?? 30, 0, 90);
+    const outer = Math.min(180, inner + softness);
+    let weight = 0;
+    for (const sample of centers) {
+      const distance = circularHueDistance(hueDegrees, sample);
+      const current = distance <= inner
+        ? 1
+        : distance >= outer
+          ? 0
+          : 1 - (distance - inner) / Math.max(1, outer - inner);
+      weight = Math.max(weight, current);
+    }
+    for (const sample of excluded) {
+      const distance = circularHueDistance(hueDegrees, Number(sample) || 0);
+      if (distance <= inner) return 0;
+      if (distance < outer) weight *= (distance - inner) / Math.max(1, outer - inner);
+    }
+    return clamp(weight, 0, 1);
+  }
+
   function hueSaturationPixel(r, g, b, settings = {}) {
     let [hue, saturation, lightness] = rgbToHsl(r, g, b);
+    const originalHue = hue;
+    const targetWeight = hueTargetWeight(originalHue * 360, settings);
+    if (targetWeight <= 0) return [r, g, b];
     const shift = clamp(settings.hue, -180, 180) / 360;
     const saturationAmount = clamp(settings.saturation, -100, 100) / 100;
     const lightnessAmount = clamp(settings.lightness, -100, 100) / 100;
@@ -399,7 +477,9 @@
     lightness = lightnessAmount >= 0
       ? lightness + (1 - lightness) * lightnessAmount
       : lightness * (1 + lightnessAmount);
-    return hslToRgb(hue, clamp(saturation, 0, 1), clamp(lightness, 0, 1));
+    const adjusted = hslToRgb(hue, clamp(saturation, 0, 1), clamp(lightness, 0, 1));
+    if (targetWeight >= 0.999) return adjusted;
+    return adjusted.map((value, index) => Math.round([r, g, b][index] + (value - [r, g, b][index]) * targetWeight));
   }
 
   function brightnessContrastPixel(r, g, b, settings = {}) {
@@ -489,6 +569,7 @@
     expandMask,
     shrinkMask,
     rectangleMask,
+    ellipseMask,
     polygonMask,
     pointInPolygon,
     colorDistance,
@@ -498,6 +579,8 @@
     buildCurveLut,
     rgbToHsl,
     hslToRgb,
+    circularHueDistance,
+    hueTargetWeight,
     hueSaturationPixel,
     brightnessContrastPixel,
     renderStack,

@@ -690,7 +690,13 @@ def register_routes(app):
         font = font_by_id(font_id)
         if not font:
             raise HTTPException(status_code=404, detail="Font not found")
-        content_type = mimetypes.guess_type(font["path"])[0] or "application/octet-stream"
+        suffix = Path(font["path"]).suffix.lower()
+        content_type = {
+            ".otf": "font/otf",
+            ".ttf": "font/ttf",
+            ".ttc": "font/collection",
+            ".otc": "font/collection",
+        }.get(suffix) or mimetypes.guess_type(font["path"])[0] or "application/octet-stream"
         return FileResponse(font["path"], media_type=content_type)
 
     async def frame_assets():

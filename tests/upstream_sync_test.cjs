@@ -7,7 +7,9 @@ const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync("UPSTREAM_SYNC.json", "utf8"));
 assert.equal(manifest.schema_version, 1);
 assert.match(manifest.upstream.commit, /^[0-9a-f]{40}$/);
-assert.ok(manifest.exact_files.length >= 4);
+assert.ok(manifest.exact_files.length >= 2);
+assert.ok(manifest.adapted_files.includes("web/project/general-comic-core.js"));
+assert.ok(manifest.adapted_files.includes("web/project/comic-panels.js"));
 
 for (const entry of manifest.exact_files) {
   const content = fs.readFileSync(entry.forge);

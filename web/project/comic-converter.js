@@ -365,7 +365,7 @@
     dialog.innerHTML = `
       <div class="comic-converter-window">
         <header class="comic-converter-head" data-converter-drag-handle>
-          <strong>コミック変換</strong>
+          <strong>${tr("白黒変換", "Black & White Conversion")}</strong>
           <span data-converter-mode></span>
           <button type="button" data-converter-action="maximize" title="最大化／元に戻す">□</button>
           <button type="button" data-converter-action="close" aria-label="閉じる">×</button>
@@ -731,13 +731,13 @@
           const applied = await options.applySingleImage?.(blob, name, source);
           if (!applied) throw new Error(tr("一枚画像へ適用できませんでした。", "Could not apply the conversion to the Single Image."));
           options.setStatus?.(
-            tr("コミック変換を一枚画像へ適用しました。", "Comic Conversion was applied to the Single Image."),
+            tr("白黒変換を一枚画像へ適用しました。", "Black & White Conversion was applied to the Single Image."),
             "saved",
           );
         }
         dialog.close();
       } catch (error) {
-        status.textContent = error?.message || tr("コミック変換を適用できませんでした。", "Comic Conversion could not be applied.");
+        status.textContent = error?.message || tr("白黒変換を適用できませんでした。", "Black & White Conversion could not be applied.");
         status.dataset.level = "error";
       } finally {
         applyButton.disabled = !source;

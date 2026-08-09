@@ -15,16 +15,6 @@
       "forge": "web/project/editor-mode-controller.js",
       "upstream": "web/editor-mode-controller.js",
       "sha256": "694c930cab8b6dfab382026f66a5f65ab5b263a1084a7323bdf60aaab3715d4e"
-    },
-    {
-      "forge": "web/project/general-comic-core.js",
-      "upstream": "web/general-comic-core.js",
-      "sha256": "66adf90765243820d2d997848dfc301af95d6fa31fb98a299123657393fdb1dc"
-    },
-    {
-      "forge": "web/project/comic-panels.js",
-      "upstream": "web/comic-panels.js",
-      "sha256": "9b94239d311bd7f72833a21f16bc9afcc10ed8eddef04564a5fd455d6d9b5258"
     }
   ],
   "adapted_files": [
@@ -32,6 +22,9 @@
     "web/project/comic-editor.js",
     "web/project/general-comic-editor.js",
     "web/project/comic-converter.js",
-    "web/project/background-removal.js"
+    "web/project/background-removal.js",
+    "web/project/comic-panels.js",
+    "web/project/general-comic-core.js",
+    "web/project/image-crop-dialog.js"
   ]
 }

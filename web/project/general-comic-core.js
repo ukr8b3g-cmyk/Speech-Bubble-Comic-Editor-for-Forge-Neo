@@ -13,13 +13,14 @@
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const makeDefaultId = () => globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   const color = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toLowerCase() : fallback;
+  const normalizeImageCrop = (value = {}) => { const x = clamp(value?.x ?? 0, 0, .99), y = clamp(value?.y ?? 0, 0, .99); return { x, y, w: clamp(value?.w ?? 1, .01, 1 - x), h: clamp(value?.h ?? 1, .01, 1 - y) }; };
 
   function panelNode(makeId = makeDefaultId, values = {}) {
     return { kind: "panel", id: String(values.id || `general-panel-${makeId()}`), visible: values.visible !== false,
       locked: values.locked === true, image_id: values.image_id ? String(values.image_id) : null,
       image_visible: values.image_visible !== false, image_locked: values.image_locked === true,
       fit: values.fit === "contain" ? "contain" : "cover", image_scale: clamp(values.image_scale ?? 1, .05, 20),
-      image_offset_x: finite(values.image_offset_x), image_offset_y: finite(values.image_offset_y),
+      image_offset_x: finite(values.image_offset_x), image_offset_y: finite(values.image_offset_y), image_rotation: Math.round(clamp(values.image_rotation ?? 0, -180, 180)), image_crop: normalizeImageCrop(values.image_crop),
       background: color(values.background, "#ffffff"),
       background_pattern: values.background_pattern && typeof values.background_pattern === "object" && !Array.isArray(values.background_pattern)
         ? clone(values.background_pattern) : null };
@@ -165,5 +166,5 @@
   function mergeDivider(tree, splitId, keep = "first") { const next = clone(tree); let result = null; function visit(node) { if (!node || node.kind !== "split") return node; if (node.id === splitId) { if (node.first?.kind === "split" || node.second?.kind === "split") return node; const kept = keep === "second" ? node.second : node.first, removed = keep === "second" ? node.first : node.second; result = { changed: true, keptPanelId: kept.id, removedPanelIds: collectPanels(removed).map((item) => item.id) }; return panelNode(makeDefaultId, kept); } node.first = visit(node.first); if (!result) node.second = visit(node.second); return node; } const changed = visit(next); return result ? { ...result, tree: changed } : { changed: false, tree: next }; }
   const pageContentRect = (page) => ({ x: page.margin_left, y: page.margin_top, w: Math.max(1, page.width - page.margin_left - page.margin_right), h: Math.max(1, page.height - page.margin_top - page.margin_bottom) });
   function readingOrder(layout, tolerance = 24) { return [...(layout?.panels || [])].sort((a, b) => Math.abs(a.rect.y - b.rect.y) > tolerance ? a.rect.y - b.rect.y : (b.rect.x + b.rect.w) - (a.rect.x + a.rect.w)); }
-  return Object.freeze({ CURRENT_STATE_VERSION, TEMPLATE_IDS, PUBLIC_TEMPLATE_IDS, MIN_PANEL_SIZE, MAX_NODES, clone, finite, clamp, panelNode, splitNode, createTemplate, defaultPage, defaultState, normalizeTree, normalizeState, findNode, findParent, collectPanels, minimumSize, ratioRange, rectPolygon, polygonBounds, pointInPolygon, clipPolygon, lineDistance, splitPolygon, dividerAngleDegrees, snapDividerEndpointToAngle, dividerStraightDistancePx, computeLayout, pageContentRect, pointInRect, panelAtPoint, dividerAtPoint, dividerHandleAtPoint, setSplitRatio, setSplitRatios, splitPanel, mergeDivider, readingOrder });
+  return Object.freeze({ CURRENT_STATE_VERSION, TEMPLATE_IDS, PUBLIC_TEMPLATE_IDS, MIN_PANEL_SIZE, MAX_NODES, clone, finite, clamp, normalizeImageCrop, panelNode, splitNode, createTemplate, defaultPage, defaultState, normalizeTree, normalizeState, findNode, findParent, collectPanels, minimumSize, ratioRange, rectPolygon, polygonBounds, pointInPolygon, clipPolygon, lineDistance, splitPolygon, dividerAngleDegrees, snapDividerEndpointToAngle, dividerStraightDistancePx, computeLayout, pageContentRect, pointInRect, panelAtPoint, dividerAtPoint, dividerHandleAtPoint, setSplitRatio, setSplitRatios, splitPanel, mergeDivider, readingOrder });
 });
