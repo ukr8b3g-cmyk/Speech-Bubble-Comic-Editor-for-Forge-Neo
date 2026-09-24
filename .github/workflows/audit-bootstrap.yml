@@ -1,0 +1,28 @@
+name: Audit source snapshot
+on:
+  push:
+    branches: [maintenance/audit-cleanup-20260924]
+    paths: [.github/workflows/audit-bootstrap.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 364b8426d316c6282dde620404ef24249a4db409
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Package audited revision
+        shell: bash
+        run: |
+          git status --short
+          find . -name AGENTS.md -print -exec cat {} \;
+          git bundle create "$RUNNER_TEMP/comic-base.bundle" HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: comic-audit-base
+          path: ${{ runner.temp }}/comic-base.bundle
+          retention-days: 3
