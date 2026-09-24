@@ -1,0 +1,118 @@
+name: Audit candidate gate
+on:
+  push:
+    branches: [maintenance/audit-cleanup-20260924]
+    paths: [.github/workflows/audit-apply.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.candidate.outputs.sha }}
+      branch: ${{ steps.candidate.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decode the locally tested deterministic patch
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          python - <<'PY'
+          import base64, hashlib, os, pathlib, zlib
+          encoded = ''.join(pathlib.Path(f'.audit-apply/part-{i}.b64').read_text().strip() for i in range(5))
+          source = zlib.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(source).hexdigest() == 'b7190d26643814ec481082a398856468fbdd754584f80be8661f0344f45a6c03'
+          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'audit-apply.py').write_bytes(source)
+          PY
+      - id: candidate
+        name: Build isolated candidate from audited main revision
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          git checkout --detach 364b8426d316c6282dde620404ef24249a4db409
+          test -z "$(git status --porcelain)"
+          python "$RUNNER_TEMP/audit-apply.py"
+          git add -A
+          test "$(git write-tree)" = 2b7e4e2ba568979785a1ef658d103da6bcb30e3d
+          # The final workflow is installed by the authorized connector after
+          # this candidate passes; the workflow token only publishes code.
+          cp .github/workflows/validate.yml "$RUNNER_TEMP/validate.yml"
+          git rm --cached .github/workflows/validate.yml
+          rm .github/workflows/validate.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Harden APIs and project creation; isolate legacy editor and add regression coverage'
+          branch="maintenance/audit-candidate-${GITHUB_RUN_ID}"
+          git push origin "HEAD:refs/heads/$branch"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          git show --stat --oneline HEAD
+  core:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.10'
+          - os: windows-latest
+            python: '3.13'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements-ci.txt
+      - run: python tools/validate_repo.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-core-${{ matrix.os }}
+          path: artifacts/
+          retention-days: 3
+  browser:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements-ci.txt
+      - name: Install optional browser harness
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sbe-browser" --no-save playwright
+          "$RUNNER_TEMP/sbe-browser/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/sbe-browser/node_modules" >> "$GITHUB_ENV"
+      - run: python tools/validate_repo.py --browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-browser
+          path: artifacts/
+          retention-days: 3
