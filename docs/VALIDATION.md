@@ -5,6 +5,8 @@
 Use a clean checkout of this extension, not its parent Forge repository.
 The test packages below are development-only; `requirements.txt` still installs
 no additional mandatory runtime packages.
+On Linux, install a Japanese CJK font before the renderer tests (Ubuntu: `sudo apt-get install fonts-noto-cjk`).
+CI installs this test font; it does not replace the tests with missing-glyph assertions.
 
 ```sh
 python -m pip install -r requirements-ci.txt
