@@ -28,7 +28,9 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
     const base = `http://127.0.0.1:${port}`;
     const url = `${base}/speech-bubble-forge/static/project-editor.html?host=forge-project&projectId=${projectId}`;
     await page.goto(url, { waitUntil: "domcontentloaded" });
-    await page.waitForFunction(() => typeof forgeProjectAdapter !== "undefined" && forgeProjectAdapter?.manifest() && document.querySelector("#saveState")?.dataset.level === "saved");
+    // The manifest is assigned before async asset restoration; status text can
+    // then change to the empty-canvas hint, so wait on completed layout state.
+    await page.waitForFunction(() => typeof forgeProjectAdapter !== "undefined" && forgeProjectAdapter?.manifest() && hasExplicitSavedLayout && dirtyTrackingEnabled);
     assert.equal(await page.locator("button[data-editor-mode]").count(), 3);
     const png = await page.evaluate(() => { const c = document.createElement("canvas"); c.width = 160; c.height = 120; const x = c.getContext("2d"); x.fillStyle = "#345678"; x.fillRect(0, 0, 160, 120); return c.toDataURL().split(",")[1]; });
     await page.locator("#backgroundFileInput").setInputFiles({ name: "smoke.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
@@ -46,7 +48,7 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
     const saved = await (await page.request.get(`${base}/speech-bubble-forge/projects/${encodeURIComponent(projectId)}`)).json();
     assert.equal(saved.project.images.length, 1);
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.waitForFunction(() => typeof forgeProjectAdapter !== "undefined" && forgeProjectAdapter?.manifest()?.images.length === 1 && document.querySelector("#saveState")?.dataset.level === "saved");
+    await page.waitForFunction(() => typeof forgeProjectAdapter !== "undefined" && forgeProjectAdapter?.manifest()?.images.length === 1 && hasExplicitSavedLayout && dirtyTrackingEnabled);
     assert.equal(await page.evaluate(() => state.elements.filter(item => item.type === "image").length), 1);
     assert.deepEqual(pageErrors, []);
     fs.mkdirSync("artifacts", { recursive: true });
