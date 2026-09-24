@@ -9,6 +9,7 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
 (async () => {
   const server = spawn(process.env.PYTHON || "python", ["-u", "tests/serve_browser_test.py"], { cwd: path.resolve(__dirname, "..") });
   let browser;
+  let page;
   let errors = "";
   server.stderr.on("data", data => { errors += data; });
   try {
@@ -19,7 +20,7 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
       server.on("exit", code => { clearTimeout(timer); reject(new Error(`API test server exited ${code}: ${errors}`)); });
     });
     browser = await chromium.launch({ headless: true, ...(process.env.SBE_CHROMIUM_EXECUTABLE ? { executablePath: process.env.SBE_CHROMIUM_EXECUTABLE } : {}) });
-    const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+    page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
     page.on("dialog", dialog => dialog.accept());
@@ -28,7 +29,7 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
     const url = `${base}/speech-bubble-forge/static/project-editor.html?host=forge-project&projectId=${projectId}`;
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => typeof forgeProjectAdapter !== "undefined" && forgeProjectAdapter?.manifest());
-    assert.equal(await page.locator("[data-editor-mode]").count(), 3);
+    assert.equal(await page.locator("button[data-editor-mode]").count(), 3);
     const png = await page.evaluate(() => { const c = document.createElement("canvas"); c.width = 160; c.height = 120; const x = c.getContext("2d"); x.fillStyle = "#345678"; x.fillRect(0, 0, 160, 120); return c.toDataURL().split(",")[1]; });
     await page.locator("#backgroundFileInput").setInputFiles({ name: "smoke.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
     await page.waitForFunction(() => state.elements.some(item => item.type === "image"));
@@ -37,7 +38,7 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
     await page.keyboard.press("Escape");
     assert.equal(await page.locator("#imageCropToolbar").isVisible(), false);
     for (const mode of ["comic", "comic_layout", "single"]) {
-      await page.locator(`[data-editor-mode="${mode}"]`).click();
+      await page.locator(`button[data-editor-mode="${mode}"]`).click();
       await page.waitForFunction(mode => activeWorkspace === mode, mode);
     }
     await page.locator("#saveLayout").click();
@@ -51,6 +52,13 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
     fs.mkdirSync("artifacts", { recursive: true });
     await page.screenshot({ path: "artifacts/project-editor-smoke.png" });
     console.log("project_editor_browser_smoke: OK (real API, three modes, crop entry/cancel, image save/reload)");
+  } catch (error) {
+    if (page) {
+      fs.mkdirSync("artifacts", { recursive: true });
+      await page.screenshot({ path: "artifacts/project-editor-failure.png" }).catch(() => {});
+      fs.writeFileSync("artifacts/project-editor-failure.html", await page.content().catch(() => ""));
+    }
+    throw error;
   } finally {
     await browser?.close();
     server.kill();
