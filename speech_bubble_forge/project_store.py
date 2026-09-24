@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import threading
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -129,13 +130,26 @@ class ProjectStore:
             }
         normalized_id = manifest["project_id"]
         with self._lock:
-            path = self._manifest_path(normalized_id)
-            if path.exists():
+            directory = self._project_dir(normalized_id)
+            if directory.exists():
                 raise FileExistsError("Project already exists")
-            self._project_dir(normalized_id).mkdir(parents=True, exist_ok=False)
-            self._images_dir(normalized_id).mkdir(parents=True, exist_ok=True)
-            self._save_registry(normalized_id, {})
-            self._atomic_json(path, manifest)
+            self.root.mkdir(parents=True, exist_ok=True)
+            pending = Path(tempfile.mkdtemp(prefix=".creating-", dir=self.root))
+            try:
+                (pending / "images").mkdir()
+                self._atomic_json(pending / "assets.json", {
+                    "version": ASSET_REGISTRY_VERSION,
+                    "updated_at": utc_now(),
+                    "assets": [],
+                })
+                self._atomic_json(pending / "project.json", manifest)
+                # Publish only a complete directory, on the same filesystem.
+                if directory.exists():
+                    raise FileExistsError("Project already exists")
+                pending.rename(directory)
+            finally:
+                if pending.exists():
+                    shutil.rmtree(pending)
         return manifest
 
     def exists(self, project_id: object) -> bool:
@@ -181,7 +195,7 @@ class ProjectStore:
         output = []
         with self._lock:
             for directory in self.root.iterdir():
-                if not directory.is_dir():
+                if directory.name.startswith(".") or not directory.is_dir():
                     continue
                 path = directory / "project.json"
                 if not path.is_file():
@@ -268,6 +282,8 @@ class ProjectStore:
             raise ProjectSchemaError("Image is empty or too large")
         try:
             with Image.open(io.BytesIO(raw)) as image:
+                if image.width * image.height > MAX_IMAGE_PIXELS:
+                    raise ProjectSchemaError("Image dimensions are unsupported")
                 image.verify()
                 image_format = str(image.format or "").upper()
             with Image.open(io.BytesIO(raw)) as image:

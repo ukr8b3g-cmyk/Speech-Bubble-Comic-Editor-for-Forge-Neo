@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
-const editor = fs.readFileSync("web/project-editor.html", "utf8");
+const editor = require("./read_editor_source.cjs")("web/project-editor.html");
 const bridge = fs.readFileSync("javascript/speech_bubble_project_bridge.js", "utf8");
 const settings = fs.readFileSync("javascript/speech_bubble_settings.js", "utf8");
 const settingsPy = fs.readFileSync("speech_bubble_forge/settings.py", "utf8");

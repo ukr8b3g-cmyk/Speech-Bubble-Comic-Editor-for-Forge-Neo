@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 const root = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'web', 'project-editor.html'), 'utf8');
+const html = require("./read_editor_source.cjs")(path.join(root, 'web', 'project-editor.html'));
 
 for (const id of ['imageCropToolbar','editImageCrop','resetImageCrop','multiAlignPanel','alignmentReference','groupRotationRange','groupRotation']) {
   assert(html.includes(`id="${id}"`), `missing #${id}`);

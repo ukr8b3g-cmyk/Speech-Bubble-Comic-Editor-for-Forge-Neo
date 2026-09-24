@@ -1,0 +1,6 @@
+# Test-only packages; requirements.txt still adds no mandatory runtime packages.
+pytest>=8,<9
+Pillow>=10,<14
+numpy>=1.26,<3
+fastapi>=0.112,<1
+httpx>=0.27,<1

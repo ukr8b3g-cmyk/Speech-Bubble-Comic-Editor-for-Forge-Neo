@@ -1,34 +1,12 @@
-Speech Bubble Comic Editor for Forge Neo 0.7.10
-Comic Panel Editor three-mode non-destructive crop update
+Comic Panel Editor 0.7.10 — maintenance audit 2026-09-24
 
-Implemented:
-- Single Image crop behavior retained from 0.7.9
-- Four-Panel Manga panel image Properties: Edit Crop / Reset Crop
-- Comic Layout panel image Properties: Edit Crop / Reset Crop
-- Shared non-destructive crop overlay with 8 resize handles and crop-box move
-- Apply / Cancel / Reset plus Enter / Escape
-- C-key and image double-click crop entry in all three editor modes
-- Crop state persisted as normalized image_crop per panel image
-- Cropped source rectangle rendered before existing Cover / Contain / scale / offset
-- New panel-image assignment resets crop to the full source image
-- Crop commit/reset use existing editor Undo / Redo history
-- Single Image C-key now requires the selected object itself to be an image
-- Single Image portrait/landscape replacement canvas tracking retained
+Baseline: 364b8426d316c6282dde620404ef24249a4db409
+Working-container baseline: Python 46 PASS; Node core scripts 22 PASS.
+Working-container maintenance gate: Python 80 PASS; Node core scripts 22 PASS;
+JavaScript syntax 29 files PASS; remaining HTML inline scripts 3 PASS.
+Browser smokes are required in the separate CI browser job. Check that job's
+commit-specific result; this file alone does not assert a GitHub/real-host PASS.
 
-Automated validation:
-- JavaScript syntax: 27 .js files PASS
-- Project Editor inline JavaScript: 2 script blocks PASS
-- Node regression tests: 22 PASS, 2 browser tests SKIP (Playwright unavailable)
-- Python pytest: 46 PASS
-- 0.7.10 three-mode crop static/core regression: PASS
-
-Browser validation note:
-- Browser pointer automation was not run because Playwright is unavailable in the Node test environment.
-- Final mouse feel and Forge Neo host integration should be checked with the included 0.7.10 manual test guide.
-
-Manual Forge Neo checks recommended:
-- Four-Panel Manga: Properties crop button, C key, double-click, Undo/Redo
-- Comic Layout: same crop routes plus Cover / Contain / scale / offset after cropping
-- Save/reload preserves per-panel image_crop
-- Replacing a panel image resets crop to full source
-- Single Image portrait -> landscape and landscape -> portrait replacement keeps 0.7.9 canvas-size behavior
+No Windows Forge Neo host/GPU test was performed by the working-container gate.
+Old 0.7.10 build results are preserved in docs/archive/0.7.10/BUILD_VALIDATION.txt.
+Reproduce with tools/validate_repo.py; see docs/VALIDATION.md.

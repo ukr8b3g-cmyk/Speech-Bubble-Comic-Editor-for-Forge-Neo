@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const core = require("../web/comic-panels.js");
+const core = require("../web/legacy/comic-panels.js");
 
 let nextId = 0;
 const makeId = () => String(++nextId);

@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const quickEditor = fs.readFileSync("web/speech-bubble-editor.html", "utf8");
-const projectEditor = fs.readFileSync("web/project-editor.html", "utf8");
+const projectEditor = require("./read_editor_source.cjs")("web/project-editor.html");
 const quickBridge = fs.readFileSync(
   "javascript/speech_bubble_forge.js",
   "utf8",

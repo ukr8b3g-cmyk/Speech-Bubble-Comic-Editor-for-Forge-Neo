@@ -1,6 +1,18 @@
 # Changelog
 
-## [0.7.10] - Unreleased
+## Maintenance - 2026-09-24
+
+- Share bounded request readers across JSON, image upload and multipart endpoints; oversized input returns 413, invalid JSON roots return 400.
+- Stage new project metadata and publish a complete directory; clean up failed attempts without deleting an existing project.
+- Accept the CR/LF permitted by image Data URL grammars while retaining strict Base64 validation. Check pixel limits before image allocation.
+- Restore unreachable overlap/radiant bubble decoration drawing in the Pillow compatibility renderer.
+- Separate shared asset catalogs from the lazy Pillow rendering path.
+- Isolate legacy standalone assets under `web/legacy/`, retain historical HTTP URLs, and remove unused legacy launcher UI factories.
+- Extract the current editor shell CSS/JavaScript without changing script order or project schemas.
+- Add portable validation and Ubuntu/Windows/Chromium CI, expand API/storage/render regressions, and archive superseded documentation.
+- This is a maintenance commit, not a new tagged release; the packaged version remains 0.7.10.
+
+## [0.7.10] - 2026-08-09 (repository release commit)
 
 ### Added
 
@@ -20,7 +32,7 @@
 
 - Crop editing is no longer limited to Single Image mode; Four-Panel Manga and Comic Layout panel images now retain and render non-destructive crop state.
 
-## [0.7.9] - Unreleased
+## [0.7.9] - Included in 0.7.10
 
 ### Added
 
@@ -40,7 +52,7 @@
 - Replacing a portrait Single Image with a landscape image (or the reverse) no longer leaves the page canvas stuck at the previous aspect ratio when resize is selected or safe to perform automatically.
 - Crop confirmation/reset and alignment/distribution are recorded as editor history operations for Undo / Redo.
 
-## [0.7.8] - Unreleased
+## [0.7.8] - Included in 0.7.10
 
 ### Changed
 
@@ -59,7 +71,7 @@
 - Quick Retouch cache/build identifiers are updated for 0.7.8.
 
 
-## [0.7.7] - Unreleased
+## [0.7.7] - Included in 0.7.10
 
 ### Changed
 
@@ -77,7 +89,7 @@
 - Inverting the current selection now feeds the inverted mask directly into newly created adjustment layer masks without subtracting a second protection mask.
 - Deselect and Color Range cancellation operate on the single current selection model, reducing cases where a hidden secondary mask made H/S scope appear reversed.
 
-## [0.7.6] - Unreleased
+## [0.7.6] - Included in 0.7.10
 
 ### Fixed
 
@@ -96,7 +108,7 @@
 - History capacity is increased to 24 steps and 384 MiB while retaining bounded memory behavior
 - Project Editor and Quick Retouch cache identifiers are updated for 0.7.6
 
-## [0.7.5] - Unreleased
+## [0.7.5] - Included in 0.7.10
 
 ### Added
 
@@ -119,7 +131,7 @@
 - Selection and protection overlays remain visually distinct: confirmed selection is blue/cyan, Color Range preview is purple, and protected pixels are red
 - Direct Base Image editing participates in Quick Retouch Undo / Redo snapshots together with visibility, lock state, and Protection Mask data
 
-## [0.7.4] - Unreleased
+## [0.7.4] - 2026-08-06 (integration commit)
 
 ### Fixed
 
@@ -129,7 +141,7 @@
 - Pointer-centered wheel zoom preserves the edited canvas position while using the independent pan offset
 - The Quick Retouch title and JavaScript API expose version 0.7.4 for runtime verification
 
-## [0.7.3] - Unreleased
+## [0.7.3] - Included in 0.7.4
 
 ### Added
 
@@ -145,7 +157,7 @@
 - Selection visualization can remain hidden while selection data is edited or replaced
 - Pointer capture loss, cancellation, window blur, and out-of-window release now terminate brush sizing and painting states safely
 
-## [0.7.2] - Unreleased
+## [0.7.2] - Included in 0.7.4
 
 ### Added
 
@@ -161,7 +173,7 @@
 - The Hand and Zoom option hints now document wheel and middle-button operation
 - The original image remains permanently protected as the non-destructive source layer
 
-## [0.7.1] - Unreleased
+## [0.7.1] - Included in 0.7.4
 
 ### Added
 
@@ -191,7 +203,7 @@
 - Clone Stamp, Healing Brush, blur/sharpen tools, gradients, and AI inpainting are not included in this initial version
 - The injected Chromium harness passes, but full interaction testing must still be completed inside an actual Forge Neo installation
 
-## [0.6.0] - Unreleased
+## [0.6.0] - Historical integration (no separate release date recorded)
 
 ### Added
 
@@ -219,7 +231,7 @@
 - External processing sources no longer inherit an unrelated image layer transform
 - Projects with missing image files open in repair mode instead of failing completely
 
-## [0.5.0] - Unreleased
+## [0.5.0] - Historical integration (no separate release date recorded)
 
 ### Added
 

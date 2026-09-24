@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-const editor = fs.readFileSync("web/project-editor.html", "utf8");
+const editor = require("./read_editor_source.cjs")("web/project-editor.html");
 const quickRetouch = fs.readFileSync("web/project/quick-retouch.js", "utf8");
 const quickRetouchCore = fs.readFileSync("web/project/quick-retouch-core.js", "utf8");
 const quickRetouchCss = fs.readFileSync("web/project/quick-retouch.css", "utf8");

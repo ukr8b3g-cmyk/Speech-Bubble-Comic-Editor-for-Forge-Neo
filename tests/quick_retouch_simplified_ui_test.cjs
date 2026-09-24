@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const js = fs.readFileSync("web/project/quick-retouch.js", "utf8");
 const css = fs.readFileSync("web/project/quick-retouch.css", "utf8");
-const editor = fs.readFileSync("web/project-editor.html", "utf8");
+const editor = require("./read_editor_source.cjs")("web/project-editor.html");
 
 assert.match(js, /BUILD_VERSION = "0\.7\.10"/);
 assert.match(editor, /quick-retouch-078-compact-controls-1/);

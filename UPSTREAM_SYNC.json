@@ -25,6 +25,8 @@
     "web/project/background-removal.js",
     "web/project/comic-panels.js",
     "web/project/general-comic-core.js",
-    "web/project/image-crop-dialog.js"
+    "web/project/image-crop-dialog.js",
+    "web/project/editor-shell.js",
+    "web/project/editor-shell.css"
   ]
 }

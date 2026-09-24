@@ -445,7 +445,7 @@ script_callbacks.on_ui_settings(_on_ui_settings, name="speech-bubble-forge-setti
 
 
 class Script(scripts.Script):
-    """Hidden loader; all interaction is provided by the gallery icon and popup editor."""
+    """Hidden loader; the Project Editor bridge owns the current launcher UI."""
 
     setup_for_ui_only = True
 
