@@ -37,10 +37,18 @@ jobs:
           git checkout --detach 364b8426d316c6282dde620404ef24249a4db409
           test -z "$(git status --porcelain)"
           python "$RUNNER_TEMP/audit-apply.py"
+          python - <<'PY'
+          from pathlib import Path
+          for name in ['web/project/editor-shell.js', 'web/project/editor-shell.css']:
+              p = Path(name)
+              p.write_text(p.read_text(encoding='utf-8').rstrip() + '\n', encoding='utf-8')
+          p = Path('tools/validate_repo.py')
+          p.write_text(p.read_text(encoding='utf-8').replace('["git", "diff", "--check"]', '["git", "diff", "--check", "HEAD"]'), encoding='utf-8')
+          PY
           git add -A
-          test "$(git write-tree)" = 2b7e4e2ba568979785a1ef658d103da6bcb30e3d
-          # The final workflow is installed by the authorized connector after
-          # this candidate passes; the workflow token only publishes code.
+          test "$(git write-tree)" = ea1ac6be6dcadd766022b9de8689740f11a8c650
+          # Only code is published with this limited workflow token. The
+          # authorized connector installs permanent CI after validation.
           cp .github/workflows/validate.yml "$RUNNER_TEMP/validate.yml"
           git rm --cached .github/workflows/validate.yml
           rm .github/workflows/validate.yml
