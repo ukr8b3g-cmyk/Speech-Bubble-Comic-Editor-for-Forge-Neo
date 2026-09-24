@@ -6,6 +6,14 @@ Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し�
 
 > **Local post-production comic editor for Forge-generated and imported artwork.**
 
+## 2026-09-24 保守更新
+
+JSON APIの受信上限を統一し、プロジェクト新規作成は一時ディレクトリーで完成させてから公開する方式へ変更しました。Data URLのCR/LF、互換Pillow出力の吹き出し装飾も修正しています。既存プロジェクト、保存先、画像・プリセットの形式は変更していません。
+
+現行画面のCSS/JavaScriptを `web/project/editor-shell.css` / `editor-shell.js` へ分離しました。旧Editorの専用資産は `web/legacy/` へ隔離していますが、旧HTML・資産URLと互換APIは引き続き利用できます。追加の必須ランタイムパッケージはありません。
+
+構造と互換範囲は [ARCHITECTURE](docs/ARCHITECTURE.md)、検証方法と実機チェック項目は [VALIDATION](docs/VALIDATION.md)、過去の検証記録は [Archive](docs/archive/README.md) を参照してください。
+
 ## 主な機能
 
 - 「一枚画像」「4コマ漫画」「コミック」の3ワークスペース
@@ -48,10 +56,12 @@ Stability Matrixのパッケージ場所を変更している場合は、実際�
 
 ```powershell
 cd D:\StabilityMatrix\Data\Packages\Forge-Neo\extensions\Speech-Bubble-Comic-Editor-for-Forge-Neo
-git pull
+git pull --ff-only
 ```
 
 フォルダー名を`sd-webui-speech-bubble-forge-neo`として既に導入している場合も、そのまま更新できます。
+
+更新前に `git rev-parse --show-toplevel` がこの拡張のフォルダーを示すことと、`git status --short` の内容を確認してください。ZIP導入などで拡張自身に `.git` がない場合、Gitが親のForgeリポジトリを対象にすることがあります。ローカル変更・未完了マージ・履歴分岐がある場合は、内容を保護してから解消してください。通常更新に `reset --hard` は使用しません。
 
 ## 起動
 
@@ -100,6 +110,10 @@ Canvas背景の上へ複数の画像や素材を重ねるモードです。背�
 - `Alt`を押したまま離す: 自動吸着を一時的に無効化
 
 青い境界ガイドとハンドルは編集表示で、画像書き出しには含まれません。
+
+### 非破壊画像クロップ
+
+一枚画像・4コマ・コミックのすべてで、画像Propertiesの「クロップを編集／リセット」を利用できます。画像選択中の `C` キーやダブルクリックからも開始できます。元画像は変更せず、クロップ状態をレイヤーまたはコマ画像へ保存します。確定・キャンセル・リセット、Undo／Redoに対応します。一枚画像の回転中クロップには制限があるため、0°へ戻してから編集してください。
 
 ## 素材とLayers
 
@@ -172,7 +186,7 @@ Quick Retouchウィンドウは、通常表示時の位置と大きさ、およ�
 - 目アイコンでCanvas上の表示だけをON／OFF
 
 
-選択表示を非表示にしても、選択データは保持されます。
+選択表示を非表示にしても、選択データは保持されます。独立した旧「保護範囲」はありません。`Q` のクイックマスクでは赤い領域が選択外となり、ブラシで追加、消しゴムで削除できます。
 
 Shiftは追加、Altは削除、Shift＋Altは共通部分として一時的に動作し、押している間は上部の選択方法ボタンも連動して強調されます。
 
@@ -333,43 +347,12 @@ Install it under `Forge-Neo/extensions`, restart Forge Neo, expand **Comic Panel
 
 The optional isnet-anime model is not bundled. It is downloaded only after the user approves the first-use prompt or clicks **Download Model** in Forge Settings. Processing remains local.
 
+## Development / validation
+
+The current editor uses `web/project-editor.html` and its split shell assets. Legacy editor URLs, image/standalone layouts, user assets and Pillow layout export remain compatible; only unreachable legacy launcher UI factories were removed. Shared frame/SFX catalogs live in `speech_bubble_forge/asset_catalog.py` and do not eagerly load the Pillow drawing implementation.
+
+CI runs Python tests, JavaScript syntax, Node contracts and upstream exact-file hash checks on Ubuntu and Windows. A separate Chromium job requires browser smokes rather than treating an unavailable browser as a pass. These checks do not replace a Windows Forge Neo host/GPU test. See [validation instructions](docs/VALIDATION.md).
+
 ## ライセンス / License
 
 [MIT License](LICENSE)
-
-### Quick Retouch 0.7.6: 履歴・選択・開始時復元
-
-- Undo / Redoは、画像・レイヤー・選択範囲・保護範囲・色域候補・表示状態・ズーム・Canvas位置・比較状態をまとめて復元します。
-- `Ctrl+D`または選択範囲パネルの「解除」で、確定選択と色域選択候補をまとめて解除します。保護範囲は専用の「保護を解除」で管理します。
-- 色域選択の候補表示中に`Esc`を押すと、紫色の候補だけをキャンセルして確定済み選択へ戻ります。
-- 「開始時に戻す」はQuick Retouchを開いた時点の全状態を復元します。実行直後はUndoでリセット前へ戻せます。
-- 「編集前を表示（長押し）」と、比較なし／左右分割／上下分割は同じ開始時画像を参照します。
-- 投げ縄などで選択して反転した後にH/S・B/C・カーブを追加すると、反転済み選択から保護範囲を差し引いたマスクが調整レイヤーへコピーされます。
-
-
-### Quick Retouch 0.7.7: 選択UI整理
-
-- 選択範囲は1種類に統一し、独立した「保護範囲」は廃止しました。
-- `Q` のクイックマスクでは赤い部分が選択外です。ブラシで追加、消しゴムで削除できます。
-- 選択ツールは「投げ縄 → 矩形 → 自動選択（魔法の杖） → 色域選択」の順です。
-- ペイント／ベース画像の不透明度などの基本設定はレイヤーパネルへ統合し、Properties は H/S・B/C・カーブ・調整マスク専用です。
-- H/S の色相・彩度・明度、B/C の明るさ・コントラストは視覚的なグラデーション付きスライダーです。
-- 画像入力は背景削除／コミック変換と同じアコーディオン型の画像候補・ドラッグ＆ドロップ・ファイル選択UIです。
-
-
-### Comic Panel Editor 0.7.10: 3モード画像クロップ
-
-- 一枚画像に加え、4コマとComicのコマ画像でもPropertiesから非破壊クロップを編集できます。
-- 4コマ／Comicのクロップはコマ画像ごとに保存され、元画像素材自体は変更しません。
-- クロップ編集は専用オーバーレイで8ハンドル、枠移動、確定／キャンセル／リセット、Enter／Escに対応します。
-- 画像選択中はCキーまたは画像ダブルクリックからも同じクロップ編集を開けます。
-- 一枚画像の縦長→横長／横長→縦長差し替え時のCanvas追従は0.7.9の動作を維持します。
-
-### Quick Retouch 0.7.8: コンパクト操作・画像追加レスポンス改善
-
-- Quick Retouch内のチェックボックスを16×16pxへ統一しました。ラベル部分を含むクリック領域は維持します。
-- ブラシの描画色をサイズ・硬さ・不透明度と同じ横一列へ整理し、消しゴムでは不要な描画色を表示しません。
-- 比較表示は「なし／左右／上下」の3ボタン、ズームは「全体／−／%／＋」のコンパクト表示です。
-- 自動選択は「隣接部分のみ／表示参照／Anti-alias」、色域選択は「新規／追加／削除／絞り込み」と即時反映に整理しました。
-- レイヤーの未実装「合成」コントロールは非表示にし、不透明度だけを表示します。
-- Forge選択画像の追加時はUIへ処理状態を返し、二重クリックを防止しつつ、画像トレイとCanvasの中間再描画を減らします。

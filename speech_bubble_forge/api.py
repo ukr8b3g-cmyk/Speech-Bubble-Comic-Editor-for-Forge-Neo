@@ -23,12 +23,13 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 
 from . import __version__
+from .request_limits import read_bounded_body, read_bounded_json
 from .background_removal_routes import register_background_removal_routes
 from .diagnostics import run_self_diagnostics
 from .font_catalog import font_by_id, public_fonts
 from .presets import read_user_presets, update_user_presets
 from .project_api import register_project_routes
-from .renderer import get_frame_asset_catalog, get_sfx_asset_catalog, render_composite
+from .asset_catalog import get_frame_asset_catalog, get_sfx_asset_catalog
 from .settings import (
     allowed_output_roots,
     data_root,
@@ -49,6 +50,11 @@ EXTENSION_ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = EXTENSION_ROOT / "web"
 _MAX_IMAGE_BYTES = 96 * 1024 * 1024
 _MAX_LAYOUT_CHARS = 8 * 1024 * 1024
+# JSON escaping can expand a layout character to six bytes. Preserve the
+# existing layout allowance while bounding its transport representation.
+_MAX_LAYOUT_REQUEST_BYTES = 6 * _MAX_LAYOUT_CHARS + 64 * 1024
+_MAX_DIAGNOSTIC_REQUEST_BYTES = 64 * 1024
+_MAX_EXPORT_JSON_BYTES = _MAX_LAYOUT_REQUEST_BYTES + 2 * (4 * ((_MAX_IMAGE_BYTES + 2) // 3) + 1024)
 _MAX_EXPORT_MULTIPART_BYTES = _MAX_LAYOUT_CHARS + (_MAX_IMAGE_BYTES * 2) + 512 * 1024
 _MAX_LAYOUT_ELEMENTS = 2000
 _MAX_LAYOUT_COLLECTION_ITEMS = 10000
@@ -83,6 +89,12 @@ _CLIENT_EXPORT_TOKEN_RE = re.compile(r"^[a-f0-9]{32}$")
 _CLIENT_EXPORT_MAX_AGE = 60 * 60
 
 
+def render_composite(*args, **kwargs):
+    """Load the Pillow compatibility path only when it is explicitly requested."""
+    from .renderer import render_composite as render
+    return render(*args, **kwargs)
+
+
 def preset_path() -> Path:
     return data_root() / "config" / "speech-bubble-forge" / "presets.json"
 
@@ -93,6 +105,8 @@ def _decode_image_bytes(raw, field_name="image"):
     try:
         image = Image.open(io.BytesIO(raw))
         image_format = str(image.format or "").upper()
+        if image.width * image.height > 100_000_000:
+            raise ValueError("Image dimensions are too large")
         image.load()
         image = ImageOps.exif_transpose(image).convert("RGBA")
     except Exception as error:
@@ -113,7 +127,11 @@ def _decode_data_url(value, field_name="image_data_url"):
     if not match:
         raise ValueError("Unsupported image data URL")
     try:
-        raw = base64.b64decode(match.group(2), validate=True)
+        # CR/LF are the only whitespace accepted by the data-URL grammar.
+        encoded = match.group(2).replace("\r", "").replace("\n", "")
+        if len(encoded) > 4 * ((_MAX_IMAGE_BYTES + 2) // 3):
+            raise ValueError("Encoded image is too large")
+        raw = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as error:
         raise ValueError("Invalid base64 image") from error
     return _decode_image_bytes(raw, field_name)[0]
@@ -168,24 +186,7 @@ def _browser_canvas_export(payload, layout, save_overlay):
 
 
 async def _read_bounded_request_body(request: Request, maximum_bytes: int) -> bytes:
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            declared_length = int(content_length)
-        except ValueError as error:
-            raise ValueError("Invalid Content-Length header") from error
-        if declared_length < 0:
-            raise ValueError("Invalid Content-Length header")
-        if declared_length > maximum_bytes:
-            raise ValueError("Export request body is too large")
-    body = bytearray()
-    async for chunk in request.stream():
-        body.extend(chunk)
-        if len(body) > maximum_bytes:
-            raise ValueError("Export request body is too large")
-    if not body:
-        raise ValueError("Export request body is empty")
-    return bytes(body)
+    return await read_bounded_body(request, maximum_bytes, allow_empty=False)
 
 
 def _parse_export_multipart(content_type: str, raw: bytes) -> dict[str, bytes]:
@@ -228,7 +229,7 @@ def _multipart_part(parts: dict[str, bytes], name: str, limit: int, required: bo
 async def _export_request_payload(request):
     content_type = str(request.headers.get("content-type") or "")
     if not content_type.lower().startswith("multipart/form-data"):
-        return await request.json()
+        return await _bounded_json_request(request, _MAX_EXPORT_JSON_BYTES)
     raw = await _read_bounded_request_body(request, _MAX_EXPORT_MULTIPART_BYTES)
     parts = _parse_export_multipart(content_type, raw)
     metadata_raw = _multipart_part(
@@ -557,24 +558,7 @@ _USER_ASSET_REQUEST_MAX_BYTES = max(6 * 1024 * 1024, (USER_ASSET_MAX_UPLOAD_BYTE
 
 
 async def _bounded_json_request(request: Request, maximum_bytes: int = _USER_ASSET_REQUEST_MAX_BYTES):
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            if int(content_length) > maximum_bytes:
-                raise HTTPException(status_code=413, detail="Request body is too large")
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
-    body = bytearray()
-    async for chunk in request.stream():
-        body.extend(chunk)
-        if len(body) > maximum_bytes:
-            raise HTTPException(status_code=413, detail="Request body is too large")
-    if not body:
-        return {}
-    try:
-        return json.loads(body)
-    except (json.JSONDecodeError, UnicodeDecodeError) as error:
-        raise HTTPException(status_code=400, detail="Invalid JSON request") from error
+    return await read_bounded_json(request, maximum_bytes)
 
 
 def _user_asset_http_error(error: UserAssetError) -> HTTPException:
@@ -627,6 +611,17 @@ def register_routes(app):
     layout_root().mkdir(parents=True, exist_ok=True)
     _client_export_root().mkdir(parents=True, exist_ok=True)
     _cleanup_stale_client_exports()
+
+    # Pre-0.6 clients may still request these standalone assets by their old URL.
+    for filename in ("comic-editor.js", "comic-panels.js", "comic-editor.css"):
+        path = f"/speech-bubble-forge/static/{filename}"
+        if not _route_exists(app, path, "GET"):
+            def legacy_asset_endpoint(name):
+                asset_path = WEB_ROOT / "legacy" / name
+                async def endpoint():
+                    return FileResponse(asset_path)
+                return endpoint
+            app.add_api_route(path, legacy_asset_endpoint(filename), methods=["GET"], include_in_schema=False)
 
     if not _route_exists(app, "/speech-bubble-forge/static"):
         app.mount(
@@ -773,10 +768,7 @@ def register_routes(app):
         )
 
     async def self_diagnostics(request: Request):
-        try:
-            payload = await request.json()
-        except json.JSONDecodeError:
-            payload = {}
+        payload = await _bounded_json_request(request, _MAX_DIAGNOSTIC_REQUEST_BYTES)
         return run_self_diagnostics(str(payload.get("frontend_version") or ""))
 
     async def get_presets():
@@ -784,7 +776,7 @@ def register_routes(app):
 
     async def post_presets(request: Request):
         try:
-            payload = await request.json()
+            payload = await _bounded_json_request(request, _MAX_LAYOUT_REQUEST_BYTES)
             presets = update_user_presets(preset_path(), payload)
             return {"version": 1, "presets": presets}
         except (ValueError, OSError, json.JSONDecodeError) as error:
@@ -821,7 +813,7 @@ def register_routes(app):
     async def put_layout(fingerprint: str, request: Request):
         try:
             document_id = _safe_document_id(fingerprint)
-            payload = await request.json()
+            payload = await _bounded_json_request(request, _MAX_LAYOUT_REQUEST_BYTES)
             normalized, parsed = _validate_layout(payload.get("layout_json", "{}"))
             wrapper = {
                 "version": 1,
@@ -1009,6 +1001,10 @@ def register_routes(app):
             if client_token:
                 _remove_client_export(client_token)
             raise HTTPException(status_code=400, detail=str(error)) from error
+        except HTTPException:
+            if client_token:
+                _remove_client_export(client_token)
+            raise
         except Exception as error:
             if client_token:
                 _remove_client_export(client_token)

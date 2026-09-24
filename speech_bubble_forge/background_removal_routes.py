@@ -8,6 +8,7 @@ from .background_removal_service import (
     BackgroundRemovalService,
 )
 from .settings import data_root
+from .request_limits import read_bounded_body
 
 
 def _route_exists(app, path: str, method: str) -> bool:
@@ -20,23 +21,12 @@ def _route_exists(app, path: str, method: str) -> bool:
 
 
 async def _bounded_body(request: Request, maximum: int) -> bytes:
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            declared = int(content_length)
-        except ValueError as error:
-            raise ValueError("Invalid Content-Length") from error
-        if declared < 0 or declared > maximum:
-            raise ValueError("画像が空、またはサイズが大きすぎます。")
-    output = bytearray()
-    async for chunk in request.stream():
-        output.extend(chunk)
-        if len(output) > maximum:
-            raise ValueError("画像が空、またはサイズが大きすぎます。")
-    return bytes(output)
+    return await read_bounded_body(request, maximum)
 
 
 def _http_error(error: Exception) -> HTTPException:
+    if isinstance(error, HTTPException):
+        return error
     if isinstance(error, FileNotFoundError):
         return HTTPException(status_code=409, detail=str(error))
     if isinstance(error, (ValueError, RuntimeError, OSError)):

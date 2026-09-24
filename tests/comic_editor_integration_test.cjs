@@ -2,11 +2,11 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 const html = fs.readFileSync("web/speech-bubble-editor.html", "utf8");
-const editor = fs.readFileSync("web/comic-editor.js", "utf8");
-const css = fs.readFileSync("web/comic-editor.css", "utf8");
+const editor = fs.readFileSync("web/legacy/comic-editor.js", "utf8");
+const css = fs.readFileSync("web/legacy/comic-editor.css", "utf8");
 
 for (const asset of ["comic-editor.css", "comic-panels.js", "comic-editor.js"]) {
-  assert.ok(html.includes(`./${asset}`), `${asset} must be loaded by the Editor`);
+  assert.ok(html.includes(`./legacy/${asset}`), `${asset} must be loaded by the Editor`);
 }
 
 assert.match(html, /comicEditor=window\.SpeechBubbleComicEditor\.create/);

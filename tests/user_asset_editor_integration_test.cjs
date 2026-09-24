@@ -50,7 +50,8 @@ assert.match(userAssets, /self\.archive_assets_dir/);
 // V1 must not introduce another popup/window-launch implementation in the editor.
 assert.equal((editor.match(/window\.open\(/g) || []).length, 0);
 assert.ok((launcher.match(/window\.open\(/g) || []).length >= 1, "existing launcher remains responsible for window.open");
-assert.match(launcher, /speech-bubble\/forge-panel-state:v1/);
-assert.match(launcher, /details\.open = quickPanelOpenState\(tabName\)/);
+assert.match(launcher, /speech-bubble\/editor\/window-state:v1/);
+assert.match(launcher, /function requestEditorFocus/);
+assert.doesNotMatch(launcher, /function addQuickPanel/);
 
 console.log("user_asset_editor_integration_test: OK");

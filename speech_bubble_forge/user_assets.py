@@ -218,7 +218,10 @@ def _decode_image_data_url(value) -> DecodedUserImage:
         raise UserAssetError("Only PNG and static WebP are supported", "unsupported_format")
     declared_format = match.group(1).upper()
     try:
-        raw = base64.b64decode(match.group(2), validate=True)
+        encoded = match.group(2).replace("\r", "").replace("\n", "")
+        if len(encoded) > 4 * ((USER_ASSET_MAX_UPLOAD_BYTES + 2) // 3):
+            raise UserAssetError("Image file is larger than 4 MB", "file_too_large")
+        raw = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as error:
         raise UserAssetError("Image data is not valid base64", "invalid_image_data") from error
     if not raw:

@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from .project_schema import ProjectSchemaError, normalize_project_id
 from .project_store import MAX_IMAGE_BYTES, ProjectStore
 from .settings import data_root
+from .request_limits import read_bounded_body, read_bounded_json
 
 MAX_PROJECT_REQUEST_BYTES = 32 * 1024 * 1024
 PROJECT_API_VERSION = 1
@@ -33,36 +34,16 @@ def _route_exists(app, path: str, method: str) -> bool:
 
 
 async def _bounded_body(request: Request, maximum: int) -> bytes:
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            declared = int(content_length)
-        except ValueError as error:
-            raise ProjectSchemaError("Invalid Content-Length") from error
-        if declared < 0 or declared > maximum:
-            raise ProjectSchemaError("Request body is too large")
-    output = bytearray()
-    async for chunk in request.stream():
-        output.extend(chunk)
-        if len(output) > maximum:
-            raise ProjectSchemaError("Request body is too large")
-    return bytes(output)
+    return await read_bounded_body(request, maximum)
 
 
 async def _bounded_json(request: Request) -> dict:
-    raw = await _bounded_body(request, MAX_PROJECT_REQUEST_BYTES)
-    if not raw:
-        return {}
-    try:
-        value = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ProjectSchemaError("Request JSON is invalid") from error
-    if not isinstance(value, dict):
-        raise ProjectSchemaError("Request JSON must be an object")
-    return value
+    return await read_bounded_json(request, MAX_PROJECT_REQUEST_BYTES)
 
 
 def _http_error(error: Exception) -> HTTPException:
+    if isinstance(error, HTTPException):
+        return error
     if isinstance(error, FileNotFoundError):
         return HTTPException(status_code=404, detail=str(error))
     if isinstance(error, FileExistsError):

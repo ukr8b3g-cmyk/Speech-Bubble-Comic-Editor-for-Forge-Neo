@@ -1,9 +1,10 @@
+// Legacy session/theme bridge and host Settings link.
+// The current launcher is speech_bubble_project_bridge.js.
 (() => {
     "use strict";
 
     const EDITOR_WINDOW_NAME = "speech_bubble_forge_editor";
     const EDITOR_WINDOW_STATE_KEY = "speech-bubble/editor/window-state:v1";
-    const QUICK_PANEL_STATE_KEY = "speech-bubble/forge-panel-state:v1";
     const DEFAULT_SETTINGS = Object.freeze({
         output_dir: "outputs/speech-bubble-forge",
         fixed_output_dir: "outputs/speech-bubble-forge",
@@ -44,26 +45,6 @@
     let focusRetryTimers = [];
 
     const appRoot = () => (typeof gradioApp === "function" ? gradioApp() : document);
-
-    function quickPanelOpenState(tabName) {
-        try {
-            const saved = JSON.parse(localStorage.getItem(QUICK_PANEL_STATE_KEY) || "{}");
-            return saved?.[tabName] === true;
-        } catch {
-            return false;
-        }
-    }
-
-    function saveQuickPanelOpenState(tabName, open) {
-        try {
-            const saved = JSON.parse(localStorage.getItem(QUICK_PANEL_STATE_KEY) || "{}");
-            const state = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
-            state[tabName] = Boolean(open);
-            localStorage.setItem(QUICK_PANEL_STATE_KEY, JSON.stringify(state));
-        } catch {
-            // Panel state is optional.
-        }
-    }
 
     function buttonWithText(scope, text, selectors) {
         if (!scope) return null;
@@ -717,121 +698,6 @@
                 break;
         }
     });
-
-    function iconMarkup() {
-        return `<svg class="speech-bubble-forge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-          <path d="M4.25 4.5h11.5A3.25 3.25 0 0 1 19 7.75v5A3.25 3.25 0 0 1 15.75 16H9.2l-4.45 3.1.8-3.55A3.25 3.25 0 0 1 1 12.75v-5A3.25 3.25 0 0 1 4.25 4.5Z"/>
-          <path stroke-width="1.75" d="m13.5 14.8 5.65-5.65 1.7 1.7-5.65 5.65-2.45.75.75-2.45Z"/>
-          <path stroke-width="1.75" d="m18.2 10.1 1.7 1.7"/>
-        </svg>`;
-    }
-
-    function directChildOf(parent, node) {
-        let current = node;
-        while (current && current.parentElement && current.parentElement !== parent) current = current.parentElement;
-        return current?.parentElement === parent ? current : null;
-    }
-
-    function findScriptAnchor(settings, tabName) {
-        const root = appRoot();
-        const selectors = [
-            `#script_${tabName}_script_container`,
-            `#${tabName}_script_container`,
-            `#script_${tabName}_script`,
-            `#${tabName}_script`,
-            `[id*="${tabName}"][id*="script"][id*="container"]`,
-        ];
-        for (const selector of selectors) {
-            const candidate = root.querySelector(selector);
-            if (candidate && settings.contains(candidate)) return directChildOf(settings, candidate) || candidate;
-        }
-        const labels = Array.from(settings.querySelectorAll("label, span, .label-wrap"));
-        const label = labels.find((element) => element.textContent?.trim() === "Script");
-        if (!label) return null;
-        const container = label.closest(".gradio-dropdown, .block, .form, .gradio-row, .gradio-column") || label.parentElement;
-        return directChildOf(settings, container) || container;
-    }
-
-    function placeQuickPanel(settings, details, anchor) {
-        if (anchor && anchor !== details && anchor.parentElement === settings) {
-            const alreadyPlaced =
-                details.parentElement === settings &&
-                details.nextElementSibling === anchor;
-            if (!alreadyPlaced) settings.insertBefore(details, anchor);
-        } else if (details.parentElement !== settings) {
-            settings.appendChild(details);
-        }
-    }
-
-    function addGalleryButton(tabName) {
-        const root = appRoot();
-        const row = root.querySelector(`#image_buttons_${tabName}`);
-        if (!row || row.querySelector(`[data-speech-bubble-forge="${tabName}"]`)) return;
-
-        const template = row.querySelector("button");
-        const button = document.createElement("button");
-        button.type = "button";
-        button.id = `${tabName}_speech_bubble_editor`;
-        button.dataset.speechBubbleForge = tabName;
-        button.className = template?.className || "";
-        button.classList.add("speech-bubble-forge-tool");
-        button.title = "Speech Bubbleで編集";
-        button.setAttribute("aria-label", "Speech Bubbleで編集");
-        button.innerHTML = iconMarkup();
-        button.addEventListener("click", (event) => handleOpenSelected(event, tabName));
-        row.appendChild(button);
-    }
-
-    function addQuickPanel(tabName) {
-        const root = appRoot();
-        const settings = root.querySelector(`#${tabName}_settings`);
-        if (!settings) return;
-
-        let details = settings.querySelector(`[data-speech-bubble-panel="${tabName}"]`);
-        if (!details) {
-            details = document.createElement("details");
-            details.className = "speech-bubble-forge-panel";
-            details.dataset.speechBubblePanel = tabName;
-            details.open = quickPanelOpenState(tabName);
-            details.innerHTML = `
-              <summary>Comic Panel Editor</summary>
-              <div class="speech-bubble-forge-panel-body">
-                <div class="speech-bubble-forge-actions">
-                  <div class="speech-bubble-forge-action-row">
-                    <button type="button" data-action="gallery">選択中の生成画像を開く <span aria-hidden="true">↗</span></button>
-                    <span class="speech-bubble-forge-action-description">Forgeで選択中の生成画像を、画像ごとの編集状態で開きます。</span>
-                  </div>
-                  <div class="speech-bubble-forge-action-row">
-                    <button type="button" data-action="blank">単体エディターを開く <span aria-hidden="true">↗</span></button>
-                    <span class="speech-bubble-forge-action-description">生成画像とは別の編集領域です。新規または前回の単体編集を開き、ローカル画像を編集できます。</span>
-                  </div>
-                </div>
-                <div class="speech-bubble-forge-meta-row">
-                  <p class="speech-bubble-forge-note">※ どちらも別ウィンドウで開きます。</p>
-                  <button type="button" class="speech-bubble-forge-settings-link" data-action="settings">Comic Panel Editor 設定を開く <span aria-hidden="true">→</span></button>
-                  <div class="speech-bubble-forge-status" data-speech-bubble-status="${tabName}" data-level="info" aria-live="polite">Editor: Ready</div>
-                </div>
-              </div>`;
-            details.addEventListener("toggle", () => saveQuickPanelOpenState(tabName, details.open));
-        }
-
-        const galleryAction = details.querySelector('[data-action="gallery"]');
-        const blankAction = details.querySelector('[data-action="blank"]');
-        const settingsAction = details.querySelector('[data-action="settings"]');
-        if (galleryAction) galleryAction.onclick = (event) => handleOpenSelected(event, tabName);
-        if (blankAction) {
-            blankAction.onclick = (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setPanelStatus(tabName, "Editorを開いています…", "info");
-                openBlank(tabName);
-            };
-        }
-        if (settingsAction) settingsAction.onclick = openSpeechBubbleSettings;
-
-        const anchor = findScriptAnchor(settings, tabName);
-        placeQuickPanel(settings, details, anchor);
-    }
 
     function refreshPanelState(tabName) {
         const root = appRoot();

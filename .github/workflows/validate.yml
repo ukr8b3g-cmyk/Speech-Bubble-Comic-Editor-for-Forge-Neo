@@ -1,0 +1,77 @@
+name: Repository validation
+on:
+  push:
+    branches: [main, 'maintenance/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.10'
+          - os: windows-latest
+            python: '3.13'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install Japanese font used by renderer tests
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - run: python -m pip install -r requirements-ci.txt
+      - run: python tools/validate_repo.py
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: core-${{ matrix.os }}
+          path: artifacts/
+          retention-days: 7
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install Japanese font used by renderer tests
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - run: python -m pip install -r requirements-ci.txt
+      - name: Install the existing optional browser test harness
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sbe-browser" --no-save playwright
+          "$RUNNER_TEMP/sbe-browser/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/sbe-browser/node_modules" >> "$GITHUB_ENV"
+      - run: python tools/validate_repo.py --browser
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: browser-validation
+          path: artifacts/
+          retention-days: 7

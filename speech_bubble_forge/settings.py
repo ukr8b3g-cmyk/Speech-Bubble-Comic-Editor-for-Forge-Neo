@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -181,10 +182,13 @@ def rebuild_all_caches() -> dict:
 
     try:
         from .font_catalog import clear_font_cache
-        from .renderer import rebuild_asset_caches
+        from .asset_catalog import rebuild_asset_caches
 
         clear_font_cache()
         counts = rebuild_asset_caches()
+        renderer = sys.modules.get("speech_bubble_forge.renderer")
+        if renderer is not None:
+            renderer.clear_render_caches()
         with _CACHE_LOCK:
             _CACHE_VERSION = str(time.time_ns())
             _CACHE_STATUS = (

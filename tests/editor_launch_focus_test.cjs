@@ -15,8 +15,8 @@ assert(source.includes('case "speech_bubble:editor_ready":'));
 assert(source.includes("requestEditorFocus(event.source, latestOpenRequestId);"));
   assert(source.includes('editor.searchParams.set("v", "20260726-01");'));
 assert(source.includes("function openSpeechBubbleSettings(event)"));
-assert(source.includes('data-action="settings"'));
-assert(source.includes('class="speech-bubble-forge-meta-row"'));
+assert(!source.includes("function addQuickPanel("));
+assert(!source.includes("function addGalleryButton("));
 assert(source.includes('buttonWithText(settings, "Comic Panel Editor"'));
 
 console.log("editor_launch_focus_test: OK");

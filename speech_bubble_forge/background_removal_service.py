@@ -254,6 +254,8 @@ class BackgroundRemovalService:
             raise ValueError("画像が空、またはサイズが大きすぎます。")
         try:
             source = Image.open(io.BytesIO(raw))
+            if source.width * source.height > MAX_IMAGE_PIXELS:
+                raise ValueError("画像の解像度が大きすぎます。")
             source.load()
             source = ImageOps.exif_transpose(source).convert("RGB")
         except Exception as error:
