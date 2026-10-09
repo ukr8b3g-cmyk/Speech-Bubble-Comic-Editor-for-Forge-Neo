@@ -21,6 +21,7 @@ def main():
             "speech_bubble_forge_language": "en",
             "speech_bubble_forge_auto_save": False,
             "speech_bubble_forge_prompt_export_location": False,
+            "speech_bubble_forge_prompt_export_location_v2": False,
             "speech_bubble_forge_use_forge_output_dir": False,
         }
         settings.get_setting = lambda name, default: values.get(name, default)

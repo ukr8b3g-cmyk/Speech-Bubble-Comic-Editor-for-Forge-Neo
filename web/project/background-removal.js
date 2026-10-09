@@ -26,7 +26,7 @@
 
   async function responseError(response, fallback) {
     const payload = await response.json().catch(() => ({}));
-    return new Error(payload.detail || fallback || `Request failed (${response.status})`);
+    return new Error(root.SpeechBubbleUiMessages?.error(payload.detail, isEnglish() ? "en" : "ja") || fallback || `Request failed (${response.status})`);
   }
 
   function morphMask(data, width, height, amount) {
@@ -1095,7 +1095,7 @@
         cancel.hidden = true;
         download.hidden = true;
         progress.hidden = true;
-        output.textContent = model.reason || model.error || text.aiUnavailable[isEnglish() ? 1 : 0];
+        output.textContent = root.SpeechBubbleUiMessages?.error(model.reason || model.error, isEnglish() ? "en" : "ja") || model.reason || model.error || text.aiUnavailable[isEnglish() ? 1 : 0];
         return;
       }
       progress.hidden = false;
@@ -1103,7 +1103,7 @@
       download.hidden = model.state === "downloading" || model.ready;
       if (model.ready) output.textContent = tr("isnet-anime：準備完了", "isnet-anime: Ready");
       else if (model.state === "downloading") output.textContent = `${tr("取得中", "Downloading")} ${Math.round(Number(model.progress || 0) * 100)}%`;
-      else output.textContent = model.error || tr("未取得（約168 MB）", "Not downloaded (about 168 MB)");
+      else output.textContent = root.SpeechBubbleUiMessages?.error(model.error, isEnglish() ? "en" : "ja") || model.error || tr("未取得（約168 MB）", "Not downloaded (about 168 MB)");
     }
 
     async function startModelDownload() {
@@ -1125,7 +1125,7 @@
       const model = await modelStatus();
       displayModelStatus(model);
       if (model.ready) return model;
-      if (model.state === "error") throw new Error(model.error || tr("モデルを取得できませんでした。", "Model download failed."));
+      if (model.state === "error") throw new Error(root.SpeechBubbleUiMessages?.error(model.error, isEnglish() ? "en" : "ja") || model.error || tr("モデルを取得できませんでした。", "Model download failed."));
       if (model.state !== "downloading") return model;
       await new Promise((resolve) => { pollTimer = setTimeout(resolve, 300); });
       return waitForModel();

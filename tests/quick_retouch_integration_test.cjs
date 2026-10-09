@@ -59,7 +59,7 @@ assert.match(quickRetouchCss, /data-tool-color-range="apply"[\s\S]*#287a48/);
 assert.match(quickRetouch, /selectionOperationForModifiers/);
 assert.match(quickRetouch, /colorSampleModeForModifiers/);
 assert.match(quickRetouch, /brushRingFrame/);
-assert.match(quickRetouch, /BUILD_VERSION = "0\.7\.10"/);
+assert.match(quickRetouch, /BUILD_VERSION = "1\.0\.0"/);
 assert.match(quickRetouch, /let baseLayerState = \{ visible: true, locked: false \}/);
 assert.match(quickRetouch, /data-retouch-base-lock/);
 assert.doesNotMatch(quickRetouch, /data-retouch-protection-action/);
@@ -104,7 +104,7 @@ assert.match(quickRetouch, /Freehand Lasso|投げ縄選択/);
 assert.match(quickRetouch, /brush-size/);
 assert.match(quickRetouch, /data-retouch-panel=\"selection\"/);
 assert.match(projectApi, /`\$\{this\.base\}\/config`/);
-assert.match(projectBridge, /searchParams\.set\("build", "0\.7\.10"\)/);
+assert.match(projectBridge, /searchParams\.set\("build", "1\.0\.0"\)/);
 assert.match(projectSchema, /"retouched"/);
 assert.match(projectStore, /"retouched"/);
 

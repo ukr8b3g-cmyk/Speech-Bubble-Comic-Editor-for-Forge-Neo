@@ -244,11 +244,13 @@ def get_sfx_asset_catalog():
             tags = entry.get("tags") if isinstance(entry.get("tags"), list) else []
             item = {
                 "id": asset_id, "label": display_label, "displayName": display_label, "ocrLabel": ocr_label or None, "sortKey": sort_key or None, "packId": pack_id,
+                "displayNameEn": str(entry.get("displayNameEn") or entry.get("display_name_en") or entry.get("labelEn") or entry.get("label_en") or (entry.get("labels") if isinstance(entry.get("labels"), dict) else {}).get("en") or "").strip(),
+                "displayNameJa": str(entry.get("displayNameJa") or (entry.get("labels") if isinstance(entry.get("labels"), dict) else {}).get("ja") or "").strip(),
                 "src": f"./assets/{public_path}", "format": "WebP Mask" if asset_path.suffix.lower() in {".webp", ".png"} else "Raster",
                 "mask": bool(entry.get("mask", True)), "category": str(entry.get("category") or manifest.get("category") or "japanese").lower(),
                 "fill": merged.get("fillColor"), "stroke": merged.get("outlineColor"), "outlineWidth": merged.get("outlineWidth"),
                 "w": merged.get("w"), "h": merged.get("h"),
-                "opacity": merged.get("opacity", 1), "keywords": " ".join([display_label, *map(str, aliases), *map(str, tags)]),
+                "opacity": merged.get("opacity", 1), "keywords": " ".join([label, display_label, ocr_label, str(entry.get("keywords") or ""), *map(str, aliases), *map(str, tags)]),
             }
             items.append(item)
             assets[asset_id] = str(asset_path)

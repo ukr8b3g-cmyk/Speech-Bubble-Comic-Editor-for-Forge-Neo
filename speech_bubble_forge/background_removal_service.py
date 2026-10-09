@@ -8,6 +8,8 @@ import threading
 import urllib.request
 from pathlib import Path
 
+from . import __version__
+
 from PIL import Image, ImageOps
 
 
@@ -158,7 +160,7 @@ class BackgroundRemovalService:
                 pass
             request = urllib.request.Request(
                 MODEL_URL,
-                headers={"User-Agent": "SpeechBubbleComicEditorForgeNeo/0.7.2"},
+                headers={"User-Agent": f"SpeechBubbleComicEditorForgeNeo/{__version__}"},
             )
             digest = hashlib.sha256()
             with (

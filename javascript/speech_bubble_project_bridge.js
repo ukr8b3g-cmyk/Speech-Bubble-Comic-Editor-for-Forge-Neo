@@ -24,6 +24,8 @@
     )
   );
 
+  const tr = (ja, en) => englishUi() ? en : ja;
+
   async function loadConfiguredLanguage() {
     try {
       const response = await fetch("/speech-bubble-forge/config", { cache: "no-store" });
@@ -209,7 +211,7 @@
       "speech-bubble-forge/static/project-editor.html",
       `${base.origin}${basePath}`,
     );
-    url.searchParams.set("build", "0.7.10");
+    url.searchParams.set("build", "1.0.0");
     url.searchParams.set("host", "forge-project");
     url.searchParams.set("projectId", projectId());
     url.searchParams.set("forgeApiBase", "/speech-bubble-forge");
@@ -254,7 +256,7 @@
     );
     if (!projectWindow) {
       alert(
-        "Comic Panel Editorを開けませんでした。ブラウザーのポップアップ許可を確認してください。",
+        tr("Comic Panel Editorを開けませんでした。ブラウザーのポップアップ許可を確認してください。","Could not open Comic Panel Editor. Allow pop-ups in your browser."),
       );
       return null;
     }
@@ -265,18 +267,18 @@
   async function galleryBlob(tabName) {
     const info = selectedGalleryImageInfo(tabName);
     if (!info) {
-      throw new Error("Forgeギャラリーで画像を選択してください。");
+      throw new Error(tr("Forgeギャラリーで画像を選択してください。","Select an image in the Forge gallery."));
     }
     const response = await fetch(info.url, { cache: "no-store" });
     if (!response.ok) {
-      throw new Error(`選択画像を取得できませんでした (${response.status})`);
+      throw new Error(tr(`選択画像を取得できませんでした (${response.status})`,`Could not retrieve the selected image (${response.status})`));
     }
     const blob = await response.blob();
     if (!blob.size || blob.size > MAX_GALLERY_IMAGE_BYTES) {
-      throw new Error("選択画像が空、または大きすぎます。");
+      throw new Error(tr("選択画像が空、または大きすぎます。","The selected image is empty or too large."));
     }
     if (!/^image\/(?:png|jpeg|webp)$/i.test(blob.type)) {
-      throw new Error(`未対応の画像形式です: ${blob.type || "unknown"}`);
+      throw new Error(tr(`未対応の画像形式です: ${blob.type || "unknown"}`,`Unsupported image format: ${blob.type || "unknown"}`));
     }
     return { ...info, blob, mime: blob.type };
   }
@@ -345,7 +347,7 @@
         ? data.tab
         : currentTabName();
     try {
-      projectStatus(tabName, "選択画像をComic Panel Editorへ送信しています…");
+      projectStatus(tabName, tr("選択画像をComic Panel Editorへ送信しています…","Sending the selected image to Comic Panel Editor…"));
       const image = await galleryBlob(tabName);
       event.source.postMessage(
         {
@@ -364,7 +366,7 @@
         },
         event.origin,
       );
-      projectStatus(tabName, "選択画像を送信しました。", "ready");
+      projectStatus(tabName, tr("選択画像を送信しました。","Selected image sent."), "ready");
     } catch (error) {
       event.source.postMessage(
         {

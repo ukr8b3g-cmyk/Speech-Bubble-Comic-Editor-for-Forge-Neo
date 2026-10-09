@@ -1,5 +1,7 @@
 # Speech Bubble Comic Editor for Forge Neo
 
+Version: **1.0** (`1.0.0` in APIs and diagnostics).
+
 Forge Neoで生成した画像や手元の画像を、一枚絵・4コマ漫画・自由なコマ割りのコミックへ編集・仕上げするローカル漫画エディターです。
 
 Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し、文字、縦書き、SFX、スタンプ、フレーム、集中線を重ね、画像の配置、コマ割り、背景処理、コミック変換、書き出しまでを同じプロジェクト内で行えます。

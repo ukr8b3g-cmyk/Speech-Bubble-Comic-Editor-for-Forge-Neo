@@ -4,7 +4,8 @@
   const core = root.SpeechBubbleQuickRetouchCore;
   if (!core) throw new Error("SpeechBubbleQuickRetouchCore must be loaded first");
 
-  const BUILD_VERSION = "0.7.10";
+  const BUILD_VERSION = "1.0.0";
+  const DISPLAY_VERSION = "1.0";
   const PREVIEW_LONG_EDGE = 920;
   const GEOMETRY_KEY = "speech-bubble-editor:quick-retouch-geometry:v2";
   const SETTINGS_KEY = "speech-bubble-editor:quick-retouch-settings:v5";
@@ -2626,7 +2627,7 @@
     }
 
     function applyLanguage() {
-      dialog.querySelector("[data-retouch-title]").textContent = tr(`簡易レタッチ（Quick Retouch ${BUILD_VERSION}）`, `Quick Retouch ${BUILD_VERSION}`);
+      dialog.querySelector("[data-retouch-title]").textContent = tr(`簡易レタッチ（Quick Retouch ${DISPLAY_VERSION}）`, `Quick Retouch ${DISPLAY_VERSION}`);
       dialog.querySelector("[data-retouch-selection-title]").textContent = tr("選択範囲", "Selection");
       dialog.querySelector("[data-retouch-layers-title]").textContent = tr("レイヤー", "Layers");
       dialog.querySelector("[data-retouch-properties-title]").textContent = tr("プロパティ", "Properties");
