@@ -1,6 +1,6 @@
 # Speech Bubble Comic Editor for Forge Neo
 
-Version: **1.0** (`1.0.0` in APIs and diagnostics).
+Version: **1.0** (`1.0.0` in APIs and diagnostics). [Releases](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/releases) · [変更履歴 / Changelog](CHANGELOG.md)
 
 Forge Neoで生成した画像や手元の画像を、一枚絵・4コマ漫画・自由なコマ割りのコミックへ編集・仕上げするローカル漫画エディターです。
 
@@ -8,7 +8,23 @@ Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し�
 
 > **Local post-production comic editor for Forge-generated and imported artwork.**
 
-## 2026-09-24 保守更新
+初めて使う場合は「インストール」「起動」「保存と書き出し」から読み進めてください。個別の編集操作は各機能の節、英語の導入・保存手順は [English](#english) にまとめています。
+
+## 1.0 の更新内容（2026-10-09）
+
+1.0 では英語 UI に残っていた日本語の素材名、ヘルプ、通知を修正しました。Forge Neo の `Settings > Comic Panel Editor` から日本語／English を切り替えられます。
+
+- SFX・スタンプのカード、ツールチップ、読み上げ用ラベル、お気に入り、レイヤーの既定素材名を表示言語に統一。
+- 素材名は日英どちらでも検索でき、Name ソートも表示言語に対応。
+- Speech Bubbles の My Presets が空のときのヘルプを日英対応。
+- 保存、画像書き出し、画像・フォント読込、破棄・復元確認、Forge ランチャーの通知を日英対応。
+- 保存済みプロジェクトの形式、素材 ID、ユーザー入力と付けた名前は維持。
+
+**UI の言語と、素材画像に描かれた文字は別です。** 同梱 SFX・オノマトペ・スタンプ画像の大半は日本語の文字を含み、English に切り替えても画像内の文字は変わりません。英語版の素材画像制作は未着手です。英語のセリフや効果音を作品に加える場合は Text を使うか、用意した画像を読み込んでください。
+
+標準の素材ブラウザーには SFX 190 件・スタンプ 94 件を表示します。1.0 の英語化は表示名と操作説明の改善であり、素材画像を描き直す変更は含みません。
+
+## 2026-09-24 の保守更新
 
 JSON APIの受信上限を統一し、プロジェクト新規作成は一時ディレクトリーで完成させてから公開する方式へ変更しました。Data URLのCR/LF、互換Pillow出力の吹き出し装飾も修正しています。既存プロジェクト、保存先、画像・プリセットの形式は変更していません。
 
@@ -43,9 +59,26 @@ JSON APIの受信上限を統一し、プロジェクト新規作成は一時デ
 
 この拡張はForge Neo本体を変更せず、拡張フォルダー内で動作します。ComfyUIは必要ありません。
 
+自動テストは Linux・Windows・Chromium で実行しています。1.0 の変更について、実際の Forge Neo ホストでの操作と GPU／背景削除モデルの推論は再検証していません。AUTOMATIC1111、元の Forge、reForge など、他のホストでの互換性を保証するものではありません。
+
 ## インストール
 
-Forge Neoを終了してから、拡張フォルダーへ配置します。
+### Forge Neo の画面から導入
+
+1. `Extensions > Install from URL` を開きます。
+2. Git リポジトリの URL に次を入力し、`Install` を押します。
+
+   ```text
+   https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo.git
+   ```
+
+3. 導入完了後、`Installed` で `Apply and restart UI` を実行します。
+
+Extensions 一覧への [登録 PR #441](https://github.com/AUTOMATIC1111/stable-diffusion-webui-extensions/pull/441) は、2026-10-09 時点で Ready for review・未マージです。一覧への掲載はまだ完了していないため、URL から導入してください。
+
+### Git で導入
+
+Forge Neoを終了してから、実際の拡張フォルダーへ配置します。以下は Stability Matrix の既定パッケージ場所を使った例です。
 
 ```powershell
 cd D:\StabilityMatrix\Data\Packages\Forge-Neo\extensions
@@ -54,16 +87,20 @@ git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-N
 
 Stability Matrixのパッケージ場所を変更している場合は、実際の`Forge-Neo\extensions`を使用してください。配置後にForge Neoを起動または再起動します。追加の必須Pythonパッケージはありません。
 
-更新:
+### 更新
+
+Git 導入の場合は、拡張自身のフォルダーで次を実行します。
 
 ```powershell
 cd D:\StabilityMatrix\Data\Packages\Forge-Neo\extensions\Speech-Bubble-Comic-Editor-for-Forge-Neo
 git pull --ff-only
 ```
 
-フォルダー名を`sd-webui-speech-bubble-forge-neo`として既に導入している場合も、そのまま更新できます。
+フォルダー名が `sd-webui-speech-bubble-forge-neo` でも、取得元がこの正本リポジトリなら同じ方法で更新できます。`git remote -v` で取得元を確認してください。同名の旧リポジトリは別に存在するため、フォルダー名だけでは判断できません。
 
 更新前に `git rev-parse --show-toplevel` がこの拡張のフォルダーを示すことと、`git status --short` の内容を確認してください。ZIP導入などで拡張自身に `.git` がない場合、Gitが親のForgeリポジトリを対象にすることがあります。ローカル変更・未完了マージ・履歴分岐がある場合は、内容を保護してから解消してください。通常更新に `reset --hard` は使用しません。
+
+更新後は Forge Neo を再起動してください。ZIP で導入した場合は、プロジェクトやユーザー素材の保存先をバックアップし、同じ正本リポジトリのソースで拡張を更新します。Git の更新コマンドは ZIP 導入には使えません。
 
 ## 起動
 
@@ -124,6 +161,8 @@ Canvas背景の上へ複数の画像や素材を重ねるモードです。背�
 4コマとコミックでは、素材を漫画ページ上または特定のコマ内へ配置できます。コマ内の素材はコマ形状でクリップされます。重なって選択しにくい場合は、フローティングのLayersから対象を選び、Propertiesで調整してください。PropertiesとLayersは移動・リサイズでき、位置と大きさを保存します。
 
 吹き出しはPropertiesでベジェ曲線のアンカーとハンドルを編集できます。`Finish Path`で確定後、ユーザープリセットとして保存するとMy Presetsから再利用できます。Built-inは上書きされません。
+
+My Presets が空の場合は、Built-in の吹き出しを選んで編集し、Properties の「ユーザープリセットとして保存…」から登録してください。ユーザーが付けたプリセット名やレイヤー名、入力した本文は、言語を切り替えても翻訳されません。
 
 ## 簡易レタッチ（Quick Retouch・UI再設計版）
 
@@ -308,9 +347,19 @@ isnet-animeモデル（約168MB）は同梱していません。モデルがな�
 
 ## 保存と書き出し
 
-プロジェクトはForge Neoのローカルデータ領域に保存されます。Editor上部の「プロジェクトを保存」で明示保存でき、自動保存も利用できます。「プロジェクトを開く」から保存済みプロジェクトを選択します。
+編集を続けられる状態で残すには、プロジェクトを保存します。
+
+1. Editor 上部でプロジェクト名を付けます。
+2. 「プロジェクトを保存／Save Project」、または `Ctrl+S` で保存し、保存完了の表示を確認します。自動保存も設定できます。
+3. 次回は「プロジェクトを開く／Open Project」から保存済みプロジェクトを選択します。
+
+プロジェクトは Forge Neo のデータ領域にある `config/speech-bubble-forge/projects/` へ保存します。各プロジェクトには編集状態の `project.json`、画像一覧の `assets.json`、取り込んだ画像の `images/` が含まれます。保存領域をバックアップする場合は、このフォルダー全体をコピーしてください。データ領域を変更している環境では、その場所が基準になります。
+
+SFX／Stamp のユーザー素材は `config/speech-bubble-forge/user-presets/`、吹き出しプリセットは同じデータ領域の `config/speech-bubble-forge/presets.json` に別保存します。ユーザー素材やプリセットも移行する場合は、これらを含む `config/speech-bubble-forge/` もバックアップしてください。
 
 画像書き出しはPNG／JPEG／WebPと透明Overlay PNGに対応します。保存先、形式、品質、同名ファイルの世代バックアップはForge Settingsで設定します。
+
+完成画像を保存するには画像書き出し、レイヤーやコマ割りを後から編集するにはプロジェクト保存を使います。書き出した PNG／JPEG／WebP だけでは編集状態を復元できません。Discard Changes は最後に保存された状態へ戻す操作で、自動保存が有効な場合は自動保存された内容も「保存済み」に含まれます。
 
 ## 主なショートカット
 
@@ -341,19 +390,57 @@ isnet-animeモデル（約168MB）は同梱していません。モデルがな�
 
 ## English
 
-**Speech Bubble Comic Editor for Forge Neo** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**.
+**Speech Bubble Comic Editor for Forge Neo 1.0** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**. APIs and diagnostic build identifiers use `1.0.0`.
 
 It provides three independent workspaces—Single Image, 4-Panel Manga, and Comic—plus Page Images, layers, speech bubbles, text and vertical writing, SFX, stamps, frames, emphasis lines, procedural backgrounds, comic conversion, AI background removal, local project persistence, and PNG/JPEG/WebP export.
 
-Install it under `Forge-Neo/extensions`, restart Forge Neo, expand **Comic Panel Editor** in `txt2img` or `img2img`, and click **Open Comic Panel Editor ↗**. Language, Page Images behavior, export, presets, cache, diagnostics, and the optional AI model are managed from `Settings > Comic Panel Editor` in the Forge Neo window.
+### What changed in 1.0
+
+Asset cards, tooltips, accessibility labels, favorites and default layer names now follow the UI language. SFX/stamp names can be searched in either Japanese or English; Name sorting follows the selected language. The empty My Presets help and save/export, image/font loading, discard/restore and Forge launcher messages are also localized. Existing project schemas, stable asset IDs, user-entered text and user-defined names are preserved.
+
+**Most bundled SFX, onomatopoeia and stamp images contain Japanese lettering.** Switching the UI to English changes display names and controls, not the lettering inside those images. English-language versions of the artwork have not been started. Use Text layers or import your own images for English lettering. The standard browser shows 190 SFX and 94 stamps.
+
+### Install and update
+
+In Forge Neo, open `Extensions > Install from URL`, enter the URL below and click **Install**. When installation finishes, use **Apply and restart UI** on the Installed tab.
+
+```text
+https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo.git
+```
+
+You can also clone this repository into your actual `Forge-Neo/extensions` folder. There are no additional mandatory Python packages. To update a Git installation, check the extension's own repository root, remote and local changes, then run `git pull --ff-only` there and restart Forge Neo. A ZIP installation has no extension Git history; back up your project/user data before replacing its source files.
+
+The [extension-index PR #441](https://github.com/AUTOMATIC1111/stable-diffusion-webui-extensions/pull/441) is ready for review and unmerged as of 2026-10-09. Listing availability is still pending; use the installation URL above.
+
+### Start editing and save your work
+
+Expand **Comic Panel Editor** in `txt2img` or `img2img` and click **Open Comic Panel Editor ↗**. Use **Add Selected Forge Image** to import the selected gallery image, or add a local PNG/JPEG/WebP file through Page Images, drag and drop, or the clipboard. Choose a workspace, place images and add text, bubbles or other layers.
+
+For an empty Speech Bubbles **My Presets** section, select and edit a **Built-in** bubble, then save it as a user preset in **Properties**.
+
+Use **Save Project** or `Ctrl+S` and check the saved status. Reopen it with **Open Project**. Projects live under `config/speech-bubble-forge/projects/` in Forge Neo's configured data directory; back up each project's metadata and images together, or copy the whole projects folder. Autosave is configurable. **Discard Changes** restores the most recently saved state, which can include autosaved changes.
+
+User SFX/stamp assets are stored separately under `config/speech-bubble-forge/user-presets/`, and bubble presets in `config/speech-bubble-forge/presets.json`. Back up the enclosing `config/speech-bubble-forge/` folder as well when moving your user assets and presets to another installation.
+
+Image export produces PNG, JPEG, WebP or a transparent Overlay PNG. An exported image does not contain the editable project layout, so keep the saved project if you intend to edit layers or panels later. Quick Retouch results are flattened into a new PNG when applied; its internal paint and adjustment layers cannot be reopened after closing the retouch window.
+
+### Settings and validation limits
+
+Language, Page Images behavior, export, presets, cache, diagnostics, and the optional AI model are managed from `Settings > Comic Panel Editor` in the Forge Neo window. Choose Japanese, English or automatic language detection there.
 
 The optional isnet-anime model is not bundled. It is downloaded only after the user approves the first-use prompt or clicks **Download Model** in Forge Settings. Processing remains local.
+
+The target host is Forge Neo. Linux, Windows and Chromium automated checks cover the code and isolated editor/API behavior. Actual Forge Neo host operation and GPU/background-removal inference were not revalidated for 1.0; compatibility with other WebUI hosts is not asserted. This repository distributes a Forge extension, not a Windows standalone-app installer.
 
 ## Development / validation
 
 The current editor uses `web/project-editor.html` and its split shell assets. Legacy editor URLs, image/standalone layouts, user assets and Pillow layout export remain compatible; only unreachable legacy launcher UI factories were removed. Shared frame/SFX catalogs live in `speech_bubble_forge/asset_catalog.py` and do not eagerly load the Pillow drawing implementation.
 
 CI runs Python tests, JavaScript syntax, Node contracts and upstream exact-file hash checks on Ubuntu and Windows. A separate Chromium job requires browser smokes rather than treating an unavailable browser as a pass. These checks do not replace a Windows Forge Neo host/GPU test. See [validation instructions](docs/VALIDATION.md).
+
+1.0 の実装検証では Python 85 件、Node 23 本、ブラウザー 3 本が通過しました。ブラウザー検証には日英切替、素材検索、お気に入り、My Presets の空状態、保存・再読込、PNG 出力、保存・フォント読込のエラー、破棄確認を含みます。
+
+操作で解決しない問題は [Issues](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/issues) へ、Forge Neo のバージョン、拡張のコミット、再現手順、エラー内容を添えて報告してください。セキュリティ上の問題は [SECURITY.md](SECURITY.md) の連絡方法を使ってください。
 
 ## ライセンス / License
 

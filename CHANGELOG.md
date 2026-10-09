@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0] - 2026-10-09
+
+### Changed
+
+- Use display version 1.0 and machine-readable API/build version 1.0.0.
+- Localize SFX/stamp cards, tooltips, accessibility labels, favorites and default asset layer names by stable ID. The standard browser shows 190 SFX and 94 stamps.
+- Preserve Japanese and English catalog names for search, and sort names using the selected UI language.
+- Localize the empty Speech Bubbles My Presets help and save/export, image/font loading, discard/restore and Forge launcher notifications.
+- Keep font-loading failures visible in the selected language until retry succeeds.
+- Document installation, updates, project persistence, image export and the distinction between UI language and lettering in bundled artwork.
+
+### Preserved and limits
+
+- Existing asset images, IDs, user-entered text, custom names and saved project formats are unchanged. Most bundled SFX/stamp artwork contains Japanese lettering; English-language artwork production has not started.
+- No mandatory runtime dependency was added. Quick Retouch, project storage and the Forge host integration retain their existing structure.
+- Product validation: 85 Python tests, 23 Node core scripts and three browser smokes pass, including save/reload and PNG export. Actual Forge Neo host operation and GPU/background-removal inference were not revalidated for this release.
+
 ## Maintenance - 2026-09-24
 
 - Share bounded request readers across JSON, image upload and multipart endpoints; oversized input returns 413, invalid JSON roots return 400.
