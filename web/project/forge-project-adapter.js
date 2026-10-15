@@ -469,6 +469,12 @@
       ) {
         settingsModule?.setHostTheme?.(data.theme);
       }
+      if (data.type === "speech_bubble_project:set_host_settings" &&
+          data.projectId === projectId &&
+          data.settings && typeof data.settings === "object") {
+        settingsModule?.setHostSettings?.(data.settings);
+        runtime.applyHostSettings?.(data.settings);
+      }
       if (data.type === "speech_bubble_project:focus") window.focus();
     });
 

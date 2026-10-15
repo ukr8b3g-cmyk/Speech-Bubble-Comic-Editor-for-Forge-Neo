@@ -69,16 +69,16 @@
     let autoSaveDelay = Math.max(5000, Math.min(3600000, Number(params.get("autoSaveDelay")) || 30000));
     let lastRecoveryCheckpoint=Date.now();
     const keepLayoutEnabled = params.get("keepLayout") !== "0";
-    const promptExportLocation = params.get("promptExportLocation") === "1";
-    const useForgeOutputDir = params.get("useForgeOutputDir") !== "0";
-    const rememberExportDirectory = params.get("rememberExportDirectory") !== "0";
-    const exportDirectoryVersion = params.get("exportDirectoryVersion") || "0";
-    const forgeOutputDir = params.get("forgeOutputDir") || "";
-    const filenameFormat = params.get("filenameFormat") || "source_datetime";
-    const dateSubfolder = params.get("dateSubfolder") || "none";
-    const backupEnabled = params.get("backupEnabled") !== "0";
-    const backupGenerations = Math.max(1,Math.min(20,Number(params.get("backupGenerations"))||5));
-    const saveOverlay = params.get("saveOverlay") === "1";
+    let promptExportLocation = params.get("promptExportLocation") === "1";
+    let useForgeOutputDir = params.get("useForgeOutputDir") !== "0";
+    let rememberExportDirectory = params.get("rememberExportDirectory") !== "0";
+    let exportDirectoryVersion = params.get("exportDirectoryVersion") || "0";
+    let forgeOutputDir = params.get("forgeOutputDir") || "";
+    let filenameFormat = params.get("filenameFormat") || "source_datetime";
+    let dateSubfolder = params.get("dateSubfolder") || "none";
+    let backupEnabled = params.get("backupEnabled") !== "0";
+    let backupGenerations = Math.max(1,Math.min(20,Number(params.get("backupGenerations"))||5));
+    let saveOverlay = params.get("saveOverlay") === "1";
     const exportTransport = params.get("exportTransport") || (isForgeProjectHost ? "multipart_canvas_v1" : "legacy_json_v1");
     const assetCacheVersion = params.get("assetVersion") || "20260802-04";
     const SAVED_LAYOUT_PREFIX = isForgeProjectHost ? `${PROJECT_STORAGE_PREFIX}layout/` : "speech-bubble/layout/";
@@ -3164,6 +3164,20 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       projectImageTray?.refreshLanguage?.();
     }
     function applyForgeProjectSettings(settings=window.SpeechBubbleForgeProjectSettings?.get?.()||{}){
+      if(isForgeProjectHost){
+        // Export and picker preferences come from the live Forge configuration.
+        // Do not rely on missing URL parameters or on browser-only editor settings.
+        promptExportLocation=settings.prompt_export_location===true;
+        useForgeOutputDir=settings.use_forge_output_dir!==false;
+        rememberExportDirectory=settings.remember_export_directory!==false;
+        exportDirectoryVersion=String(settings.export_directory_version||"0");
+        forgeOutputDir=String(settings.forge_output_dir||"");
+        filenameFormat=String(settings.filename_format||"source_datetime");
+        dateSubfolder=String(settings.date_subfolder||"none");
+        backupEnabled=settings.backup_enabled!==false;
+        backupGenerations=Math.max(1,Math.min(20,Number(settings.backup_generations)||5));
+        saveOverlay=settings.save_overlay===true;
+      }
       showEmptyCanvasGuide=settings.show_empty_guide===true;
       projectImageTray?.applySettings?.({
         mode:settings.shared_project_images===false?"separate":"shared",

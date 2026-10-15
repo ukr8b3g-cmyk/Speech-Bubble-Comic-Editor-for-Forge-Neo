@@ -14,6 +14,7 @@
   let lastTheme = "";
   let focusTimers = [];
   let configuredLanguage = "auto";
+  let latestHostSettings = null;
 
   const appRoot = () =>
     typeof gradioApp === "function" ? gradioApp() : document;
@@ -31,6 +32,7 @@
       const response = await fetch("/speech-bubble-forge/config", { cache: "no-store" });
       if (!response.ok) return;
       const payload = await response.json();
+      if (payload && typeof payload === "object" && payload.ok !== false) latestHostSettings = payload;
       configuredLanguage = ["auto", "ja", "en"].includes(payload?.language)
         ? payload.language
         : "auto";
@@ -446,6 +448,7 @@
         },
         event.origin,
       );
+      syncHostSettings();
       focusProjectWindow();
       return;
     }
@@ -487,6 +490,16 @@
     }
   });
 
+  const syncHostSettings = () => {
+    if (!latestHostSettings || !projectWindow || projectWindow.closed) return;
+    projectWindow.postMessage({
+      type: "speech_bubble_project:set_host_settings",
+      protocolVersion: PROTOCOL_VERSION,
+      projectId: projectId(),
+      settings: latestHostSettings,
+    }, location.origin);
+  };
+
   const syncTheme = () => {
     const next = detectTheme();
     if (next === lastTheme) return;
@@ -507,6 +520,7 @@
     await loadConfiguredLanguage();
     installUi();
     syncTheme();
+    syncHostSettings();
   };
 
   if (typeof onUiLoaded === "function") onUiLoaded(start);
