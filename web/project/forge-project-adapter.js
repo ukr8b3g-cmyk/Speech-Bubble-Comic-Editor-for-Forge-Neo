@@ -141,6 +141,7 @@
           JSON.stringify(runtime.getImageTrayState?.()) === JSON.stringify(imageTrays);
         if (!unchanged) {
           dirty = true;
+          scheduleAutosave();
           setStatus(
             tr("保存中に変更がありました。新しい内容は未保存です。", "Edits occurred while saving; newer changes remain unsaved."),
             "dirty",
