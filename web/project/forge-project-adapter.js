@@ -31,6 +31,7 @@
     let manifest = null;
     let saving = false;
     let dirty = false;
+    let changeRevision = 0;
     let autosaveTimer = null;
     let importedAssetIds = new Set();
 
@@ -92,24 +93,60 @@
       return [...new Set(ids.map(String).filter(Boolean))];
     }
 
+    function scheduleAutosave() {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+      const editorSettings = runtime.getEditorSettings?.() || settingsModule?.get?.() || {};
+      if (!dirty || editorSettings.autosave_enabled === false) return;
+      const delay = Math.max(500, Math.min(60_000, Number(editorSettings.autosave_delay_ms) || 1_200));
+      autosaveTimer = setTimeout(() => {
+        autosaveTimer = null;
+        // An in-flight save will schedule a new attempt when it finishes.
+        if (!saving) save("autosave");
+      }, delay);
+    }
+
     async function save(reason = "manual") {
       if (saving) return false;
       saving = true;
       clearTimeout(autosaveTimer);
       autosaveTimer = null;
+      const savingRevision = changeRevision;
       try {
         const layout = await runtime.serializeLayout();
         const title =
           String(runtime.getProjectTitle?.() || manifest?.title || "").trim() ||
           "Untitled Comic Project";
-        manifest = await api.save(projectId, {
+        const imageIds = currentImageIds();
+        const imageTrays = runtime.getImageTrayState?.();
+        const savedManifest = await api.save(projectId, {
           title,
           layout,
-          image_ids: currentImageIds(),
-          image_trays: runtime.getImageTrayState?.(),
+          image_ids: imageIds,
+          image_trays: imageTrays,
           source_revisions: sourceRevisions(),
           reason,
         });
+        manifest = savedManifest;
+        // An edit during the request is not saved by the response. Also compare
+        // the actual layout/tray/title to catch changes before a queued dirty event.
+        const currentLayout = await runtime.serializeLayout();
+        const currentTitle =
+          String(runtime.getProjectTitle?.() || manifest?.title || "").trim() ||
+          "Untitled Comic Project";
+        const unchanged = changeRevision === savingRevision &&
+          JSON.stringify(currentLayout) === JSON.stringify(layout) &&
+          currentTitle === title &&
+          JSON.stringify(currentImageIds()) === JSON.stringify(imageIds) &&
+          JSON.stringify(runtime.getImageTrayState?.()) === JSON.stringify(imageTrays);
+        if (!unchanged) {
+          dirty = true;
+          setStatus(
+            tr("保存中に変更がありました。新しい内容は未保存です。", "Edits occurred while saving; newer changes remain unsaved."),
+            "dirty",
+          );
+          return false;
+        }
         dirty = false;
         runtime.markSaved?.(layout);
         setStatus(tr("プロジェクトを保存しました。", "Project saved."), "saved");
@@ -119,21 +156,20 @@
         return false;
       } finally {
         saving = false;
+        // Never let an autosave timer consumed during a request lose a newer edit.
+        if (dirty && changeRevision !== savingRevision) scheduleAutosave();
       }
     }
 
     function markDirty() {
+      changeRevision += 1;
       dirty = true;
       setStatus(tr("未保存の変更があります。", "There are unsaved changes."), "dirty");
-      clearTimeout(autosaveTimer);
-      const editorSettings = runtime.getEditorSettings?.() || settingsModule?.get?.() || {};
-      if (editorSettings.autosave_enabled !== false) {
-        const delay = Math.max(500, Math.min(60_000, Number(editorSettings.autosave_delay_ms) || 1_200));
-        autosaveTimer = setTimeout(() => save("autosave"), delay);
-      }
+      scheduleAutosave();
     }
 
     function markClean() {
+      changeRevision += 1;
       dirty = false;
       clearTimeout(autosaveTimer);
       autosaveTimer = null;
@@ -453,7 +489,7 @@
         updateToolbarLanguage();
         clearTimeout(autosaveTimer);
         autosaveTimer = null;
-        if (dirty) markDirty();
+        if (dirty) scheduleAutosave();
       });
       notifyReady();
       return manifest;
