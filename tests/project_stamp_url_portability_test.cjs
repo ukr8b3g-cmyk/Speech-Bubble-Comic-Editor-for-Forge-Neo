@@ -10,7 +10,7 @@ function section(start, stop) {
   return script.slice(from, to);
 }
 const functions = [
-  section("    function userSfxSource(", "    function sfxPresetFill("),
+  section("    function versionedSfxSrc(", "    function sfxPresetFill("),
   section("    function sfxImageFor(", "    function clearSfxAssetCaches(")
 ].join("\n");
 const urls = [];
