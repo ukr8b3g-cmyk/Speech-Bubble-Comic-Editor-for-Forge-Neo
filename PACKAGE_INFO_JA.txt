@@ -1,16 +1,15 @@
 Speech Bubble Comic Editor for Forge Neo
-Version: 0.7.10 (2026-09-24 maintenance; no new release tag)
+Version: 1.0.1 (2026-10-19 stable maintenance)
 
-今回の保守変更:
-- JSON/画像受信の共通上限制御、Data URL CR/LF整合化
-- プロジェクト作成の一時ディレクトリー方式と失敗時の後始末
-- Pillow互換出力の吹き出し装飾修正、共有Asset Catalog分離
-- 旧Editor専用資産をweb/legacyへ隔離（旧URL/API/保存形式は維持）
-- 現行EditorのCSS/JavaScriptをeditor-shell.*へ分離
-- CI、回帰テスト、README/履歴資料を整理
+新しい正式リリース v1.0.1:
+- 画像エンコード完了後にバックアップ回転・出力置換を実施
+- 保存失敗時、以前の合成画像とOverlay PNGの主ファイルを復旧
+- 破損した保存済みレイアウトJSONをHTTP 400で拒否（元ファイル不変更）
+- v1.0公開後のmainに入った保存競合対策、Overlay・出力先設定、カスタムSFX URL対策を収録
+- 表示用Version、内部APIバージョン、キャッシュキーの整合を更新
 
-現行仕様: README.md
-構造: docs/ARCHITECTURE.md
-検証手順と実機確認範囲: docs/VALIDATION.md
-旧版記録: docs/archive/
-追加必須ランタイム依存関係なし。モデル同梱・自動公開・保存形式変更なし。
+仕様と制約: README.md / CHANGELOG.md / docs/RELEASE_v1.0.1.md
+検証: .github/workflows/validate.yml / docs/VALIDATION.md
+旧リポジトリ sd-webui-speech-bubble-forge-neo は引き続きLegacyとして保持します。
+プロジェクト形式・保存先・既存素材ID・追加ランタイム依存関係は変更していません。
+実Forge Neo/Windows/GPU操作の実機確認は別途必要です。

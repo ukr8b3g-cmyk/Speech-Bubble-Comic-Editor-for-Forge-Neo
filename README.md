@@ -1,6 +1,6 @@
 # Speech Bubble Comic Editor for Forge Neo
 
-Version: **1.0** (`1.0.0` in APIs and diagnostics). [Releases](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/releases) · [変更履歴 / Changelog](CHANGELOG.md)
+Version: **1.0.1** (`1.0.1` in APIs and diagnostics). [Releases](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/releases) · [変更履歴 / Changelog](CHANGELOG.md)
 
 Forge Neoで生成した画像や手元の画像を、一枚絵・4コマ漫画・自由なコマ割りのコミックへ編集・仕上げするローカル漫画エディターです。
 
@@ -9,6 +9,16 @@ Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し�
 > **Local post-production comic editor for Forge-generated and imported artwork.**
 
 初めて使う場合は「インストール」「起動」「保存と書き出し」から読み進めてください。個別の編集操作は各機能の節、英語の導入・保存手順は [English](#english) にまとめています。
+
+## v1.0.1 の更新内容（2026-10-19）
+
+**保存・読込の保守リリースです。** 既存の一枚画像・4コマ漫画・コミックの編集機能、プロジェクト形式、旧レイアウト、素材IDは変更しません。
+
+- **画像保存の安全性**: 合成画像・Overlay PNG（設定ON時）の全出力を同じ出力先に事前生成し、エンコード失敗時は既存の画像と世代バックアップを変更しません。バックアップ回転・正式ファイル置換の失敗時も、旧主ファイルのスナップショットから復旧を試みます。連番の割当は保存ロック内に移しました。
+- **破損レイアウト対策**: 旧エディターの保存済みレイアウトJSONが配列など不正なルートを含む場合、内部エラーではなくHTTP 400で拒否し、保存済みファイルは書き換えません。既存のフラット形式・ラップ形式は読み込み可能です。
+- **v1.0公開後の保守変更を収録**: プロジェクト保存競合・自動保存再試行、OverlayとForge出力先設定、ユーザーSFX画像URLの修正を含みます。
+
+**制約**: 複数ファイルの更新をOS障害・停電に対して完全に原子的にする仕組みではありません。保存中のシステム障害、バックアップ回転途中での障害、復旧不能なストレージ障害では完全な整合性を保証しません。重要な作品は通常どおりバックアップしてください。テストは隔離環境のLinux/Windows/Chromium CIで実施します。実際のForge Neoホストでの操作、GPU生成および背景削除モデル推論は別途確認が必要です。
 
 ## 1.0 の更新内容（2026-10-09）
 
@@ -390,9 +400,13 @@ SFX／Stamp のユーザー素材は `config/speech-bubble-forge/user-presets/`�
 
 ## English
 
-**Speech Bubble Comic Editor for Forge Neo 1.0** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**. APIs and diagnostic build identifiers use `1.0.0`.
+**Speech Bubble Comic Editor for Forge Neo 1.0.1** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**. APIs and diagnostic build identifiers use `1.0.0`.
 
 It provides three independent workspaces—Single Image, 4-Panel Manga, and Comic—plus Page Images, layers, speech bubbles, text and vertical writing, SFX, stamps, frames, emphasis lines, procedural backgrounds, comic conversion, AI background removal, local project persistence, and PNG/JPEG/WebP export.
+
+### Maintenance update v1.0.1 (2026-10-19)
+
+This release stages composite and optional overlay images before changing the existing files or backups. If encoding or installation fails, previous primary outputs are preserved or restored from snapshots where possible. Invalid stored layout JSON roots return HTTP 400 without modifying the user's file. It also bundles the post-v1.0 main fixes for save races/autosave retries, host output/overlay settings, and user SFX URL resolution. Existing project and preset formats are unchanged. Crash/power-loss atomicity across multiple files is not guaranteed.
 
 ### What changed in 1.0
 
