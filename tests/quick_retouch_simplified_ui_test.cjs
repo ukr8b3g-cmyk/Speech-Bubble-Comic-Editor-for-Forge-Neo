@@ -5,7 +5,7 @@ const js = fs.readFileSync("web/project/quick-retouch.js", "utf8");
 const css = fs.readFileSync("web/project/quick-retouch.css", "utf8");
 const editor = require("./read_editor_source.cjs")("web/project-editor.html");
 
-assert.match(js, /BUILD_VERSION = "1\.0\.0"/);
+assert.match(js, /BUILD_VERSION = "1\.0\.1"/);
 assert.match(editor, /quick-retouch-078-compact-controls-1/);
 assert.match(js, /data-retouch-source-picker/);
 assert.match(js, /data-retouch-source-drop/);

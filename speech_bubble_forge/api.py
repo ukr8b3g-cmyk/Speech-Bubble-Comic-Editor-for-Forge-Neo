@@ -6,7 +6,9 @@ import io
 import json
 import math
 import mimetypes
+import os
 import re
+import shutil
 import threading
 import time
 import unicodedata
@@ -494,6 +496,91 @@ def _rotate_backups(path: Path, generations: int) -> None:
     path.replace(first)
 
 
+def _save_export_outputs(
+    composite_path: Path,
+    overlay_path: Path,
+    composite,
+    overlay,
+    composite_png: bytes | None,
+    overlay_png: bytes | None,
+    settings,
+    *,
+    keep_backups: bool,
+) -> None:
+    """Prepare every output before replacing the current files.
+
+    A snapshot of each existing primary enables best-effort rollback if backup
+    rotation or publication fails. It cannot promise crash-atomicity for two
+    separate filesystem paths or rollback after hardware/power failure.
+    Called with _SAVE_LOCK held; staging and snapshots remain on the target FS.
+    """
+    outputs = [(composite_path, composite, composite_png, settings.output_format)]
+    if settings.save_overlay:
+        outputs.append((overlay_path, overlay, overlay_png, "png"))
+    staged = []
+    snapshots = {}
+    previously_existed = {path: path.is_file() for path, _, _, _ in outputs}
+    mutation_started = False
+    failed_restores = []
+
+    try:
+        # Encoding failures leave the existing outputs and backup chain untouched.
+        for path, image, original_png, image_format in outputs:
+            staging = path.with_name(f".{path.name}.{uuid.uuid4().hex}.staged")
+            staged.append(staging)
+            if original_png is not None:
+                _write_bytes(original_png, staging)
+            else:
+                _write_image(image, staging, image_format, settings)
+
+        # Prefer O(1) hard links; copy on filesystems that do not support them.
+        # Keep the snapshot until *both* primary outputs have been installed.
+        for path, _, _, _ in outputs:
+            if previously_existed[path]:
+                snapshot = path.with_name(f".{path.name}.{uuid.uuid4().hex}.rollback")
+                snapshots[path] = snapshot
+                try:
+                    os.link(path, snapshot)
+                except OSError:
+                    shutil.copy2(path, snapshot)
+
+        mutation_started = True
+        if keep_backups:
+            for path, _, _, _ in outputs:
+                if previously_existed[path]:
+                    _rotate_backups(path, settings.backup_generations)
+
+        for (path, _, _, _), staging in zip(outputs, staged):
+            os.replace(staging, path)
+    except Exception as error:
+        if mutation_started:
+            # Restore all primaries, not only the one whose replace failed.
+            # Backup history may have rotated, but no old primary is discarded.
+            for path, _, _, _ in reversed(outputs):
+                try:
+                    if previously_existed[path]:
+                        os.replace(snapshots[path], path)
+                    else:
+                        path.unlink(missing_ok=True)
+                except OSError as restore_error:
+                    failed_restores.append((path, restore_error))
+        if failed_restores:
+            # Keep rollback files on disk for recovery rather than deleting
+            # the only remaining copy of the original after a filesystem error.
+            names = ", ".join(str(path) for path, _ in failed_restores)
+            raise RuntimeError(
+                f"Export failed and could not restore: {names}. "
+                "Original snapshots have been retained for recovery."
+            ) from error
+        raise
+    finally:
+        for staging in staged:
+            staging.unlink(missing_ok=True)
+        for path, snapshot in snapshots.items():
+            if not any(failed_path == path for failed_path, _ in failed_restores):
+                snapshot.unlink(missing_ok=True)
+
+
 def _client_export_root() -> Path:
     return (data_root() / "config" / "speech-bubble-forge" / "export-temp").resolve()
 
@@ -796,6 +883,8 @@ def register_routes(app):
                 }
             with _LAYOUT_LOCK:
                 wrapper = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(wrapper, dict):
+                raise ValueError("Saved layout JSON must be an object")
             layout = wrapper.get("layout", wrapper)
             normalized, _ = _validate_layout(layout)
             return {
@@ -894,17 +983,17 @@ def register_routes(app):
                     now,
                     settings.date_subfolder,
                 )
-            stem = _export_stem(
-                prefix,
-                now,
-                settings.filename_format,
-                export_root,
-                extension,
-            )
-
             save_started = time.perf_counter()
             with _SAVE_LOCK:
                 export_root.mkdir(parents=True, exist_ok=True)
+                # Allocate sequence names under the same lock as publication.
+                stem = _export_stem(
+                    prefix,
+                    now,
+                    settings.filename_format,
+                    export_root,
+                    extension,
+                )
                 composite_path = (
                     export_root / f"composite{extension}"
                     if client_save
@@ -915,24 +1004,16 @@ def register_routes(app):
                     if client_save
                     else export_root / f"{stem}_overlay.png"
                 )
-                if not client_save and settings.backup_enabled:
-                    _rotate_backups(composite_path, settings.backup_generations)
-                    if settings.save_overlay:
-                        _rotate_backups(overlay_path, settings.backup_generations)
-                if settings.output_format == "png" and composite_png is not None:
-                    _write_bytes(composite_png, composite_path)
-                else:
-                    _write_image(
-                        composite,
-                        composite_path,
-                        settings.output_format,
-                        settings,
-                    )
-                if settings.save_overlay:
-                    if overlay_png is not None:
-                        _write_bytes(overlay_png, overlay_path)
-                    else:
-                        _write_png(overlay, overlay_path, settings)
+                _save_export_outputs(
+                    composite_path,
+                    overlay_path,
+                    composite,
+                    overlay,
+                    composite_png if settings.output_format == "png" else None,
+                    overlay_png,
+                    settings,
+                    keep_backups=not client_save and settings.backup_enabled,
+                )
             saved_at = time.perf_counter()
 
             if client_save:

@@ -4,7 +4,7 @@
   const core = root.SpeechBubbleQuickRetouchCore;
   if (!core) throw new Error("SpeechBubbleQuickRetouchCore must be loaded first");
 
-  const BUILD_VERSION = "1.0.0";
+  const BUILD_VERSION = "1.0.1";
   const DISPLAY_VERSION = "1.0";
   const PREVIEW_LONG_EDGE = 920;
   const GEOMETRY_KEY = "speech-bubble-editor:quick-retouch-geometry:v2";

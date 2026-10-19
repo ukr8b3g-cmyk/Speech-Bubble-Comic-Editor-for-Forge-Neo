@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.1] - 2026-10-19
+
+### Fixed
+
+- Stage composite and optional overlay outputs before touching existing files or backup generations. Retain original primary snapshots and roll back when backup rotation or installation fails; previous files remain untouched when encoding fails.
+- Allocate sequential export filenames under the save lock to avoid concurrent collisions.
+- Reject saved legacy layout documents whose outer JSON is not an object with HTTP 400; never overwrite a corrupt document during read.
+
+### Included from post-v1.0 main
+
+- Protect concurrent project saves and autosave retries against lost edits.
+- Respect Forge Neo overlay and output directory settings in the project editor.
+- Resolve custom SFX/stamp image URLs relative to the active Forge Neo origin.
+- Maintain API/UI versions as 1.0.1, preserve existing project formats and legacy URLs.
+
+### Validation scope
+
+- Automated Linux/Windows Python, JavaScript and Chromium regression checks are the publication gate.
+- This release does not assert completed on-device Windows Forge Neo acceptance or GPU/background-removal inference tests.
+- Two separate filesystem outputs cannot be committed atomically under crashes or power loss; in-process failures use best-effort snapshot restoration.
+
 ## [1.0] - 2026-10-09
 
 ### Changed

@@ -1,0 +1,104 @@
+name: Release v1.0.1 (one-time verified)
+# Only the explicitly titled squash commit on the canonical main is eligible.
+# No alternate branch, legacy repo, or historical Release is modified.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: speech-bubble-forge-neo-v1.0.1-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.repository == 'ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo' &&
+      github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'Release v1.0.1')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.1
+      SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout exact publication source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate release identity and await complete source CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import configparser
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import time
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          sha = os.environ["SOURCE_SHA"]
+
+          def checked(*command):
+              return subprocess.check_output(command, text=True).strip()
+
+          def gh(endpoint):
+              return json.loads(checked("gh", "api", f"repos/{repo}/{endpoint}"))
+
+          def require(condition, message):
+              if not condition:
+                  raise RuntimeError(message)
+
+          require(checked("git", "rev-parse", "HEAD") == sha, "Wrong source SHA")
+          require(checked("git", "log", "-1", "--format=%s") == "Release v1.0.1", "Wrong release commit title")
+          require(gh("branches/main")["commit"]["sha"] == sha, "main moved during release gate")
+          version = {}
+          exec(pathlib.Path("speech_bubble_forge/__init__.py").read_text("utf-8"), version)
+          require(version.get("__version__") == "1.0.1", "Python package version mismatch")
+          metadata = configparser.ConfigParser()
+          metadata.read("metadata.ini", encoding="utf-8")
+          require(metadata.get("Extension", "Version") == "1.0.1", "Extension version mismatch")
+          require("Version: **1.0.1**" in pathlib.Path("README.md").read_text("utf-8"), "README version mismatch")
+          require(pathlib.Path("docs/RELEASE_v1.0.1.md").exists(), "Missing release notes")
+
+          for endpoint in ("git/ref/tags/v1.0.1", "releases/tags/v1.0.1"):
+              result = subprocess.run(["gh", "api", f"repos/{repo}/{endpoint}"],
+                                      capture_output=True, text=True)
+              require(result.returncode != 0 and "HTTP 404" in result.stderr,
+                      f"Release tag already exists or API failure at {endpoint}")
+          for attempt in range(75):
+              runs = gh(f"actions/runs?head_sha={sha}&per_page=100")["workflow_runs"]
+              validations = [r for r in runs if r["name"] == "Repository validation"
+                             and r["head_sha"] == sha and r["event"] == "push"
+                             and r.get("head_repository", {}).get("full_name") == repo]
+              if validations and validations[0]["status"] == "completed":
+                  require(validations[0]["conclusion"] == "success",
+                          "Repository validation failed on release source")
+                  print("Verified complete Ubuntu, Windows and Chromium CI for", sha)
+                  break
+              time.sleep(5)
+          else:
+              raise RuntimeError("Timed out waiting for release source CI")
+          PY
+      - name: Create immutable tag and publish GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)"
+          test "$current" = "$SOURCE_SHA" || { echo 'main changed; refusing to tag'; exit 1; }
+          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$RELEASE_TAG" -f sha="$SOURCE_SHA" > "$RUNNER_TEMP/release-tag.json"
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Speech Bubble Comic Editor for Forge Neo v1.0.1" \
+            --notes-file docs/RELEASE_v1.0.1.md --latest
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isDraft,isPrerelease,url \
+            --jq '{tag:.tagName,draft:.isDraft,prerelease:.isPrerelease,url:.url}'
