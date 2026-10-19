@@ -34,10 +34,10 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
     await page.waitForFunction(() => typeof forgeProjectAdapter !== "undefined" && forgeProjectAdapter?.manifest() && hasExplicitSavedLayout && dirtyTrackingEnabled);
     assert.equal(await page.locator("button[data-editor-mode]").count(), 3);
     await page.waitForFunction(() => SFX_PRESETS.length === 286 && DYNAMIC_SFX_PRESETS.length > 0);
-    assert.equal(await page.locator("body > header > strong").textContent(), "Comic Panel Editor 1.0");
-    assert.ok((await page.title()).endsWith("Comic Panel Editor 1.0"));
-    assert.equal((await (await page.request.get(`${base}/speech-bubble-forge/config`)).json()).version, "1.0.0");
-    assert.equal(await page.evaluate(() => SpeechBubbleQuickRetouch.version), "1.0.0");
+    assert.equal(await page.locator("body > header > strong").textContent(), "Comic Panel Editor 1.0.1");
+    assert.ok((await page.title()).endsWith("Comic Panel Editor 1.0.1"));
+    assert.equal((await (await page.request.get(`${base}/speech-bubble-forge/config`)).json()).version, "1.0.1");
+    assert.equal(await page.evaluate(() => SpeechBubbleQuickRetouch.version), "1.0.1");
     const cjk = /[\u3040-\u30ff\u3400-\u9fff]/;
     // Real API catalog overlays the bundled presets; all display names must survive it.
     const counts = await page.evaluate(() => ({
