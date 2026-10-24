@@ -3471,6 +3471,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
           getEditorSettings:()=>window.SpeechBubbleForgeProjectSettings?.get?.()||{},
           applyHostSettings:applyForgeProjectSettings,
           setStatus:setSaveState,
+          getStatus:()=>{const node=document.getElementById("saveState");return node?{message:node.textContent,level:node.dataset.level}:null;},
           setProjectReady:ready=>{
             forgeProjectReady=ready;
             dirtyTrackingEnabled=ready;

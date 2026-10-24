@@ -48,6 +48,7 @@ catch { console.log("project_editor_browser_smoke: SKIP (playwright unavailable)
     await page.locator("#openShapeDrawer").click();
     assert.equal(await page.locator("#userPresetSection .sfx-library-empty").textContent(), "Choose and edit a built-in bubble, then save it as a user preset in Properties.");
     await page.evaluate(() => SpeechBubbleForgeProjectSettings.set({language: "ja"}));
+    await page.evaluate(() => forgeProjectAdapter.markDirty());
     assert.match(await page.locator("#userPresetSection .sfx-library-empty").textContent(), /ユーザープリセット/);
     await page.evaluate(() => SpeechBubbleForgeProjectSettings.set({language: "en"}));
     assert.doesNotMatch(await page.locator("#userPresetSection .sfx-library-empty").textContent(), cjk);

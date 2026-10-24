@@ -37,11 +37,27 @@
     let phase = "uninitialized";
     let listenersInstalled = false;
 
-    const tr = (ja, en) => settingsModule?.text?.(ja, en) ||
-      (root.document.documentElement.lang === "en" ? en : ja);
+    const translations = new Map();
+    let lastStatus = null;
+    const tr = (ja, en) => {
+      const message = settingsModule?.text?.(ja, en) ||
+        (root.document.documentElement.lang === "en" ? en : ja);
+      translations.set(message, [ja, en]);
+      return message;
+    };
 
-    const setStatus = (message, level = "info") =>
+    const setStatus = (message, level = "info") => {
+      lastStatus = { message, level };
       runtime.setStatus?.(message, level);
+    };
+
+    function refreshStatusLanguage() {
+      const shown = runtime.getStatus?.();
+      // An export/recovery error can supersede the adapter's last message.
+      if (shown && (shown.message !== lastStatus?.message || shown.level !== lastStatus?.level)) return;
+      const pair = translations.get(lastStatus?.message);
+      if (pair) setStatus(tr(...pair), lastStatus.level);
+    }
 
     function setPhase(value) {
       phase = value;
@@ -556,6 +572,7 @@
           runtime.onChanged?.(markDirty);
           root.addEventListener("speech-bubble:project-settings-changed", () => {
             updateToolbarLanguage();
+            refreshStatusLanguage();
             clearTimeout(autosaveTimer);
             autosaveTimer = null;
             if (dirty) scheduleAutosave();

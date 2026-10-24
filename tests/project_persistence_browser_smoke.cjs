@@ -157,6 +157,8 @@ catch { console.log("project_persistence_browser_smoke: SKIP (playwright unavail
         saveClientExport=async()=>{throw new Error("Some files could not be restored. Old copies for recovery: .sbe-recovery-ui-test\nnative.png");};
         await exportImage();
         updateActionState();refreshDirtyState();
+        SpeechBubbleForgeProjectSettings.set({language:"ja"});
+        SpeechBubbleForgeProjectSettings.set({language:"en"});
         const node=document.getElementById("saveState");
         return{message:node.textContent,title:node.title,level:node.dataset.level,enabled:!document.getElementById("exportImage").disabled};
       }finally{saveClientExport=previous.save;window.showDirectoryPicker=previous.picker;promptExportLocation=previous.prompt;rememberExportDirectory=previous.remember;}
@@ -177,6 +179,10 @@ catch { console.log("project_persistence_browser_smoke: SKIP (playwright unavail
     assert.match(await page.locator(".project-image-tray-list").textContent(),/Missing image/);
     // Deferred layout/font refreshes must not replace the adapter warning.
     await page.evaluate(()=>{updateActionState();refreshDirtyState();});
+    assert.match(await page.locator("#saveState").textContent(),/missing image reference/);
+    await page.evaluate(()=>SpeechBubbleForgeProjectSettings.set({language:"ja"}));
+    assert.match(await page.locator("#saveState").textContent(),/欠損画像/);
+    await page.evaluate(()=>SpeechBubbleForgeProjectSettings.set({language:"en"}));
     assert.match(await page.locator("#saveState").textContent(),/missing image reference/);
     assert.equal(await page.evaluate(()=>forgeProjectAdapter.save()),true);
     await page.unroute("**/projects/*");
