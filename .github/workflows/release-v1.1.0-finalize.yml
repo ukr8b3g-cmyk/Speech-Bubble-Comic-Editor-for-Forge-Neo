@@ -1,0 +1,121 @@
+name: Finalize verified v1.1.0 draft
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: speech-bubble-forge-neo-v1.1.0-release
+  cancel-in-progress: false
+jobs:
+  finalize:
+    if: >-
+      github.repository == 'ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo' &&
+      github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'Finalize v1.1.0 release')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Verify existing tag, successful source CI and every draft asset before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import io
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import zipfile
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          source = '2f6173162333365e807d5b90b2dc697d93a0f5ec'
+          current = os.environ['GITHUB_SHA']
+          release_id = 422713904
+          tag = 'v1.1.0'
+          package = 'Speech-Bubble-Comic-Editor-for-Forge-Neo/'
+          archive_name = 'Speech-Bubble-Comic-Editor-for-Forge-Neo-v1.1.0.zip'
+          expected = {
+              'SHA256SUMS.txt': (672195203, '2780d9a7974689408134a767f7574398650867bf8c2ab2881d2e80ceb1bd13bd'),
+              archive_name: (672195204, '57fcc466e9ba7bb1871fd1586d7eaf72eed523f77e4b2754817455a35c1b394e'),
+          }
+
+          def command(*args):
+              return subprocess.check_output(args, text=True, encoding='utf-8').strip()
+
+          def gh(endpoint):
+              return json.loads(command('gh', 'api', f'repos/{repo}/{endpoint}'))
+
+          def require(condition, message):
+              if not condition:
+                  raise RuntimeError(message)
+
+          def previous():
+              result = {}
+              for old in ('v1.0', 'v1.0.1'):
+                  release = gh(f'releases/tags/{old}')
+                  result[old] = {k: release.get(k) for k in ('id', 'tag_name', 'name', 'body', 'published_at', 'assets')}
+                  result[old]['ref'] = gh(f'git/ref/tags/{old}')['object']
+              return result
+
+          require(command('git', 'rev-parse', 'HEAD') == current, 'Wrong workflow checkout')
+          require(command('git', 'log', '-1', '--format=%s') == 'Finalize v1.1.0 release', 'Wrong finalization commit')
+          require(gh('branches/main')['commit']['sha'] == current, 'main moved')
+          compared = gh(f'compare/{source}...{current}')
+          require(len(compared['files']) == 1 and compared['files'][0]['filename'] == '.github/workflows/release-v1.1.0-finalize.yml'
+                  and compared['files'][0]['status'] == 'added', 'Product source changed after validation')
+          require(gh(f'git/ref/tags/{tag}')['object']['sha'] == source, 'Tag source mismatch')
+          run = gh('actions/runs/40093222898')
+          require(run['head_sha'] == source and run['name'] == 'Repository validation'
+                  and run['conclusion'] == 'success', 'Exact-source CI not successful')
+          jobs = gh('actions/runs/40093222898/jobs')['jobs']
+          require(len(jobs) == 3 and all(j['conclusion'] == 'success' for j in jobs), 'Incomplete source jobs')
+          protected = previous()
+          draft = gh(f'releases/{release_id}')
+          require(draft['draft'] and not draft['prerelease'] and draft['tag_name'] == tag, 'Wrong release draft')
+          notes = pathlib.Path('docs/RELEASE_v1.1.0.md').read_text('utf-8').strip()
+          require(draft['body'].replace('\r\n', '\n').strip() == notes, 'Release notes changed')
+          require({a['name'] for a in draft['assets']} == set(expected), 'Unexpected draft assets')
+          downloads = {}
+          for asset in draft['assets']:
+              asset_id, digest = expected[asset['name']]
+              require(asset['id'] == asset_id and asset['digest'] == 'sha256:' + digest, 'Asset identity changed')
+              raw = subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/assets/{asset_id}', '-H', 'Accept: application/octet-stream'])
+              require(len(raw) == asset['size'] and hashlib.sha256(raw).hexdigest() == digest, 'Downloaded asset mismatch')
+              downloads[asset['name']] = raw
+          require(downloads['SHA256SUMS.txt'].decode('ascii').strip() == f'{expected[archive_name][1]}  {archive_name}', 'Checksum file mismatch')
+          tree_sha = gh(f'git/commits/{source}')['tree']['sha']
+          tree = gh(f'git/trees/{tree_sha}?recursive=1')
+          require(not tree.get('truncated'), 'Truncated source tree')
+          files = {e['path']: e['sha'] for e in tree['tree'] if e['type'] == 'blob'}
+          require(len(files) == 522, 'Unexpected source file count')
+          with zipfile.ZipFile(io.BytesIO(downloads[archive_name])) as archive:
+              names = [e.filename for e in archive.infolist() if not e.is_dir()]
+              require(len(names) == len(set(names)) == len(files) + 1, 'Duplicate or missing ZIP paths')
+              require(set(names) == {package + p for p in files} | {package + 'RELEASE_BUILD.json'}, 'Unexpected ZIP content')
+              manifest = json.loads(archive.read(package + 'RELEASE_BUILD.json'))
+              require(manifest['source_sha'] == source and manifest['version'] == '1.1.0' and set(manifest['files']) == set(files), 'Build manifest mismatch')
+              for name, git_sha in files.items():
+                  raw = archive.read(package + name)
+                  require(hashlib.sha256(raw).hexdigest() == manifest['files'][name], f'ZIP hash mismatch: {name}')
+                  data = raw if b'\0' in raw[:8000] else raw.replace(b'\r\n', b'\n')
+                  blob = hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+                  require(blob == git_sha, f'ZIP/source mismatch: {name}')
+          require(previous() == protected and gh('branches/main')['commit']['sha'] == current, 'Protected state moved')
+          command('gh', 'api', '-X', 'PATCH', f'repos/{repo}/releases/{release_id}', '-F', 'draft=false', '-f', 'make_latest=true')
+          released = gh(f'releases/{release_id}')
+          require(not released['draft'] and not released['prerelease'] and previous() == protected, 'Final release state mismatch')
+          require(gh(f'git/ref/tags/{tag}')['object']['sha'] == source, 'Tag changed')
+          print(json.dumps({'url': released['html_url'], 'source_sha': source, 'files_verified': len(files), 'zip_sha256': expected[archive_name][1], 'old_releases_unchanged': True}))
+          PY
