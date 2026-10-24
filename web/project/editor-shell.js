@@ -71,6 +71,7 @@
       : params.get("showEmptyCanvasGuide") !== "0";
     let forgeProjectTitle = "Untitled Comic Project";
     let forgeProjectReady = !isForgeProjectHost;
+    let forgeProjectStatusManaged = false;
     let lastSavedImageTrays = null;
     const startupBehavior = ["resume","new"].includes(params.get("startupBehavior")) ? params.get("startupBehavior") : "ask";
     let autoSaveDelay = Math.max(5000, Math.min(3600000, Number(params.get("autoSaveDelay")) || 30000));
@@ -439,7 +440,7 @@
     async function storeGeneratedBackground(id,blob,name,tab,url){if(!id?.startsWith("generated:")||!blob)return;try{await storeCachedBackground({documentId:id,kind:"generated",blob,sourceName:name||"speech_bubble",sourceTab:tab||"",sourceUrl:String(url||"")});}catch(error){console.warn("Speech Bubble generated background save failed",error);}}
     function setSaveState(message,level="info",detail=""){const node=document.getElementById("saveState");if(!node)return;node.textContent=window.SpeechBubbleUiMessages.error(message,uiEnglish()?"en":"ja");node.title=window.SpeechBubbleUiMessages.error(detail||message,uiEnglish()?"en":"ja");node.dataset.level=level;}
     function hasEditableDocument(){const defaultBackground=normalizedCanvasBackground(),customizedSingleCanvas=activeWorkspace==="single"&&(JSON.stringify(normalizedCanvasBackground(state.canvasBackground))!==JSON.stringify(defaultBackground)||state.backgroundVisible===false);return Boolean(imageLoaded&&state.backgroundImage.attached&&image.naturalWidth)||Boolean(workspaces.single.elements.length)||customizedSingleCanvas||Boolean(comicEditor?.isActive())||Boolean(generalComicEditor?.hasPage());}
-    function updateActionState(){const hasDocument=hasEditableDocument()&&forgeProjectReady;document.getElementById("saveLayout").disabled=!hasDocument;document.getElementById("exportImage").disabled=!hasDocument;document.getElementById("discardChanges").disabled=(!hasDocument&&!isForgeProjectHost)||!forgeProjectReady||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasDocument||activeWorkspace!=="single"||!showEmptyCanvasGuide;if(!hasDocument)setSaveState(generalComicEditor?.isActive()?uiText("コミックページを作成してください","Create a comic page"):uiText("画像を読み込んでください","Load an image to begin"),"info");else if(layoutDirty)setSaveState(autoSaveEnabled?uiText("未保存の変更（下書き保存対象）","Unsaved changes (included in draft)"):uiText("未保存の変更があります","Unsaved changes"),"dirty");else if(hasExplicitSavedLayout)setSaveState(uiText("レイアウト保存済み","Layout saved"),"saved");else setSaveState(activeStructuralEditor()&&!imageLoaded?uiText("新規漫画ページ","New comic page"):uiText("新規レイアウト","New layout"),"info");}
+    function updateActionState(){const hasDocument=hasEditableDocument()&&forgeProjectReady;document.getElementById("saveLayout").disabled=!hasDocument;document.getElementById("exportImage").disabled=!hasDocument;document.getElementById("discardChanges").disabled=(!hasDocument&&!isForgeProjectHost)||!forgeProjectReady||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasDocument||activeWorkspace!=="single"||!showEmptyCanvasGuide;if(isForgeProjectHost&&forgeProjectStatusManaged)return;if(!hasDocument)setSaveState(generalComicEditor?.isActive()?uiText("コミックページを作成してください","Create a comic page"):uiText("画像を読み込んでください","Load an image to begin"),"info");else if(layoutDirty)setSaveState(autoSaveEnabled?uiText("未保存の変更（下書き保存対象）","Unsaved changes (included in draft)"):uiText("未保存の変更があります","Unsaved changes"),"dirty");else if(hasExplicitSavedLayout)setSaveState(uiText("レイアウト保存済み","Layout saved"),"saved");else setSaveState(activeStructuralEditor()&&!imageLoaded?uiText("新規漫画ページ","New comic page"):uiText("新規レイアウト","New layout"),"info");}
     let forgeProjectChangeQueued=false;
     function notifyForgeProjectChanged(){
       projectImageTray?.render();
@@ -3450,6 +3451,8 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       updateActionState();
     }
     async function initializeForgeProjectAdapter(){
+      // The adapter owns Forge saved/dirty/error messages; deferred UI refreshes only update controls.
+      forgeProjectStatusManaged=true;
       forgeProjectAdapter=window.SpeechBubbleForgeProjectAdapter.create({
         projectId:forgeProjectId,
         apiBase:forgeApiBase,

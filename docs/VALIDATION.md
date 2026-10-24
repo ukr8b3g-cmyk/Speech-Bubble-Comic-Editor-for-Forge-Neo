@@ -175,3 +175,7 @@ Manga Finish and all five persistence fixes are included with explicit user auth
 The local combined-code gate passed 148 Python tests, 29 Node suites and five real browser suites before release version changes. The versioned candidate is checked again with `python tools/validate_repo.py --browser`. The release workflow additionally waits for all exact-commit Ubuntu, Windows and Chromium jobs to pass before creating a new tag and Release. ZIP construction uses 7-Zip, verifies every packaged source hash and emits SHA256SUMS.txt plus RELEASE_BUILD.json. Existing project data and running Forge instances are not used by these tests.
 
 Historical local-only statements above record the earlier implementation/deployment stage; v1.1.0 is the publication stage. No Forge restart, live host screen or GPU inference acceptance is asserted here.
+
+### Publication browser CI follow-up
+
+The first publication CI passed Linux/Windows core tests but caught an actual status ownership race: deferred UI refreshes replaced the adapter's missing-image warning with the generic saved label. Release creation stopped before any tag/Release was created. The browser regression now forces both action/dirty refreshes and reproduced the failure locally before the fix. Forge action refreshes update controls while the adapter retains ownership of saved/dirty/error messages; the regression also verifies recovery errors survive later refreshes. The final release requires a fresh complete CI on the corrected commit.
