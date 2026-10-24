@@ -172,18 +172,20 @@ class ProjectStore:
                 server_record = registry.get(record["id"])
                 if not server_record:
                     repair_warnings.append(
-                        f"Missing image registry entry was skipped: {record['id']}"
+                        f"Missing image registry entry retained as placeholder: {record['id']}"
                     )
+                    current_images.append({**record, "missing": True, "missing_reason": "registry"})
                     continue
                 image_path = self._project_dir(normalized_id) / safe_asset_path(
                     server_record["path"]
                 )
                 if not image_path.is_file():
                     repair_warnings.append(
-                        f"Missing image file was skipped: {record['id']}"
+                        f"Missing image file retained as placeholder: {record['id']}"
                     )
+                    current_images.append({**server_record, "missing": True, "missing_reason": "file"})
                     continue
-                current_images.append(server_record)
+                current_images.append({key: value for key, value in server_record.items() if key not in {"missing", "missing_reason"}})
             manifest["images"] = current_images
             if repair_warnings:
                 manifest["repair_warnings"] = repair_warnings
@@ -242,6 +244,7 @@ class ProjectStore:
             )
             current.pop("repair_warnings", None)
             registry = self._load_registry(normalized_id)
+            previous_images = {record["id"]: record for record in current["images"]}
             seen: set[str] = set()
             images: list[dict] = []
             for raw_id in image_ids:
@@ -250,10 +253,16 @@ class ProjectStore:
                     continue
                 seen.add(asset_id)
                 record = registry.get(asset_id)
+                if not record and previous_images.get(asset_id, {}).get("missing"):
+                    # Only preserve an ID already owned by this project. A client
+                    # cannot invent a missing asset or borrow another project's ID.
+                    record = previous_images[asset_id]
                 if not record:
                     raise ProjectSchemaError(
                         f"Unknown project image ID: {asset_id}"
                     )
+                if asset_id in registry and not (self._project_dir(normalized_id) / safe_asset_path(record["path"])).is_file():
+                    record = {**record, "missing": True, "missing_reason": "file"}
                 images.append(record)
 
             now = utc_now()
@@ -348,6 +357,9 @@ class ProjectStore:
             registry = self._load_registry(normalized_id)
             existing = registry.get(asset_id)
             if existing:
+                existing_path = self._project_dir(normalized_id) / safe_asset_path(existing["path"])
+                if not existing_path.is_file():
+                    self._atomic_write(existing_path, raw)
                 return existing
             path = self._project_dir(normalized_id) / record["path"]
             self._atomic_write(path, raw)

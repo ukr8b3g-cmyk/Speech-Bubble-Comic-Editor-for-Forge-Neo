@@ -65,7 +65,7 @@
       return `<div class="compact-color-swatches" data-general-color-scope="${scope}"></div>`;
     }
 
-    function attachBlob(metadata, blob, render = true) { return imageFromBlob(blob).then(({ image, url }) => { const old = runtimeImages.get(metadata.id)?.dataset?.generalComicObjectUrl; if (old) { URL.revokeObjectURL(old); objectUrls.delete(old); } image.dataset.generalComicObjectUrl = url; objectUrls.add(url); runtimeImages.set(metadata.id, image); runtimeBlobs.set(metadata.id, blob); metadata.width = image.naturalWidth; metadata.height = image.naturalHeight; if (render) { renderTray(); requestRender({ canvas: true, layers: true }); } }); }
+    function attachBlob(metadata, blob, render = true, canCommit = () => true) { return imageFromBlob(blob).then(({ image, url }) => { if(!canCommit()){URL.revokeObjectURL(url);return false;} const old = runtimeImages.get(metadata.id)?.dataset?.generalComicObjectUrl; if (old) { URL.revokeObjectURL(old); objectUrls.delete(old); } image.dataset.generalComicObjectUrl = url; objectUrls.add(url); runtimeImages.set(metadata.id, image); runtimeBlobs.set(metadata.id, blob); metadata.width = image.naturalWidth; metadata.height = image.naturalHeight; if (render) { renderTray(); requestRender({ canvas: true, layers: true }); } return true; }); }
     async function hydrateImages() { const target = documentId(); hydratedDocumentId = target; await Promise.all(comic.images.filter((item) => !runtimeImages.has(item.id)).map(async (metadata) => { try { const blob = await imageStore.get(metadata.id); if (blob && target === hydratedDocumentId) await attachBlob(metadata, blob, false); } catch (error) { console.warn("General comic image restore failed", metadata.id, error); } })); renderTray(); requestRender({ canvas: true, layers: true }); }
 
     function setSelection(kind, id = null) { selection = { kind, id }; if (kind === "panel" || kind === "image") lastPanelId = id; if (kind !== "image") { selectedImagePanelIds.clear(); imageSelectionAnchorId = null; } if (kind !== "normal") options.clearLayerSelection?.(); syncUi(); options.syncInsertTargetStatus?.(); requestRender({ canvas: true, layers: true }); }
@@ -319,7 +319,36 @@
     function pointerCursorAt(point) { if (!active || comic.page.structure_locked) return ""; const computed = layout(), zoom = Math.max(.1, canvasState().zoom || 1); if (core.dividerHandleAtPoint(computed, point, 16 / zoom)) return "crosshair"; const divider = core.dividerAtPoint(computed, point, 10 / zoom); return divider ? divider.axis === "x" ? "col-resize" : "row-resize" : ""; }
     function handleWheel(event, point) { if (!active || !(event.ctrlKey || event.metaKey) || selection.kind !== "image") return false; const panels = selectedImagePanels().filter((panel) => panelEditable(panel) && !panel.image_locked); if (!panels.length) return false; if (point) { const hit = core.panelAtPoint(layout(), point); if (!hit || !selectedImagePanelIds.has(hit.id) && hit.id !== selection.id) return false; } options.pushUndo?.(); const factor = event.deltaY < 0 ? 1.08 : .92; panels.forEach((panel) => panel.image_scale = core.clamp(panel.image_scale * factor, .05, 5)); changed(); syncUi(); return true; }
 
-    async function importFiles(files) { const valid = files.filter(supportedImage); if (!valid.length) { options.setStatus?.(tr("PNG / JPEG / WebPを選択してください", "Choose PNG, JPEG, or WebP"), "error"); return []; } if (comic.images.length + valid.length > MAX_IMAGES) { options.setStatus?.(tr("画像トレイは100枚までです", "Up to 100 Image Tray images are supported"), "error"); return []; } const ids = []; for (const file of valid) { if (file.size > MAX_IMAGE_BYTES) { options.setStatus?.(tr("画像が大きすぎます", "The image is too large"), "error"); continue; } let metadata = { id: `${IMAGE_PREFIX}${uuid()}`, name: String(file.name || "image").replace(/\.[^.]+$/, ""), mime: file.type || "image/png", width: 1, height: 1, sha256: "", source: "stored" }; const stored = await imageStore.put(metadata, file); if (stored?.id) metadata = { ...metadata, ...stored, id: String(stored.id), source: "forge-project" }; const duplicate = comic.images.find((item) => item.id === metadata.id); if (duplicate) { if (!runtimeImages.has(duplicate.id)) await attachBlob(duplicate, file, false); ids.push(duplicate.id); continue; } await attachBlob(metadata, file, false); comic.images.push(metadata); ids.push(metadata.id); } if (ids.length) { used = true; selectedTrayImageId = ids.at(-1); changed(); renderTray(); } return ids; }
+    async function importFiles(files, importOptions = {}) {
+      const canCommit = importOptions.canCommit || (() => true);
+      const valid = files.filter(supportedImage);
+      if (!canCommit()) return [];
+      if (!valid.length) { options.setStatus?.(tr("PNG / JPEG / WebPを選択してください", "Choose PNG, JPEG, or WebP"), "error"); return []; }
+      if (comic.images.length + valid.length > MAX_IMAGES) { options.setStatus?.(tr("画像トレイは100枚までです", "Up to 100 Image Tray images are supported"), "error"); return []; }
+      const ids = [];
+      for (const file of valid) {
+        if (file.size > MAX_IMAGE_BYTES) { options.setStatus?.(tr("画像が大きすぎます", "The image is too large"), "error"); continue; }
+        let metadata = { id: `${IMAGE_PREFIX}${uuid()}`, name: String(file.name || "image").replace(/\.[^.]+$/, ""), mime: file.type || "image/png", width: 1, height: 1, sha256: "", source: "stored" };
+        const stored = await imageStore.put(metadata, file, {canCommit, deferRegister:Boolean(importOptions.canCommit)});
+        if (!canCommit()) return [];
+        if (stored?.id) metadata = { ...metadata, ...stored, id: String(stored.id), source: "forge-project" };
+        const duplicate = comic.images.find((item) => item.id === metadata.id);
+        if (duplicate) {
+          if (!runtimeImages.has(duplicate.id)) await attachBlob(duplicate, file, false, canCommit);
+          if (!canCommit()) return [];
+          importOptions.beforeCommit?.();
+          ids.push(duplicate.id);
+          continue;
+        }
+        if (!await attachBlob(metadata, file, false, canCommit) || !canCommit()) return [];
+        importOptions.beforeCommit?.();
+        if(importOptions.canCommit)imageStore.register?.(metadata);
+        comic.images.push(metadata);
+        ids.push(metadata.id);
+      }
+      if (ids.length) { used = true; selectedTrayImageId = ids.at(-1); changed(); renderTray(); }
+      return ids;
+    }
     async function getConversionSources() {
       const panel = selectedPanel(), preferredId = panel?.image_id || selectedTrayImageId || "";
       processingPanelId = panel?.image_id ? panel.id : "";
@@ -331,13 +360,14 @@
       }
       return sources;
     }
-    async function addConvertedImage(blob, name = "comic-converted.png") {
+    async function addConvertedImage(blob, name = "comic-converted.png", canCommit = () => true) {
       if (!(blob instanceof Blob)) return "";
       const safeName = String(name || "comic-converted.png").replace(/[\\/:*?"<>|]+/g, "-"), file = new File([blob], /\.png$/i.test(safeName) ? safeName : `${safeName}.png`, { type: "image/png", lastModified: Date.now() });
-      options.pushUndo?.();
-      const ids = await importFiles([file]), addedId = ids[0] || "";
+      const targetPanelId=processingPanelId;
+      const ids = await importFiles([file], {canCommit,beforeCommit:()=>options.pushUndo?.()}), addedId = ids[0] || "";
+      if(!canCommit())return "";
       if (!addedId) throw new Error(tr("変換画像を画像トレイへ追加できませんでした。", "The converted image could not be added to the Image Tray."));
-      const target = processingPanelId ? core.findNode(comic.tree, processingPanelId) : null;
+      const target = targetPanelId ? core.findNode(comic.tree, targetPanelId) : null;
       if (target?.kind === "panel") { target.image_id = addedId; target.image_crop = { x: 0, y: 0, w: 1, h: 1 }; target.image_visible = true; selectedImagePanelIds.clear(); selectedImagePanelIds.add(target.id); selection = { kind: "image", id: target.id }; lastPanelId = target.id; }
       processingPanelId = "";
       selectedTrayImageId = addedId;

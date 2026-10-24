@@ -213,7 +213,7 @@
       "speech-bubble-forge/static/project-editor.html",
       `${base.origin}${basePath}`,
     );
-    url.searchParams.set("build", "1.0.1");
+    url.searchParams.set("build", "1.1.0");
     url.searchParams.set("host", "forge-project");
     url.searchParams.set("projectId", projectId());
     url.searchParams.set("forgeApiBase", "/speech-bubble-forge");

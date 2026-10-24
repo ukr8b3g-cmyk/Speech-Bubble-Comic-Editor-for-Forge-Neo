@@ -48,10 +48,22 @@ from speech_bubble_forge.user_assets import (
 )
 
 _SETTINGS_SECTION = ("speech_bubble_forge", "Comic Panel Editor")
+_manga_finish_service = None
 
 
 def _on_app_started(_demo, app):
+    global _manga_finish_service
     register_routes(app)
+    _manga_finish_service = app.state.speech_bubble_manga_finish
+
+
+def _on_script_unloaded():
+    global _manga_finish_service
+    # Gradio supplies its own lifespan and may skip FastAPI shutdown handlers.
+    # Forge calls this after closing the old server on UI reload.
+    if _manga_finish_service is not None:
+        _manga_finish_service.shutdown()
+        _manga_finish_service = None
 
 
 def _add_option(key, info):
@@ -441,6 +453,7 @@ def _on_ui_settings():
 
 
 script_callbacks.on_app_started(_on_app_started, name="speech-bubble-forge-routes")
+script_callbacks.on_script_unloaded(_on_script_unloaded, name="speech-bubble-manga-shutdown")
 script_callbacks.on_ui_settings(_on_ui_settings, name="speech-bubble-forge-settings")
 
 

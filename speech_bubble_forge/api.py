@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import binascii
 import io
 import json
@@ -27,6 +28,7 @@ from PIL import Image, ImageOps
 from . import __version__
 from .request_limits import read_bounded_body, read_bounded_json
 from .background_removal_routes import register_background_removal_routes
+from .manga_finish_routes import register_manga_routes
 from .diagnostics import run_self_diagnostics
 from .font_catalog import font_by_id, public_fonts
 from .presets import read_user_presets, update_user_presets
@@ -616,8 +618,13 @@ def _cleanup_stale_client_exports() -> None:
             _remove_client_export(directory.name)
 
 
-def _output_url(prefix: str, relative_path: Path) -> str:
-    return f"/speech-bubble-forge/{prefix}/{quote(relative_path.as_posix(), safe='/')}"
+def _output_root_id(root: Path) -> str:
+    return hashlib.sha256(str(root.resolve()).encode("utf-8")).hexdigest()[:24]
+
+
+def _output_url(prefix: str, relative_path: Path, root: Path | None = None) -> str:
+    url = f"/speech-bubble-forge/{prefix}/{quote(relative_path.as_posix(), safe='/')}"
+    return f"{url}?root_id={_output_root_id(root)}" if root is not None else url
 
 
 def _write_text_atomic(path: Path, text: str) -> None:
@@ -667,15 +674,23 @@ def _user_asset_http_error(error: UserAssetError) -> HTTPException:
     return HTTPException(status_code=status_code, detail=error.as_dict())
 
 
-def _safe_output_file(filename: str) -> Path:
+def _safe_output_file(filename: str, root_id: str | None = None) -> Path:
+    matches = []
     for root in allowed_output_roots():
+        root = root.resolve()
+        if root_id is not None and _output_root_id(root) != root_id:
+            continue
         candidate = (root / filename).resolve()
         try:
             candidate.relative_to(root)
         except ValueError:
             continue
         if candidate.is_file():
-            return candidate
+            matches.append(candidate)
+    if len(set(matches)) > 1:
+        raise HTTPException(status_code=409, detail="Ambiguous output path; export again to obtain a root-specific URL")
+    if matches:
+        return matches[0]
     raise HTTPException(status_code=404, detail="Output file not found")
 
 
@@ -738,13 +753,13 @@ def register_routes(app):
             **public_settings().as_dict(),
         }
 
-    async def output_file(filename: str):
-        path = _safe_output_file(filename)
+    async def output_file(filename: str, root_id: str | None = None):
+        path = _safe_output_file(filename, root_id)
         media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         return FileResponse(path, media_type=media_type, filename=path.name)
 
-    async def view_file(filename: str):
-        path = _safe_output_file(filename)
+    async def view_file(filename: str, root_id: str | None = None):
+        path = _safe_output_file(filename, root_id)
         media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         return FileResponse(path, media_type=media_type)
 
@@ -1031,9 +1046,9 @@ def register_routes(app):
             else:
                 relative_path = composite_path.relative_to(out_root)
                 overlay_relative = overlay_path.relative_to(out_root)
-                composite_url = _output_url("view", relative_path)
+                composite_url = _output_url("view", relative_path, out_root)
                 overlay_url = (
-                    _output_url("view", overlay_relative)
+                    _output_url("view", overlay_relative, out_root)
                     if settings.save_overlay
                     else None
                 )
@@ -1055,14 +1070,14 @@ def register_routes(app):
                 "download_url": (
                     composite_url
                     if client_save
-                    else _output_url("output", relative_path)
+                    else _output_url("output", relative_path, out_root)
                 ),
                 "overlay_url": overlay_url,
                 "overlay_download_url": (
                     overlay_url
                     if client_save
                     else (
-                        _output_url("output", overlay_relative)
+                        _output_url("output", overlay_relative, out_root)
                         if settings.save_overlay
                         else None
                     )
@@ -1163,6 +1178,7 @@ def register_routes(app):
 
     register_project_routes(app)
     register_background_removal_routes(app)
+    register_manga_routes(app)
 
     print("[Speech Bubble Forge] Editor: /speech-bubble-forge/static/speech-bubble-editor.html")
     print("[Speech Bubble Forge] Project Editor: /speech-bubble-forge/static/project-editor.html")

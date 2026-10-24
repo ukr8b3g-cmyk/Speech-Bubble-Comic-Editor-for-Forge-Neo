@@ -5,7 +5,7 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync("web/project/forge-project-adapter.js", "utf8");
 const PROJECT_ID = "project:11111111-1111-4111-8111-111111111111";
-function fixture() {
+async function fixture() {
   let scene = "A", title = "Draft", tray = { mode: "shared", shared: [] };
   let ids = [], autorevision = 0;
   const requests = [], statuses = [], marks = [], timers = new Map();
@@ -13,6 +13,8 @@ function fixture() {
   const api = {
     normalizeProjectId: id => id,
     ForgeProjectApi: class {
+      async settings() { return {}; }
+      async load() { return { title, layout: { scene }, images: [], image_trays: tray }; }
       save(_projectId, payload) {
         return new Promise((resolve, reject) => requests.push({ payload, resolve, reject }));
       }
@@ -22,7 +24,7 @@ function fixture() {
     console,
     URLSearchParams,
     location: { search: "", origin: "http://127.0.0.1:7860" },
-    document: { documentElement: { lang: "en" } },
+    document: { documentElement: { lang: "en" }, querySelector() { return null; } },
     window: { opener: null, addEventListener() {} },
     addEventListener() {},
     clearTimeout(id) { timers.delete(id); },
@@ -47,6 +49,7 @@ function fixture() {
       markSaved: value => marks.push(value.scene),
     }
   });
+  await adapter.initialize();
   async function flush() { for (let i = 0; i < 4; i++) await Promise.resolve(); }
   return {
     adapter, requests, statuses, marks, timers, flush,
@@ -66,7 +69,7 @@ function fixture() {
 (async () => {
   // A save of A must not clear a newer edit B, and it must requeue autosave B.
   {
-    const f = fixture();
+    const f = await fixture();
     const first = f.adapter.save("manual");
     await f.flush();
     assert.equal(f.requests.length, 1);
@@ -88,7 +91,7 @@ function fixture() {
   }
   // A timer firing while another request is pending must not swallow the new edit.
   {
-    const f = fixture();
+    const f = await fixture();
     const active = f.adapter.save("autosave");
     await f.flush();
     f.setScene("B"); f.adapter.markDirty();
@@ -105,7 +108,7 @@ function fixture() {
   }
   // Even if a change event is delayed, compare the serialized layout before declaring clean.
   {
-    const f = fixture(), pending = f.adapter.save("manual");
+    const f = await fixture(), pending = f.adapter.save("manual");
     await f.flush(); f.setScene("B");
     f.requests[0].resolve({ title: "Draft", images: [] });
     assert.equal(await pending, false);
@@ -114,7 +117,7 @@ function fixture() {
   }
   // Title and tray changes cannot be silently marked saved.
   {
-    const f = fixture(), pending = f.adapter.save("manual");
+    const f = await fixture(), pending = f.adapter.save("manual");
     await f.flush(); f.setTitle("Changed"); f.setTray({ mode: "separate", shared: [] });
     f.requests[0].resolve({ title: "Draft", images: [] });
     assert.equal(await pending, false);
@@ -122,7 +125,7 @@ function fixture() {
   }
   // A stable save clears dirty state.
   {
-    const f = fixture(); f.adapter.markDirty();
+    const f = await fixture(); f.adapter.markDirty();
     const pending = f.adapter.save("manual");
     await f.flush();
     f.requests[0].resolve({ title: "Draft", images: [] });
@@ -132,7 +135,7 @@ function fixture() {
   }
   // A server rejection cannot clear unsaved work.
   {
-    const f = fixture(); f.adapter.markDirty();
+    const f = await fixture(); f.adapter.markDirty();
     const pending = f.adapter.save("manual");
     await f.flush();
     f.requests[0].reject(new Error("disk full"));

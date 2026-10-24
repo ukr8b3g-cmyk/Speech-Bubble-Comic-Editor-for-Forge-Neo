@@ -1,0 +1,148 @@
+name: Release v1.1.0 (one-time verified)
+# Only the explicitly titled squash commit on the canonical main is eligible.
+# No alternate branch, legacy repo, or historical Release is modified.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: speech-bubble-forge-neo-v1.1.0-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.repository == 'ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo' &&
+      github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'Release v1.1.0')
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.1.0
+      SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout exact publication source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Validate release identity and await complete source CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import configparser
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import time
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          sha = os.environ["SOURCE_SHA"]
+
+          def checked(*command):
+              return subprocess.check_output(command, text=True).strip()
+
+          def gh(endpoint):
+              return json.loads(checked("gh", "api", f"repos/{repo}/{endpoint}"))
+
+          def require(condition, message):
+              if not condition:
+                  raise RuntimeError(message)
+
+          require(checked("git", "rev-parse", "HEAD") == sha, "Wrong source SHA")
+          require(checked("git", "log", "-1", "--format=%s") == "Release v1.1.0", "Wrong release commit title")
+          require(gh("branches/main")["commit"]["sha"] == sha, "main moved during release gate")
+          version = {}
+          exec(pathlib.Path("speech_bubble_forge/__init__.py").read_text("utf-8"), version)
+          require(version.get("__version__") == "1.1.0", "Python package version mismatch")
+          metadata = configparser.ConfigParser()
+          metadata.read("metadata.ini", encoding="utf-8")
+          require(metadata.get("Extension", "Version") == "1.1.0", "Extension version mismatch")
+          require("Version: **1.1.0**" in pathlib.Path("README.md").read_text("utf-8"), "README version mismatch")
+          require(pathlib.Path("docs/RELEASE_v1.1.0.md").exists(), "Missing release notes")
+
+          for endpoint in ("git/ref/tags/v1.1.0", "releases/tags/v1.1.0"):
+              result = subprocess.run(["gh", "api", f"repos/{repo}/{endpoint}"],
+                                      capture_output=True, text=True)
+              require(result.returncode != 0 and "HTTP 404" in result.stderr,
+                      f"Release tag already exists or API failure at {endpoint}")
+          for attempt in range(180):
+              runs = gh(f"actions/runs?head_sha={sha}&per_page=100")["workflow_runs"]
+              validations = [r for r in runs if r["name"] == "Repository validation"
+                             and r["head_sha"] == sha and r["event"] == "push"
+                             and r.get("head_repository", {}).get("full_name") == repo]
+              if validations and validations[0]["status"] == "completed":
+                  require(validations[0]["conclusion"] == "success",
+                          "Repository validation failed on release source")
+                  print("Verified complete Ubuntu, Windows and Chromium CI for", sha)
+                  break
+              time.sleep(5)
+          else:
+              raise RuntimeError("Timed out waiting for release source CI")
+          PY
+      - name: Build and verify installable ZIP with 7-Zip
+        shell: bash
+        run: python tools/package_release.py --output "$RUNNER_TEMP/release-packages"
+      - name: Publish new Release while preserving previous releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import subprocess
+
+          repo, sha, tag = (os.environ[k] for k in ("GITHUB_REPOSITORY", "SOURCE_SHA", "RELEASE_TAG"))
+
+          def command(*args):
+              return subprocess.check_output(args, text=True).strip()
+
+          def gh(endpoint):
+              return json.loads(command("gh", "api", f"repos/{repo}/{endpoint}"))
+
+          def previous():
+              result = {}
+              for old in ("v1.0", "v1.0.1"):
+                  release = gh(f"releases/tags/{old}")
+                  result[old] = {k: release.get(k) for k in ("id", "tag_name", "name", "body", "published_at", "assets")}
+                  result[old]["ref"] = gh(f"git/ref/tags/{old}")["object"]
+              return result
+
+          protected = previous()
+          if gh("branches/main")["commit"]["sha"] != sha:
+              raise RuntimeError("main changed; refusing to tag")
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "release-packages"
+          archive = output / "Speech-Bubble-Comic-Editor-for-Forge-Neo-v1.1.0.zip"
+          checksum = output / "SHA256SUMS.txt"
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          if checksum.read_text("ascii").strip() != f"{digest}  {archive.name}":
+              raise RuntimeError("ZIP checksum mismatch")
+          command("gh", "api", "-X", "POST", f"repos/{repo}/git/refs", "-f", f"ref=refs/tags/{tag}", "-f", f"sha={sha}")
+          command("gh", "release", "create", tag, str(archive), str(checksum), "--repo", repo, "--verify-tag", "--draft", "--title", "Speech Bubble Comic Editor for Forge Neo v1.1.0", "--notes-file", "docs/RELEASE_v1.1.0.md")
+          draft = gh(f"releases/tags/{tag}")
+          if not draft["draft"] or {a["name"] for a in draft["assets"]} != {archive.name, checksum.name}:
+              raise RuntimeError("Release asset list mismatch; draft retained")
+          for asset in draft["assets"]:
+              expected = "sha256:" + hashlib.sha256((output / asset["name"]).read_bytes()).hexdigest()
+              if asset.get("digest") != expected:
+                  raise RuntimeError("Uploaded asset digest mismatch; draft retained")
+          if previous() != protected or gh("branches/main")["commit"]["sha"] != sha:
+              raise RuntimeError("Protected source/release state changed; draft retained")
+          command("gh", "release", "edit", tag, "--repo", repo, "--draft=false", "--latest")
+          released = gh(f"releases/tags/{tag}")
+          if released["draft"] or released["prerelease"] or previous() != protected:
+              raise RuntimeError("Post-publication verification failed")
+          print(json.dumps({"url": released["html_url"], "tag": tag, "source_sha": sha, "sha256": digest, "old_releases_unchanged": True}))
+          PY

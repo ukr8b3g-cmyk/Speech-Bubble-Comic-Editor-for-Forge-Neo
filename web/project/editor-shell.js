@@ -29,6 +29,8 @@
       return`${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
     }
     let standaloneId=params.get("standaloneId")||createUuid();
+    let converterDocumentEpoch = 0;
+    function invalidateComicConversion(){++converterDocumentEpoch;comicConverter?.cancelPending?.();}
     let documentId=isForgeProjectHost?forgeProjectId:(documentMode==="standalone"?`standalone:${standaloneId}`:(imageHash?`image:${imageHash}`:""));
     let sourceName = params.get("sourceName") || "speech_bubble";
     let sourceTab = params.get("sourceTab") || params.get("tabName") || "";
@@ -39,7 +41,8 @@
       ? new window.SpeechBubbleForgeProjectApi.ForgeProjectApi({ base: forgeApiBase })
       : null;
     const forgeProjectImageStore = isForgeProjectHost ? {
-      put: async (metadata, blob) => {
+      put: async (metadata, blob, control = {}) => {
+        if(control.canCommit && !control.canCommit())throw new DOMException("Stale conversion","AbortError");
         const sourceKind = metadata?.source === "converted"
           ? "converted"
           : metadata?.source === "background-removal"
@@ -52,9 +55,11 @@
           sourceKind,
           sourceTab,
         });
-        projectImageTray?.register(asset, { notify: false });
+        if(control.canCommit && !control.canCommit())throw new DOMException("Stale conversion","AbortError");
+        if(!control.deferRegister)projectImageTray?.register(asset, { notify: false });
         return asset;
       },
+      register: asset => projectImageTray?.register(asset, { notify: false }),
       get: (imageId) => forgeProjectApiClient.imageBlob(forgeProjectId, imageId),
       // Project画像はUndo保護のためUI削除では物理削除しない。
       remove: async () => undefined,
@@ -65,6 +70,8 @@
       ? forgeEditorSettings.show_empty_guide === true
       : params.get("showEmptyCanvasGuide") !== "0";
     let forgeProjectTitle = "Untitled Comic Project";
+    let forgeProjectReady = !isForgeProjectHost;
+    let lastSavedImageTrays = null;
     const startupBehavior = ["resume","new"].includes(params.get("startupBehavior")) ? params.get("startupBehavior") : "ask";
     let autoSaveDelay = Math.max(5000, Math.min(3600000, Number(params.get("autoSaveDelay")) || 30000));
     let lastRecoveryCheckpoint=Date.now();
@@ -133,17 +140,24 @@
     let primarySingleImageAssetId="",lastSingleProcessingLayerId="",pendingImageLayerReplacementId="";
     function clearSingleImageAssets(){for(const asset of singleImageAssets.values())if(asset.url)URL.revokeObjectURL(asset.url);singleImageAssets.clear();primarySingleImageAssetId="";lastSingleProcessingLayerId="";}
     function loadSingleImageElement(url){return new Promise((resolve,reject)=>{const node=new Image();node.decoding="async";node.onload=()=>resolve(node);node.onerror=()=>reject(new Error(uiText("画像レイヤーを読み込めませんでした。","Could not load the image layer.")));node.src=url;});}
-    async function registerSingleImageAsset(blob,name="image",assetId=""){
-      let id=assetId;
-      let stored=null;
+    async function registerSingleImageAsset(blob,name="image",assetId="",canCommit=null){
+      if(canCommit&&!canCommit())return null;
+      let id=assetId,stored=null;
       if(isForgeProjectHost&&!id){
-        stored=await forgeProjectImageStore.put({name,source:"single"},blob);
+        stored=await forgeProjectImageStore.put({name,source:canCommit?"converted":"single"},blob,{canCommit,deferRegister:true});
         id=String(stored?.id||"");
         if(!id)throw new Error(uiText("Project画像を保存できませんでした","Could not store the Project image"));
       }
       id=id||`${SINGLE_IMAGE_ASSET_PREFIX}${createUuid()}`;
+      const url=URL.createObjectURL(blob);
+      let node;
+      try{node=await loadSingleImageElement(url);}catch(error){URL.revokeObjectURL(url);throw error;}
+      if(canCommit&&!canCommit()){URL.revokeObjectURL(url);return null;}
       const previous=singleImageAssets.get(id);if(previous?.url)URL.revokeObjectURL(previous.url);
-      const url=URL.createObjectURL(blob),node=await loadSingleImageElement(url),asset={id,name:String(stored?.name||name||"image").replace(/\.[^.]+$/,""),mime:stored?.mime||blob.type||"image/png",blob,url,image:node,width:node.naturalWidth,height:node.naturalHeight};singleImageAssets.set(id,asset);return asset;
+      const asset={id,name:String(stored?.name||name||"image").replace(/\.[^.]+$/,""),mime:stored?.mime||blob.type||"image/png",blob,url,image:node,width:node.naturalWidth,height:node.naturalHeight,stored};
+      singleImageAssets.set(id,asset);
+      if(stored&&!canCommit)forgeProjectImageStore.register(stored);
+      return asset;
     }
     function singleImageAssetFor(item){return item?.type==="image"?singleImageAssets.get(String(item.image_asset_id||"")):null;}
     const imageLayerRotation=window.SpeechBubbleImageLayerRotation;
@@ -158,7 +172,20 @@
     function imageLayerScale(item){const full=imageFullGeometry(item);return Math.max(10,Math.min(800,Math.round((full.w/Math.max(1,Number(item?.base_width)||full.w))*100)));}
     function fitImageLayerGeometry(asset,mode="cover"){const ratio=(mode==="contain"?Math.min:Math.max)(state.width/Math.max(1,asset.width),state.height/Math.max(1,asset.height)),w=asset.width*ratio,h=asset.height*ratio;return{x:(state.width-w)/2,y:(state.height-h)/2,w,h,base_width:w,base_height:h};}
     function createSingleImageLayer(asset,{name=asset.name,inherit=null,role="image",visible=true,locked=false,fit="cover"}={}){const geometry=inherit?imageFullGeometry(inherit):fitImageLayerGeometry(asset,fit),crop=inherit?imageCropFor(inherit):{x:0,y:0,w:1,h:1},layer={id:id(),type:"image",image_asset_id:asset.id,image_name:name,source_role:role,x:geometry.x,y:geometry.y,w:geometry.w,h:geometry.h,base_width:geometry.base_width||inherit?.base_width||geometry.w,base_height:geometry.base_height||inherit?.base_height||geometry.h,rotation:Number(inherit?.rotation)||0,opacity:Math.max(0,Math.min(1,finiteOr(inherit?.opacity,1))),lock_aspect_ratio:true,locked:inherit?inherit.locked===true:locked,visible,comic_scope:"free",comic_panel_id:"",crop};if(inherit){layer.base_width=Math.max(1,finiteOr(inherit.base_width,geometry.w));layer.base_height=Math.max(1,finiteOr(inherit.base_height,geometry.h));applyCropGeometry(layer,crop,{x:geometry.x,y:geometry.y,w:geometry.w,h:geometry.h});}return layer;}
-    async function addSingleImageLayerFromBlob(blob,name,{inherit=null,role="image",hideSource=false,select=true,assetId="",locked=false,fit="cover"}={}){const asset=await registerSingleImageAsset(blob,name,assetId),layer=createSingleImageLayer(asset,{name,inherit,role,locked,fit});if(inherit)layer.source_image_layer_id=inherit.id;pushUndo();if(hideSource&&inherit)inherit.visible=false;const lastImageIndex=state.elements.reduce((last,item,index)=>item.type==="image"?index:last,-1);state.elements.splice(lastImageIndex+1,0,layer);if(select)setSelection([layer.id],layer.id);captureActiveWorkspace();syncProperties();render();updateActionState();return layer;}
+    async function addSingleImageLayerFromBlob(blob,name,{inherit=null,role="image",hideSource=false,select=true,assetId="",locked=false,fit="cover",canCommit=null,resizeTo=null}={}){
+      const asset=await registerSingleImageAsset(blob,name,assetId,canCommit);
+      if(!asset||canCommit&&!canCommit())return null;
+      pushUndo();
+      if(resizeTo)scaleStateToImageSize(resizeTo.width,resizeTo.height);
+      const layer=createSingleImageLayer(asset,{name,inherit,role,locked,fit});
+      if(inherit)layer.source_image_layer_id=inherit.id;
+      if(asset.stored&&canCommit)forgeProjectImageStore.register(asset.stored);
+      if(hideSource&&inherit)inherit.visible=false;
+      const lastImageIndex=state.elements.reduce((last,item,index)=>item.type==="image"?index:last,-1);
+      state.elements.splice(lastImageIndex+1,0,layer);
+      if(select)setSelection([layer.id],layer.id);
+      captureActiveWorkspace();syncProperties();render();updateActionState();return layer;
+    }
     function ensurePrimarySingleImageLayer(assetId=primarySingleImageAssetId){if(activeWorkspace!=="single"||!assetId)return null;const asset=singleImageAssets.get(assetId);if(!asset)return null;let layer=state.elements.find(item=>item.type==="image"&&item.image_asset_id===assetId);if(layer)return layer;const legacy=normalizedBackgroundImage(state.backgroundImage),base=Math.max(state.width/asset.width,state.height/asset.height),w=asset.width*base*legacy.scale,h=asset.height*base*legacy.scale;layer=createSingleImageLayer(asset,{role:"original",visible:state.backgroundVisible,locked:legacy.locked});Object.assign(layer,{x:(state.width-w)/2+legacy.offsetX,y:(state.height-h)/2+legacy.offsetY,w,h,base_width:asset.width*base,base_height:asset.height*base});state.elements.unshift(layer);state.backgroundImage=normalizedBackgroundImage({attached:false});state.backgroundVisible=true;captureActiveWorkspace();return layer;}
     const state = { width: 1024, height: 1024, zoom: 1, panX: 0, panY: 0, backgroundVisible: true, canvasBackground:normalizedCanvasBackground(), backgroundImage:normalizedBackgroundImage({attached:false}), elements: [], selected: null, selection: [], vectorEditId: null, vectorAnchorIndex: null, vectorAddMode: false, drag: null, undo: [], redo: [], propertyEditSnapshot: null, canvasFromLayout: false, spaceDown: false };
     let imageCropEdit=null;
@@ -184,6 +211,7 @@
     function switchEditorWorkspace(requested){
       const next=["single","comic","comic_layout"].includes(requested)?requested:"single";
       if(next===activeWorkspace)return;
+      invalidateComicConversion();
       if(hostMode==="desktop")window.SpeechBubbleDesktopShell?.saveRecovery?.(true).catch?.(error=>console.warn("Speech Bubble workspace checkpoint failed",error));
       captureActiveWorkspace();
       activeWorkspace=next;
@@ -230,7 +258,17 @@
       document.documentElement.dataset.editorMode=activeWorkspace;
     }
     async function selectedSingleImageSource(){const layer=selectedSingleImageLayer(),asset=singleImageAssetFor(layer);if(layer&&asset){lastSingleProcessingLayerId=layer.id;return{blob:asset.blob,name:layer.image_name||asset.name,width:asset.width,height:asset.height,layer_id:layer.id,source_kind:"layer",visible:layer.visible!==false};}if(!imageLoaded||!image.naturalWidth)return null;lastSingleProcessingLayerId="";return{blob:await sourceImageBlob(),name:sourceName||"speech_bubble",width:image.naturalWidth,height:image.naturalHeight,source_kind:"legacy-background"};}
-    async function applyProcessedSingleImage(blob,name,role,sourceContext){if(!blob)return false;const sourceId=String(sourceContext?.layer_id||"");const source=sourceId?state.elements.find(item=>item.id===sourceId&&item.type==="image"):null;const hasImage=workspaces.single.elements.some(item=>item.type==="image");if(!source&&!hasImage&&Number(sourceContext?.width)>0&&Number(sourceContext?.height)>0&&activeWorkspace==="single")scaleStateToImageSize(Number(sourceContext.width),Number(sourceContext.height));await addSingleImageLayerFromBlob(blob,name,{inherit:source||undefined,role,hideSource:Boolean(source),fit:source?"cover":"contain"});layoutDirty=true;scheduleAutoSave();updateActionState();notifyForgeProjectChanged();return true;}
+    async function applyProcessedSingleImage(blob,name,role,sourceContext,canCommit=null){
+      if(!blob||canCommit&&!canCommit())return false;
+      const sourceId=String(sourceContext?.layer_id||"");
+      const source=sourceId?state.elements.find(item=>item.id===sourceId&&item.type==="image"):null;
+      const hasImage=workspaces.single.elements.some(item=>item.type==="image");
+      const resizeTo=!source&&!hasImage&&Number(sourceContext?.width)>0&&Number(sourceContext?.height)>0&&activeWorkspace==="single"
+        ?{width:Number(sourceContext.width),height:Number(sourceContext.height)}:null;
+      const added=await addSingleImageLayerFromBlob(blob,name,{inherit:source||undefined,role,hideSource:Boolean(source),fit:source?"cover":"contain",canCommit,resizeTo});
+      if(!added)return false;
+      layoutDirty=true;scheduleAutoSave();updateActionState();notifyForgeProjectChanged();return true;
+    }
     function initializeComicEditor(){
       if(!["desktop","desktop-file","forge-project"].includes(hostMode)||comicEditor||!window.SpeechBubbleComicEditor)return comicEditor;
       comicEditor=window.SpeechBubbleComicEditor.create({
@@ -309,10 +347,12 @@
       comicConverter=window.SpeechBubbleComicConverter.create({
         getMode:()=>comicEditor?.isActive()||generalComicEditor?.isActive()?"comic":"single",
         getDocumentId:()=>documentId,
+        getContextKey:()=>JSON.stringify([documentId,converterDocumentEpoch,activeWorkspace]),
+        mangaApiPath:`${forgeApiBase}/comic-conversion/manga-finish`,
         getSingleSource:selectedSingleImageSource,
         getComicSources:()=>generalComicEditor?.isActive()?generalComicEditor.getConversionSources?.()||Promise.resolve([]):comicEditor?.getConversionSources?.()||Promise.resolve([]),
-        addPageImage:(blob,name)=>generalComicEditor?.isActive()?generalComicEditor.addConvertedImage?.(blob,name):comicEditor?.addConvertedImage?.(blob,name),
-        applySingleImage:(blob,name,source)=>applyProcessedSingleImage(blob,name||`${sourceName||"speech_bubble"}-comic`,"comic-conversion",source),
+        addPageImage:(blob,name,canCommit)=>generalComicEditor?.isActive()?generalComicEditor.addConvertedImage?.(blob,name,canCommit):comicEditor?.addConvertedImage?.(blob,name,canCommit),
+        applySingleImage:(blob,name,source,canCommit)=>applyProcessedSingleImage(blob,name||`${sourceName||"speech_bubble"}-comic`,"comic-conversion",source,canCommit),
         setStatus:setSaveState,
       });
       return comicConverter;
@@ -399,7 +439,7 @@
     async function storeGeneratedBackground(id,blob,name,tab,url){if(!id?.startsWith("generated:")||!blob)return;try{await storeCachedBackground({documentId:id,kind:"generated",blob,sourceName:name||"speech_bubble",sourceTab:tab||"",sourceUrl:String(url||"")});}catch(error){console.warn("Speech Bubble generated background save failed",error);}}
     function setSaveState(message,level="info",detail=""){const node=document.getElementById("saveState");if(!node)return;node.textContent=window.SpeechBubbleUiMessages.error(message,uiEnglish()?"en":"ja");node.title=window.SpeechBubbleUiMessages.error(detail||message,uiEnglish()?"en":"ja");node.dataset.level=level;}
     function hasEditableDocument(){const defaultBackground=normalizedCanvasBackground(),customizedSingleCanvas=activeWorkspace==="single"&&(JSON.stringify(normalizedCanvasBackground(state.canvasBackground))!==JSON.stringify(defaultBackground)||state.backgroundVisible===false);return Boolean(imageLoaded&&state.backgroundImage.attached&&image.naturalWidth)||Boolean(workspaces.single.elements.length)||customizedSingleCanvas||Boolean(comicEditor?.isActive())||Boolean(generalComicEditor?.hasPage());}
-    function updateActionState(){const hasDocument=hasEditableDocument();document.getElementById("saveLayout").disabled=!hasDocument;document.getElementById("exportImage").disabled=!hasDocument;document.getElementById("discardChanges").disabled=!hasDocument||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasDocument||activeWorkspace!=="single"||!showEmptyCanvasGuide;if(!hasDocument)setSaveState(generalComicEditor?.isActive()?uiText("コミックページを作成してください","Create a comic page"):uiText("画像を読み込んでください","Load an image to begin"),"info");else if(layoutDirty)setSaveState(autoSaveEnabled?uiText("未保存の変更（下書き保存対象）","Unsaved changes (included in draft)"):uiText("未保存の変更があります","Unsaved changes"),"dirty");else if(hasExplicitSavedLayout)setSaveState(uiText("レイアウト保存済み","Layout saved"),"saved");else setSaveState(activeStructuralEditor()&&!imageLoaded?uiText("新規漫画ページ","New comic page"):uiText("新規レイアウト","New layout"),"info");}
+    function updateActionState(){const hasDocument=hasEditableDocument()&&forgeProjectReady;document.getElementById("saveLayout").disabled=!hasDocument;document.getElementById("exportImage").disabled=!hasDocument;document.getElementById("discardChanges").disabled=(!hasDocument&&!isForgeProjectHost)||!forgeProjectReady||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasDocument||activeWorkspace!=="single"||!showEmptyCanvasGuide;if(!hasDocument)setSaveState(generalComicEditor?.isActive()?uiText("コミックページを作成してください","Create a comic page"):uiText("画像を読み込んでください","Load an image to begin"),"info");else if(layoutDirty)setSaveState(autoSaveEnabled?uiText("未保存の変更（下書き保存対象）","Unsaved changes (included in draft)"):uiText("未保存の変更があります","Unsaved changes"),"dirty");else if(hasExplicitSavedLayout)setSaveState(uiText("レイアウト保存済み","Layout saved"),"saved");else setSaveState(activeStructuralEditor()&&!imageLoaded?uiText("新規漫画ページ","New comic page"):uiText("新規レイアウト","New layout"),"info");}
     let forgeProjectChangeQueued=false;
     function notifyForgeProjectChanged(){
       projectImageTray?.render();
@@ -407,7 +447,8 @@
       forgeProjectChangeQueued=true;
       queueMicrotask(()=>{forgeProjectChangeQueued=false;window.dispatchEvent(new CustomEvent("speech-bubble:document-changed"));});
     }
-    function markLayoutDirty(){if(!dirtyTrackingEnabled||!hasEditableDocument())return;layoutDirty=currentLayoutJson()!==lastSavedLayout;updateActionState();if(layoutDirty)notifyForgeProjectChanged();}
+    function projectStateChanged(){return currentLayoutJson()!==lastSavedLayout||(isForgeProjectHost&&JSON.stringify(projectImageTray?.serialize?.()||null)!==lastSavedImageTrays);}
+    function markLayoutDirty(){if(!dirtyTrackingEnabled||!hasEditableDocument())return;layoutDirty=projectStateChanged();updateActionState();if(layoutDirty)notifyForgeProjectChanged();}
     let sfxBrowseMode="sfx";
     let sfxSortMode="recommended";
     let userPresets = [];
@@ -1173,6 +1214,7 @@
     const LAYOUT_ELEMENT_TYPES=new Set(["text","sfx","sfx_stamp","bubble","shape","frame","emphasis_lines","image"]);
     function normalizedLayoutPathPoints(points){if(!Array.isArray(points))return null;const clean=points.slice(0,256).filter(point=>point&&typeof point==="object"&&!Array.isArray(point)&&Number.isFinite(Number(point.x))&&Number.isFinite(Number(point.y))).map(point=>{const x=finiteOr(point.x,0),y=finiteOr(point.y,0);return{x,y,in_x:finiteOr(point.in_x,x),in_y:finiteOr(point.in_y,y),out_x:finiteOr(point.out_x,x),out_y:finiteOr(point.out_y,y)};});return clean.length>=3?clean:null;}
     function loadState(rawOverride=null,options={}) {
+      invalidateComicConversion();
       let hasElementList = false,comicLayout=null,generalComicLayout=null,workspaceLayouts=null,requestedWorkspace="single";
       let data;
       try {
@@ -1892,22 +1934,66 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       const target=await datedDirectory(directory),filename=await availableClientFilename(target,payload.filename),dot=filename.lastIndexOf("."),stem=dot>0?filename.slice(0,dot):filename;
       timings.prepare=performance.now()-phase;phase=performance.now();
       const composite=await fetchExportBlob(payload.download_url||payload.composite_url);
-      timings.composite_download=performance.now()-phase;phase=performance.now();
-      await rotateDirectoryBackups(target,filename);
-      timings.composite_backup=performance.now()-phase;phase=performance.now();
-      await writeDirectoryFile(target,filename,composite);
-      timings.composite_write=performance.now()-phase;
+      timings.composite_download=performance.now()-phase;
       let overlayFilename="";
+      const outputs=[{name:filename,blob:composite,kind:"composite"}];
       if(payload.save_overlay&&payload.overlay_download_url){
         overlayFilename=`${stem}_overlay.png`;
         phase=performance.now();
         const overlay=await fetchExportBlob(payload.overlay_download_url);
-        timings.overlay_download=performance.now()-phase;phase=performance.now();
-        await rotateDirectoryBackups(target,overlayFilename);
-        timings.overlay_backup=performance.now()-phase;phase=performance.now();
-        await writeDirectoryFile(target,overlayFilename,overlay);
-        timings.overlay_write=performance.now()-phase;
+        timings.overlay_download=performance.now()-phase;
+        outputs.push({name:overlayFilename,blob:overlay,kind:"overlay"});
+      }else if(payload.save_overlay){
+        throw new Error(uiText("Overlayの取得先がありません。既存の出力は変更していません。","Overlay URL is missing. Existing outputs were not changed."));
       }
+      // File System Access has no multi-file atomic commit. Keep durable old
+      // copies, including backup history, and roll back ordinary I/O failures.
+      const originals=new Map(),names=new Set(outputs.map(output=>output.name));
+      if(backupEnabled){
+        for(const {name} of outputs){
+          const dot=name.lastIndexOf("."),base=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):"";
+          for(let index=1;index<=backupGenerations;index++)names.add(`${base}_backup_${String(index).padStart(2,"0")}${ext}`);
+          const prefix=`${base}_backup_`;
+          for await(const [entry] of target.entries())if(entry.startsWith(prefix)&&entry.endsWith(ext)&&/^\d+$/.test(entry.slice(prefix.length,ext? -ext.length:undefined)))names.add(entry);
+        }
+      }
+      for(const name of names){
+        const handle=await directoryFile(target,name);
+        // Materialize bytes: a File backed by a changed disk file can become unreadable.
+        originals.set(name,handle?new Blob([await (await handle.getFile()).arrayBuffer()]):null);
+      }
+      const recoveryName=`.sbe-recovery-${createUuid()}`;
+      let recovery=null,mutating=false;
+      const removeRecovery=async()=>{if(recovery)await target.removeEntry(recoveryName,{recursive:true});};
+      try{
+        if([...originals.values()].some(Boolean)){
+          recovery=await target.getDirectoryHandle(recoveryName,{create:true});
+          for(const [name,blob] of originals)if(blob)await writeDirectoryFile(recovery,name,blob);
+        }
+        mutating=true;
+        for(const output of outputs){
+          phase=performance.now();
+          await rotateDirectoryBackups(target,output.name);
+          timings[`${output.kind}_backup`]=performance.now()-phase;phase=performance.now();
+          await writeDirectoryFile(target,output.name,output.blob);
+          timings[`${output.kind}_write`]=performance.now()-phase;
+        }
+      }catch(error){
+        const failed=[];
+        if(mutating)for(const [name,blob] of originals){
+          try{if(blob)await writeDirectoryFile(target,name,blob);else if(await directoryFile(target,name))await target.removeEntry(name);}
+          catch{failed.push(name);}
+        }
+        if(failed.length){
+          const detail=recovery
+            ? `${uiText("一部を復元できませんでした。旧コピーの保存先", "Some files could not be restored. Old copies for recovery")}: ${recoveryName}`
+            : uiText("新規出力を削除できませんでした。未完了ファイルを確認してください。", "New output files could not be removed. Check the incomplete files.");
+          throw new Error(`${error?.message||error}\n${detail}\n${failed.join(", ")}`);
+        }
+        try{await removeRecovery();}catch{console.warn("Export recovery copies retained",recoveryName);}
+        throw error;
+      }
+      try{await removeRecovery();}catch{console.warn("Export recovery copies retained",recoveryName);}
       timings.total=performance.now()-started;
       return{filename,overlayFilename,timings};
     }
@@ -2007,7 +2093,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     }
     function refreshDirtyState(){
       if(!dirtyTrackingEnabled||!hasEditableDocument())return;
-      layoutDirty=currentLayoutJson()!==lastSavedLayout;
+      layoutDirty=projectStateChanged();
       updateActionState();
     }
     async function persistDesktopRecovery(checkpoint=false,force=false){
@@ -2093,13 +2179,13 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         console.error("Speech Bubble layout save failed",error);setSaveState(error?.message||uiText("レイアウト保存に失敗しました","Could not save the layout"),"error");return false;
       }finally{button.disabled=false;button.textContent=original;updateActionState();}
     }
-    function discardChanges(confirmUser=true){
-      if(!hasEditableDocument()||!layoutDirty)return;
+    async function discardChanges(confirmUser=true){
+      if((!hasEditableDocument()&&!isForgeProjectHost)||!layoutDirty)return;
       if(confirmUser&&!confirm(uiText("未保存の変更を破棄して、最後に保存したレイアウトへ戻しますか？","Discard unsaved changes and restore the last saved layout?")))return;
+      if(isForgeProjectHost)return forgeProjectAdapter?.discard?.();
       clearTimeout(autoSaveTimer);autoSaveTimer=null;
       try{removeDraftCache();localStorage.setItem(jsonKey,lastSavedLayout);}catch{}
       applyLayoutForCurrentImage(lastSavedLayout,{dirty:false});
-      forgeProjectAdapter?.markClean?.();
       postHost("speech_bubble:layout_discarded",{image_hash:imageHash,document_id:documentId});
     }
     async function exportImage(){
@@ -2126,7 +2212,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
           console.warn("Speech Bubble directory picker is unavailable; using the configured server output directory.");
         }
       }
-      const button=document.getElementById("exportImage"),original=button.textContent,totalStarted=performance.now();let exportSucceeded=false,exportedFilename="",exportedOutputDir="",exportTimingSummary="";
+      const button=document.getElementById("exportImage"),original=button.textContent,totalStarted=performance.now();let exportSucceeded=false,exportedFilename="",exportedOutputDir="",exportTimingSummary="",exportError="";
       button.disabled=true;button.textContent=uiText("書き出し中…","Exporting…");setSaveState(uiText("画像を書き出しています…","Exporting image…"),"info");
       postHost("speech_bubble:export_started",{image_hash:imageHash,document_id:documentId});
       try{
@@ -2178,10 +2264,12 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         });
         window.opener?.focus();
       }catch(error){
-        console.error("Speech Bubble export failed",error);setSaveState(error?.message||uiText("画像の書き出しに失敗しました","Could not export the image"),"error");postHost("speech_bubble:export_failed",{message:error?.message||uiText("画像の書き出しに失敗しました。","Could not export the image.")});
+        exportError=error?.message||uiText("画像の書き出しに失敗しました","Could not export the image");
+        console.error("Speech Bubble export failed",error);setSaveState(exportError,"error");postHost("speech_bubble:export_failed",{message:exportError});
       }finally{
         if(clientExportToken)fetch(`${forgeApiBase}/client-export/${encodeURIComponent(clientExportToken)}`,{method:"DELETE"}).catch(()=>{});
         button.disabled=false;button.textContent=original;updateActionState();
+        if(exportError)setSaveState(exportError,"error");
         if(exportSucceeded){const fullPath=exportedOutputDir?`${exportedOutputDir}${exportedOutputDir.match(/[\\/]$/)?"":"\\"}${exportedFilename}`:"",message=fullPath?uiText(`${fullPath} へ書き出しました`,`Exported to ${fullPath}`):fixedLocationFallback?uiText(`フォルダー選択非対応のため${useForgeOutputDir?"Forge保存先":"固定保存先"}へ書き出しました`,"Exported to the configured folder because folder selection is unavailable"):uiText(`${exportedFilename} を書き出しました`,`Exported ${exportedFilename}`),summary=`${uiText("書き出し完了","Export complete")}${exportTimingSummary?` / ${exportTimingSummary}`:""}`;setSaveState(summary,layoutDirty?"dirty":"saved",`${message}${exportTimingSummary?` / ${exportTimingSummary}`:""}`);}
       }
     }
@@ -2688,6 +2776,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       },
     };
     function restoreScene(snapshot){
+      invalidateComicConversion();
       const data=JSON.parse(snapshot);
       if(data.workspaces&&typeof data.workspaces==="object"){
         for(const name of ["single","comic","comic_layout"]){
@@ -2873,7 +2962,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("undo").onclick=undoAction; document.getElementById("redo").onclick=redoAction;
      function saveEditorWindowState(){const availableWidth=Number(screen.availWidth)||window.outerWidth||window.innerWidth,availableHeight=Number(screen.availHeight)||window.outerHeight||window.innerHeight,availableLeft=Number(screen.availLeft)||0,availableTop=Number(screen.availTop)||0,width=Math.round(window.outerWidth||window.innerWidth),height=Math.round(window.outerHeight||window.innerHeight),left=Math.round(Number.isFinite(window.screenX)?window.screenX:window.screenLeft||availableLeft),top=Math.round(Number.isFinite(window.screenY)?window.screenY:window.screenTop||availableTop),tolerance=32,maximized=Math.abs(width-availableWidth)<=tolerance&&Math.abs(height-availableHeight)<=tolerance&&Math.abs(left-availableLeft)<=tolerance&&Math.abs(top-availableTop)<=tolerance,stateSnapshot={mode:maximized?"maximized":"windowed",width,height,left,top,updatedAt:Date.now()};try{localStorage.setItem(EDITOR_WINDOW_STATE_KEY,JSON.stringify(stateSnapshot));window.pywebview?.api?.save_window_state?.({window_width:width,window_height:height,window_left:left,window_top:top,window_maximized:maximized});}catch{}}
      function cleanupTransientState(){clearTimeout(livePreviewTimer);livePreviewTimer=null;clearTimeout(autoSaveTimer);autoSaveTimer=null;try{localStorage.removeItem(jsonKey);}catch{}comicEditor?.dispose();generalComicEditor?.dispose();clearSingleImageAssets();if(sourceObjectUrl){URL.revokeObjectURL(sourceObjectUrl);sourceObjectUrl=null;}}
-    async function prepareNativeClose(options={}){if(nativeClosePrepared){return{ok:true};}if(nativeCloseInFlight){return{ok:false,error:uiText("終了処理中です","Close is already in progress")};}nativeCloseInFlight=true;let result={ok:false,error:""};try{if(layoutDirty){const action=await window.SpeechBubbleDesktopShell?.confirmUnsavedChanges?.("close")||"cancel";if(action==="cancel"){result={ok:false,cancelled:true};return result;}if(action==="save"&&!(await window.SpeechBubbleDesktopShell?.saveProject?.())){result={ok:false,cancelled:true};return result;}if(action==="discard"){discardChanges(false);await persistDesktopRecovery(true,true);}}saveEditorWindowState();nativeClosePrepared=true;result={ok:true};return result;}catch(error){result={ok:false,error:error?.message||uiText("終了前の保存に失敗しました","Could not save before closing")};setSaveState(result.error,"error");return result;}finally{nativeCloseInFlight=false;if(options?.fromNative){try{await window.pywebview?.api?.native_close_ready?.(result.ok,result.error||"",Boolean(result.cancelled));}catch(error){console.warn("Speech Bubble native close acknowledgement failed",error);}}}}
+    async function prepareNativeClose(options={}){if(nativeClosePrepared){return{ok:true};}if(nativeCloseInFlight){return{ok:false,error:uiText("終了処理中です","Close is already in progress")};}nativeCloseInFlight=true;let result={ok:false,error:""};try{if(layoutDirty){const action=await window.SpeechBubbleDesktopShell?.confirmUnsavedChanges?.("close")||"cancel";if(action==="cancel"){result={ok:false,cancelled:true};return result;}if(action==="save"&&!(await window.SpeechBubbleDesktopShell?.saveProject?.())){result={ok:false,cancelled:true};return result;}if(action==="discard"){await discardChanges(false);await persistDesktopRecovery(true,true);}}saveEditorWindowState();nativeClosePrepared=true;result={ok:true};return result;}catch(error){result={ok:false,error:error?.message||uiText("終了前の保存に失敗しました","Could not save before closing")};setSaveState(result.error,"error");return result;}finally{nativeCloseInFlight=false;if(options?.fromNative){try{await window.pywebview?.api?.native_close_ready?.(result.ok,result.error||"",Boolean(result.cancelled));}catch(error){console.warn("Speech Bubble native close acknowledgement failed",error);}}}}
     async function closeEditor(){if(editorClosed)return;const result=await prepareNativeClose({fromNative:false});if(!result.ok)return;postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});if(window.pywebview?.api?.native_close_ready)await window.pywebview.api.native_close_ready(true,"",false);else window.close();}
     document.getElementById("discardChanges").onclick=discardChanges;
     document.getElementById("saveLayout").onclick=saveLayoutExplicit;
@@ -2979,6 +3068,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     canvas.addEventListener("pointerdown",event=>{if(event.button!==0)return;const shapeDrawer=document.getElementById("shapeDrawer"),sfxDrawer=document.getElementById("sfxDrawer"),frameDrawer=document.getElementById("frameDrawer"),wasShape=shapeDrawer.classList.contains("open"),wasSfx=sfxDrawer.classList.contains("open"),wasFrame=frameDrawer.classList.contains("open"),hit=findHit(imagePoint(event),true);if(hit){if(wasShape||wasSfx||wasFrame)setTimeout(()=>{if(wasShape)shapeDrawer.classList.add("open");if(wasSfx)sfxDrawer.classList.add("open");if(wasFrame)frameDrawer.classList.add("open");},0);}else closePresetDrawers();},true);
     viewport.addEventListener("pointerdown",event=>{if(event.button!==0||event.target===canvas)return;closePresetDrawers();},true);
     window.addEventListener("keydown",(event)=>{
+      if(isForgeProjectHost&&!forgeProjectReady){if(event.ctrlKey||event.metaKey)event.preventDefault();return;}
       const modifier=event.ctrlKey||event.metaKey,key=event.key.toLowerCase(),active=document.activeElement,editing=["INPUT","TEXTAREA","SELECT"].includes(active?.tagName)||active?.isContentEditable||Boolean(active?.closest?.('[contenteditable="true"]'));
       if(imageCropEdit&&!editing&&event.key==="Enter"){event.preventDefault();confirmImageCropEdit();return;}
       if(imageCropEdit&&!editing&&event.key==="Escape"){event.preventDefault();cancelImageCropEdit();return;}
@@ -3012,7 +3102,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     window.addEventListener("blur",()=>{state.spaceDown=false;if(!state.drag)canvas.style.cursor="default";});
     const USER_ASSET_CHANNEL="speech-bubble-editor:user-assets:v1";
     let userAssetBroadcast=null;
-    function initializeUserAssetBroadcast(){if(userAssetBroadcast||!("BroadcastChannel" in window))return;try{userAssetBroadcast=new BroadcastChannel(USER_ASSET_CHANNEL);userAssetBroadcast.addEventListener("message",event=>{const data=event.data||{};if(data.type==="catalog_changed"){loadUserAssetCatalog().then(()=>{refreshQuickSfx();if(document.getElementById("sfxDrawer").classList.contains("open"))renderSfxDrawer();});}else if(data.type==="diagnostic_ping"&&data.nonce){userAssetBroadcast.postMessage({type:"diagnostic_pong",nonce:data.nonce,mode:documentMode,documentId,version:"1.0.0"});}});}catch(error){console.warn("Speech Bubble user preset live updates unavailable",error);userAssetBroadcast=null;}}
+    function initializeUserAssetBroadcast(){if(userAssetBroadcast||!("BroadcastChannel" in window))return;try{userAssetBroadcast=new BroadcastChannel(USER_ASSET_CHANNEL);userAssetBroadcast.addEventListener("message",event=>{const data=event.data||{};if(data.type==="catalog_changed"){loadUserAssetCatalog().then(()=>{refreshQuickSfx();if(document.getElementById("sfxDrawer").classList.contains("open"))renderSfxDrawer();});}else if(data.type==="diagnostic_ping"&&data.nonce){userAssetBroadcast.postMessage({type:"diagnostic_pong",nonce:data.nonce,mode:documentMode,documentId,version:"1.1.0"});}});}catch(error){console.warn("Speech Bubble user preset live updates unavailable",error);userAssetBroadcast=null;}}
     function deferEditorTask(task){if("requestIdleCallback" in window)requestIdleCallback(()=>task(),{timeout:1000});else setTimeout(task,0);}
     let firstPaintDone=false,deferredResourcesStarted=false;
     function startDeferredResources(){if(deferredResourcesStarted)return;deferredResourcesStarted=true;deferEditorTask(loadDeferredEditorResources);}
@@ -3126,7 +3216,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function localizeStaticText(root=document){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);for(let node=walker.nextNode();node;node=walker.nextNode()){const parent=node.parentElement;if(!parent||parent.closest(".palette,.layers,.font-list"))continue;const raw=node.nodeValue,trimmed=raw.trim();if(!trimmed)continue;const translated=localizedPairValue(trimmed,FORGE_UI_TRANSLATIONS);if(translated!==trimmed)node.nodeValue=raw.replace(trimmed,translated);}}
     function applyAccessibleTooltips(){document.querySelectorAll("[title],[aria-label]").forEach(node=>{for(const attribute of ["title","aria-label"]){const value=node.getAttribute(attribute);if(value){const translated=localizedPairValue(localizedPairValue(value,FORGE_TITLE_TRANSLATIONS),FORGE_UI_TRANSLATIONS);if(translated!==value)node.setAttribute(attribute,translated);}}});document.querySelectorAll("button,[role='button']").forEach(node=>{const label=String(node.getAttribute("aria-label")||node.textContent||"").replace(/\s+/g," ").trim();if(!node.title&&label)node.title=label;if(!node.getAttribute("aria-label")&&label)node.setAttribute("aria-label",label);});document.querySelectorAll("input:not([type='hidden']),select,textarea").forEach(node=>{const label=node.closest("label"),labelText=label?[...label.childNodes].filter(child=>child.nodeType===Node.TEXT_NODE).map(child=>child.textContent.trim()).filter(Boolean).join(" "):"";const hint=labelText||node.placeholder||node.name||node.id;if(!node.title&&hint)node.title=hint;if(!node.getAttribute("aria-label")&&hint)node.setAttribute("aria-label",hint);});}
     function applyForgeProjectLanguage(){
-      document.querySelector("header > strong").textContent="Comic Panel Editor 1.0.1";
+      document.querySelector("header > strong").textContent="Comic Panel Editor 1.1.0";
       const labels={
         undo:uiText("元に戻す","Undo"),redo:uiText("やり直す","Redo"),fit:uiText("全体表示","Fit"),
         discardChanges:uiText("変更を破棄","Discard Changes"),saveLayout:uiText("レイアウト保存","Save Layout"),
@@ -3297,7 +3387,8 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       return [...ids];
     }
     function markProjectImageTrayChanged(){
-      layoutDirty=true;
+      if(!dirtyTrackingEnabled)return;
+      layoutDirty=projectStateChanged();
       updateActionState();
       notifyForgeProjectChanged();
     }
@@ -3320,29 +3411,41 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       return projectImageTray;
     }
     async function restoreForgeProjectLayout(layout,projectAssets={}){
+      // Fetch and decode every required single-image asset before touching the scene.
+      const normalized=projectSchema.normalize(layout||{});
+      const assetById=new Map((projectAssets.images||[]).map(asset=>[String(asset.id),asset]));
+      const prepared=new Map();
+      try{
+        const singleIds=new Set((normalized.workspaces?.single?.elements||[]).filter(item=>item?.type==="image").map(item=>String(item.image_asset_id||"")).filter(Boolean));
+        for(const assetId of singleIds){
+          const record=assetById.get(assetId);
+          if(record?.missing)continue;
+          if(!record)throw new Error(uiText("Project画像の情報がありません。","Project image metadata is missing."));
+          const blob=await projectAssets.imageBlob(assetId),url=URL.createObjectURL(blob);
+          try{
+            const node=await loadSingleImageElement(url);
+            prepared.set(assetId,{id:assetId,name:record.name,mime:record.mime,blob,url,image:node,width:node.naturalWidth,height:node.naturalHeight,stored:record});
+          }catch(error){URL.revokeObjectURL(url);throw error;}
+        }
+      }catch(error){for(const asset of prepared.values())URL.revokeObjectURL(asset.url);throw error;}
+      invalidateComicConversion();
       dirtyTrackingEnabled=false;
       clearSingleImageAssets();
       sourceBlob=null;imageUrl="";imageHash="";imageLoaded=false;
-      const normalized=projectSchema.normalize(layout||{});
-      const assetById=new Map((projectAssets.images||[]).map(asset=>[String(asset.id),asset]));
+      for(const [id,asset] of prepared)singleImageAssets.set(id,asset);
       projectImageTray?.restore(projectAssets.images||[],projectAssets.imageTrays);
-      const singleIds=new Set((normalized.workspaces?.single?.elements||[]).filter(item=>item?.type==="image").map(item=>String(item.image_asset_id||"")).filter(Boolean));
-      for(const assetId of singleIds){
-        const asset=assetById.get(assetId);
-        if(!asset)continue;
-        const blob=await projectAssets.imageBlob(assetId);
-        await registerSingleImageAsset(blob,asset.name||"Project image",assetId);
-      }
       loadState(JSON.stringify(normalized),{strict:true});
       projectImageTray?.setWorkspace(activeWorkspace);
       state.undo=[];state.redo=[];
       lastSavedLayout=currentLayoutJson();
+      lastSavedImageTrays=JSON.stringify(projectImageTray?.serialize?.()||null);
       hasExplicitSavedLayout=true;layoutDirty=false;dirtyTrackingEnabled=true;
       restoreWorkspaceView(workspaces[activeWorkspace],false);
       syncProperties();requestRender({canvas:true,layers:true,preview:false});updateActionState();
     }
     function markForgeProjectSaved(){
       lastSavedLayout=currentLayoutJson();
+      lastSavedImageTrays=JSON.stringify(projectImageTray?.serialize?.()||null);
       hasExplicitSavedLayout=true;layoutDirty=false;
       updateActionState();
     }
@@ -3365,8 +3468,16 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
           getEditorSettings:()=>window.SpeechBubbleForgeProjectSettings?.get?.()||{},
           applyHostSettings:applyForgeProjectSettings,
           setStatus:setSaveState,
+          setProjectReady:ready=>{
+            forgeProjectReady=ready;
+            dirtyTrackingEnabled=ready;
+            document.querySelector(".layout").inert=!ready;
+            for(const group of document.querySelectorAll("header .toolbar-group:not(.forge-project-toolbar):not([data-toolbar-project-host])"))group.inert=!ready;
+            for(const id of ["saveLayout","exportImage","discardChanges"])document.getElementById(id).disabled=!ready;
+            if(ready)updateActionState();
+          },
           getProjectTitle:()=>forgeProjectTitle,
-          setProjectTitle:title=>{forgeProjectTitle=String(title||"Untitled Comic Project");document.title=`${forgeProjectTitle} — Comic Panel Editor 1.0.1`;},
+          setProjectTitle:title=>{forgeProjectTitle=String(title||"Untitled Comic Project");document.title=`${forgeProjectTitle} — Comic Panel Editor 1.1.0`;},
           markSaved:markForgeProjectSaved,
           onChanged:callback=>window.addEventListener("speech-bubble:document-changed",callback),
         },

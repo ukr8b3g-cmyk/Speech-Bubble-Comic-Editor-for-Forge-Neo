@@ -24,3 +24,33 @@ The downloaded model remains subject to its own license and terms.
 ## Runtime and platform components
 
 WebUI ReForge / Forge Neo, Python, FastAPI, Gradio, NumPy, Pillow, browser APIs, system fonts, and other host-provided runtime components remain subject to their respective licenses and terms. They are not redistributed by this repository as separately bundled dependencies.
+
+## Manga Finish
+
+Derived from [MangaScreen](https://github.com/ashukae/ComfyUI-MangaScreen) and [Mangazin](https://github.com/arthur-cma/Mangazin), mangazin_core.py. Changes include tiled screen rendering, validated image input, preserved alpha and Forge integration. Ported from Speech-Bubble-Comic-Editor-App at commit `83109b21beb7af0926db8a9f02a7bb27eae3c87d`.
+
+Manga Finish uses the host-provided OpenCV, NumPy and Pillow. No binary libraries are bundled or installed by this extension.
+
+The license for the derived MangaScreen code follows.
+
+MIT License
+
+Copyright (c) 2026 ashukae
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,15 +1,13 @@
 Speech Bubble Comic Editor for Forge Neo
-Version: 1.0.1 (2026-10-19 stable maintenance)
+Version: 1.1.0 (2026-10-24)
 
-新しい正式リリース v1.0.1:
-- 画像エンコード完了後にバックアップ回転・出力置換を実施
-- 保存失敗時、以前の合成画像とOverlay PNGの主ファイルを復旧
-- 破損した保存済みレイアウトJSONをHTTP 400で拒否（元ファイル不変更）
-- v1.0公開後のmainに入った保存競合対策、Overlay・出力先設定、カスタムSFX URL対策を収録
-- 表示用Version、内部APIバージョン、キャッシュキーの整合を更新
+Manga Finish（6プリセットのCPU漫画仕上げ）と保存・読込の安全性を更新しました。
+初期読込失敗後の上書き防止、合成画像とOverlayの保護、出力先の識別、
+変更破棄での画像トレイ復元、欠損画像の参照保持を含みます。
 
-仕様と制約: README.md / CHANGELOG.md / docs/RELEASE_v1.0.1.md
+操作・仕様: README.md / docs/manga-finish.md
+変更・制約: CHANGELOG.md / docs/RELEASE_v1.1.0.md
 検証: .github/workflows/validate.yml / docs/VALIDATION.md
-旧リポジトリ sd-webui-speech-bubble-forge-neo は引き続きLegacyとして保持します。
-プロジェクト形式・保存先・既存素材ID・追加ランタイム依存関係は変更していません。
-実Forge Neo/Windows/GPU操作の実機確認は別途必要です。
+ZIP内のRELEASE_BUILD.jsonにソースコミットとファイル別SHA-256を記録します。
+作品・設定・素材IDと旧Releaseは保持します。追加必須ランタイム依存はありません。
+稼働中Forgeの画面操作・GPU推論は隔離検証とは別の確認です。

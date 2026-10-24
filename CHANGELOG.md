@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0] - 2026-10-24
+
+### Added
+
+- Manga Finish CPU processing with six presets, full-resolution preview/cache, three-workspace application, undo/redo and project persistence. Preserve original images and existing conversion modes. Use the Forge host libraries without new mandatory runtime packages.
+- Verified installable release ZIP built with 7-Zip, SHA256SUMS.txt and a per-file RELEASE_BUILD.json manifest. Preserve previous releases and tags.
+
+### Fixed
+
+- Block saves, imports and cleanup until project initialization and image restoration succeed; provide retry after load failures.
+- Fetch paired folder exports before mutation, preserve previous outputs and backup history, roll back ordinary I/O errors, and keep recovery paths visible on incomplete restoration.
+- Add root-specific output URLs and reject ambiguous legacy paths to avoid opening a same-named file from another output root.
+- Restore the saved image list and shared/separate trays when discarding edits; block discard during saves and include tray changes in dirty tracking.
+- Preserve missing image references as placeholders through save/reload and allow re-uploading original content to restore files/registry entries.
+- Align UI, API, diagnostic and changed browser asset versions to 1.1.0.
+
+### Validation scope
+
+- Exact-source Linux, Windows and Chromium CI is required before Release publication. Live Forge UI/GPU acceptance and crash/power-loss atomicity remain separate limits.
+
 ## [1.0.1] - 2026-10-19
 
 ### Fixed

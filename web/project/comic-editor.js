@@ -311,8 +311,9 @@
       }
     }
 
-    async function attachBlob(metadata, blob, render = true) {
+    async function attachBlob(metadata, blob, render = true, canCommit = () => true) {
       const loaded = await imageFromBlob(blob);
+      if(!canCommit()){URL.revokeObjectURL(loaded.url);return false;}
       loaded.image.dataset.comicObjectUrl = loaded.url;
       objectUrls.add(loaded.url);
       releaseRuntimeImage(metadata.id);
@@ -320,6 +321,7 @@
       metadata.width = loaded.image.naturalWidth;
       metadata.height = loaded.image.naturalHeight;
       if (render) options.requestRender({ canvas: true });
+      return true;
     }
 
     async function hydrateImages() {
@@ -1544,6 +1546,8 @@
     }
 
     async function importFiles(files, importOptions = {}) {
+      const canCommit=importOptions.canCommit||(()=>true);
+      if(!canCommit())return [];
       if (!comic.enabled) setEditMode("comic");
       const supported = files.filter(supportedImage);
       if (!supported.length) {
@@ -1562,6 +1566,7 @@
         }
         try {
           const digest = await sha256(file);
+          if(!canCommit())return [];
           const duplicate = digest && comic.images.find((item) => item.sha256 === digest);
           if (duplicate) {
             importedIds.push(duplicate.id);
@@ -1576,18 +1581,22 @@
             sha256: digest,
             source: "stored",
           };
-          const stored = await imageStore.put(metadata, file);
+          const stored = await imageStore.put(metadata, file, {canCommit,deferRegister:Boolean(importOptions.canCommit)});
+          if(!canCommit())return [];
           if (stored?.id) metadata = { ...metadata, ...stored, id: String(stored.id), source: "forge-project" };
           const storedDuplicate = comic.images.find((item) => item.id === metadata.id);
           if (storedDuplicate) {
-            if (!runtimeImages.has(storedDuplicate.id)) await attachBlob(storedDuplicate, file, false);
+            if (!runtimeImages.has(storedDuplicate.id)) await attachBlob(storedDuplicate, file, false, canCommit);
+            if(!canCommit())return [];
             importedIds.push(storedDuplicate.id);
             continue;
           }
-          await attachBlob(metadata, file, false);
+          if(!await attachBlob(metadata, file, false, canCommit)||!canCommit())return [];
+          if(importOptions.canCommit){options.pushUndo?.();imageStore.register?.(metadata);}
           comic.images.push(metadata);
           importedIds.push(metadata.id);
         } catch (error) {
+          if(!canCommit()||error.name==="AbortError")return [];
           console.warn("Speech Bubble comic image import failed", error);
           options.setStatus?.(`${file.name || "画像"}を読み込めませんでした。`, "error");
         }
@@ -1650,14 +1659,15 @@
       return sources;
     }
 
-    async function addConvertedImage(blob, name = "comic-converted.png") {
+    async function addConvertedImage(blob, name = "comic-converted.png", canCommit = () => true) {
       if (!(blob instanceof Blob)) return "";
       const safeName = String(name || "comic-converted.png").replace(/[\\/:*?"<>|]+/g, "-");
       const file = new File([blob], /\.png$/i.test(safeName) ? safeName : `${safeName}.png`, {
         type: "image/png",
         lastModified: Date.now(),
       });
-      const ids = await importFiles([file]);
+      const ids = await importFiles([file], {canCommit});
+      if(!canCommit())return "";
       const addedId = ids[0] || "";
       if (!addedId || !comic.images.some((metadata) => metadata.id === addedId)) {
         throw new Error(tr("変換画像を画像トレイへ追加できませんでした。", "The converted image could not be added to the Image Tray."));

@@ -4,3 +4,5 @@ Pillow>=10,<14
 numpy>=1.26,<3
 fastapi>=0.112,<1
 httpx>=0.27,<1
+# Test-only; production reuses Forge's OpenCV without installing another wheel.
+opencv-python-headless>=4.10,<6

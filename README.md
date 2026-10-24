@@ -1,6 +1,6 @@
 # Speech Bubble Comic Editor for Forge Neo
 
-Version: **1.0.1** (`1.0.1` in APIs and diagnostics). [Releases](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/releases) · [変更履歴 / Changelog](CHANGELOG.md)
+Version: **1.1.0** (`1.1.0` in APIs and diagnostics). [Releases](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/releases) · [変更履歴 / Changelog](CHANGELOG.md)
 
 Forge Neoで生成した画像や手元の画像を、一枚絵・4コマ漫画・自由なコマ割りのコミックへ編集・仕上げするローカル漫画エディターです。
 
@@ -8,7 +8,18 @@ Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し�
 
 > **Local post-production comic editor for Forge-generated and imported artwork.**
 
+v1.1.0の追加機能: [Manga Finish（漫画仕上げ）の操作・仕様・検証](docs/manga-finish.md)。既存の白黒変換に6プリセットのCPU漫画仕上げを追加します。
+
 初めて使う場合は「インストール」「起動」「保存と書き出し」から読み進めてください。個別の編集操作は各機能の節、英語の導入・保存手順は [English](#english) にまとめています。
+
+## v1.1.0 の更新内容（2026-10-24）
+
+- **Manga Finish**: 6プリセットのCPU漫画仕上げ、原寸確認とキャッシュ、一枚画像・4コマ・自由なコマ割りへの適用、Undo / Redoと保存・再読込に対応します。元画像と既存の変換モードを保持します。
+- **読込失敗後の上書き防止**: プロジェクトの取得・復元が完了するまで保存・画像追加・整理を禁止し、読込失敗時は再試行できます。
+- **保存内容の保護**: フォルダー書き出しでは合成画像とOverlayを先に取得し、既存画像・バックアップを退避してから更新します。通常の失敗では復元し、復元できない場合は旧コピーの場所を表示します。
+- **参照と変更破棄**: 同名出力を出力先ごとに区別し、変更破棄で画像トレイも保存時へ戻します。欠損画像の参照はプレースホルダーとして保持します。
+
+追加の必須ランタイム依存・プロジェクト形式の変更はありません。複数ファイルの停電・強制終了に対する完全な原子性は保証しません。詳細は [Release notes](docs/RELEASE_v1.1.0.md) を参照してください。
 
 ## v1.0.1 の更新内容（2026-10-19）
 
@@ -400,9 +411,13 @@ SFX／Stamp のユーザー素材は `config/speech-bubble-forge/user-presets/`�
 
 ## English
 
-**Speech Bubble Comic Editor for Forge Neo 1.0.1** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**. APIs and diagnostic build identifiers use `1.0.0`.
+**Speech Bubble Comic Editor for Forge Neo 1.1.0** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**. APIs and diagnostic build identifiers use `1.1.0`.
 
 It provides three independent workspaces—Single Image, 4-Panel Manga, and Comic—plus Page Images, layers, speech bubbles, text and vertical writing, SFX, stamps, frames, emphasis lines, procedural backgrounds, comic conversion, AI background removal, local project persistence, and PNG/JPEG/WebP export.
+
+### Update v1.1.0 (2026-10-24)
+
+Manga Finish adds six CPU finishing presets, full-size preview and safe application across all three workspaces. Persistence fixes block saves after failed project initialization, preserve paired folder exports and recovery copies, distinguish same-named outputs by root, restore saved image trays on discard, and retain missing-image references. See [release notes](docs/RELEASE_v1.1.0.md) for verification and limits.
 
 ### Maintenance update v1.0.1 (2026-10-19)
 

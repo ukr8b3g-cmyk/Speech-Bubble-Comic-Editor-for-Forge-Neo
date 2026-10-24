@@ -377,3 +377,12 @@ dialog.comic-converter-dialog.maximized {
     gap: 5px;
   }
 }
+
+[data-manga-panel][hidden],[data-converter-legacy][hidden]{display:none!important}
+[data-manga-panel]{display:grid;gap:10px}[data-manga-panel] label{display:grid;gap:4px}.comic-converter-previews figure{overflow:auto}.comic-converter-previews canvas.manga-actual-size{max-width:none!important;max-height:none!important;width:auto!important;height:auto!important}
+
+[data-converter-legacy]{display:grid;gap:10px}
+
+[data-manga-panel] .manga-check{display:flex;flex-direction:row;align-items:center;gap:8px}[data-manga-panel] input[type=checkbox]{width:16px;height:16px;flex:none;margin:0}
+
+[data-source-drop]{cursor:pointer}[data-source-drop].drag-active{outline:3px solid #69a7ff;outline-offset:-3px}[data-source-drop-hint]{font-weight:normal;opacity:.8}

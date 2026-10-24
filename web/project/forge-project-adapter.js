@@ -34,12 +34,31 @@
     let changeRevision = 0;
     let autosaveTimer = null;
     let importedAssetIds = new Set();
+    let phase = "uninitialized";
+    let listenersInstalled = false;
 
     const tr = (ja, en) => settingsModule?.text?.(ja, en) ||
       (root.document.documentElement.lang === "en" ? en : ja);
 
     const setStatus = (message, level = "info") =>
       runtime.setStatus?.(message, level);
+
+    function setPhase(value) {
+      phase = value;
+      const ready = value === "ready";
+      for (const name of ["save", "import"]) {
+        const button = document.querySelector(`[data-forge-project-${name}]`);
+        if (button) button.disabled = !ready;
+      }
+      const retry = document.querySelector("[data-forge-project-retry]");
+      if (retry) retry.hidden = value !== "failed";
+      runtime.setProjectReady?.(ready);
+    }
+
+    function requireReady() {
+      if (phase === "ready") return;
+      throw new Error(tr("プロジェクトを読み込めていません。読込を再試行してください。", "Project is not ready. Retry loading the project."));
+    }
 
     function sourceRevisions() {
       return {
@@ -75,14 +94,17 @@
       });
       runtime.setProjectTitle?.(manifest.title);
       dirty = false;
+      return manifest;
+    }
+
+    function reportLoaded() {
       const repairWarnings = Array.isArray(manifest.repair_warnings) ? manifest.repair_warnings : [];
       setStatus(
         repairWarnings.length
-          ? tr(`欠損画像${repairWarnings.length}件を除外してプロジェクトを修復読込しました。`, `Loaded the project after skipping ${repairWarnings.length} missing image(s).`)
+          ? tr(`欠損画像${repairWarnings.length}件の参照を保持して読み込みました。欠損のまま保存できます。`, `Loaded with ${repairWarnings.length} missing image reference(s) preserved. You can save with these placeholders.`)
           : tr("プロジェクトを読み込みました。", "Project loaded."),
         repairWarnings.length ? "error" : "saved",
       );
-      return manifest;
     }
 
     function currentImageIds() {
@@ -97,7 +119,7 @@
       clearTimeout(autosaveTimer);
       autosaveTimer = null;
       const editorSettings = runtime.getEditorSettings?.() || settingsModule?.get?.() || {};
-      if (!dirty || editorSettings.autosave_enabled === false) return;
+      if (phase !== "ready" || !dirty || editorSettings.autosave_enabled === false) return;
       const delay = Math.max(500, Math.min(60_000, Number(editorSettings.autosave_delay_ms) || 1_200));
       autosaveTimer = setTimeout(() => {
         autosaveTimer = null;
@@ -107,7 +129,7 @@
     }
 
     async function save(reason = "manual") {
-      if (saving) return false;
+      if (phase !== "ready" || saving) return false;
       saving = true;
       clearTimeout(autosaveTimer);
       autosaveTimer = null;
@@ -163,6 +185,7 @@
     }
 
     function markDirty() {
+      if (phase !== "ready") return;
       changeRevision += 1;
       dirty = true;
       setStatus(tr("未保存の変更があります。", "There are unsaved changes."), "dirty");
@@ -177,7 +200,35 @@
       setStatus(tr("保存済みのプロジェクトへ戻しました。", "Restored the saved project."), "saved");
     }
 
+    async function discard() {
+      requireReady();
+      if (saving) {
+        setStatus(tr("保存中です。保存完了後に変更を破棄してください。", "Save in progress. Discard changes after it finishes."), "error");
+        return false;
+      }
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+      setPhase("restoring");
+      try {
+        await runtime.restoreLayout?.(manifest.layout, {
+          projectId, images: manifest.images || [], imageTrays: manifest.image_trays,
+          imageUrl: assetId => api.imageUrl(projectId, assetId),
+          imageBlob: assetId => api.imageBlob(projectId, assetId),
+        });
+        runtime.setProjectTitle?.(manifest.title);
+        importedAssetIds = new Set((manifest.images || []).map(item => item.id));
+        setPhase("ready");
+        markClean();
+        return true;
+      } catch (error) {
+        setPhase("failed");
+        setStatus(String(error?.message || error), "error");
+        return false;
+      }
+    }
+
     async function importSelectedForgeImage() {
+      requireReady();
       const importButton = document.querySelector("[data-forge-project-import]");
       if (importButton) {
         importButton.disabled = true;
@@ -381,6 +432,7 @@
         ["[data-forge-project-open]", "プロジェクトを開く", "Open Project"],
         ["[data-forge-project-save]", "プロジェクトを保存", "Save Project"],
         ["[data-forge-project-import]", "Forge選択画像を追加", "Add Selected Forge Image"],
+        ["[data-forge-project-retry]", "読込を再試行", "Retry Loading"],
       ];
       for (const [selector, ja, en] of labels) {
         const button = document.querySelector(selector);
@@ -401,6 +453,7 @@
         <button type="button" data-forge-project-new></button>
         <button type="button" data-forge-project-open></button>
         <button type="button" data-forge-project-save></button>
+        <button type="button" data-forge-project-retry hidden></button>
         <button type="button" data-forge-project-import>
           Forge
         </button>
@@ -410,6 +463,9 @@
       else host.append(group);
 
       updateToolbarLanguage();
+      group.querySelector("[data-forge-project-retry]").addEventListener("click", () => {
+        initialize().catch(() => {});
+      });
       group.querySelector("[data-forge-project-new]").addEventListener("click", () => {
         createProject().catch((error) => setStatus(String(error?.message || error), "error"));
       });
@@ -486,20 +542,33 @@
     });
 
     async function initialize() {
+      if (["initializing", "restoring", "ready"].includes(phase)) return manifest;
       installToolbar();
-      const hostSettings = await api.settings();
-      settingsModule?.setHostSettings?.(hostSettings);
-      await ensureProject();
-      runtime.applyHostSettings?.(hostSettings);
-      runtime.onChanged?.(markDirty);
-      root.addEventListener("speech-bubble:project-settings-changed", () => {
-        updateToolbarLanguage();
-        clearTimeout(autosaveTimer);
-        autosaveTimer = null;
-        if (dirty) scheduleAutosave();
-      });
-      notifyReady();
-      return manifest;
+      setPhase("initializing");
+      try {
+        const hostSettings = await api.settings();
+        settingsModule?.setHostSettings?.(hostSettings);
+        await ensureProject();
+        runtime.applyHostSettings?.(hostSettings);
+        setPhase("ready");
+        reportLoaded();
+        if (!listenersInstalled) {
+          runtime.onChanged?.(markDirty);
+          root.addEventListener("speech-bubble:project-settings-changed", () => {
+            updateToolbarLanguage();
+            clearTimeout(autosaveTimer);
+            autosaveTimer = null;
+            if (dirty) scheduleAutosave();
+          });
+          listenersInstalled = true;
+        }
+        notifyReady();
+        return manifest;
+      } catch (error) {
+        setPhase("failed");
+        setStatus(String(error?.message || error), "error");
+        throw error;
+      }
     }
 
     return Object.freeze({
@@ -509,8 +578,10 @@
       save,
       markDirty,
       markClean,
+      discard,
       importSelectedForgeImage,
       cleanupUnusedImages: async () => {
+        if (phase !== "ready" || saving) return { ok: false, blocked: "not-ready" };
         if (dirty) {
           setStatus(tr("未保存の変更があるため画像整理を実行できません。先にプロジェクトを保存してください。", "Save the project before cleaning up images."), "error");
           return { ok: false, blocked: "unsaved" };
@@ -518,6 +589,7 @@
         return api.cleanup(projectId);
       },
       hasUnsavedChanges: () => dirty,
+      isReady: () => phase === "ready",
       manifest: () => manifest,
     });
   }

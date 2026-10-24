@@ -319,10 +319,11 @@
   async function storeHistory(documentId, blob, name) {
     if (!documentId || !(blob instanceof Blob)) return;
     const db = await openHistoryDb();
+    const historyId = `${documentId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
     await new Promise((resolve, reject) => {
       const transaction = db.transaction(HISTORY_STORE, "readwrite");
       transaction.objectStore(HISTORY_STORE).put({
-        id: `${documentId}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+        id: historyId,
         documentId,
         name: String(name || "変換前画像"),
         blob,
@@ -333,6 +334,7 @@
     });
     db.close();
     await pruneHistory();
+    return historyId;
   }
 
   async function clearHistory() {
@@ -385,18 +387,18 @@
         </section>
         <div class="comic-converter-body">
           <section class="comic-converter-previews">
-            <figure><figcaption>カラー原本</figcaption><canvas data-converter-source-canvas></canvas></figure>
+            <figure data-source-drop tabindex="0" role="button"><figcaption>カラー原本 <small data-source-drop-hint></small></figcaption><canvas data-converter-source-canvas></canvas></figure>
             <figure><figcaption>変換結果 <small data-converter-timing></small></figcaption><canvas data-converter-result-canvas></canvas></figure>
           </section>
           <aside class="comic-converter-settings">
-            <label>変換モード<select data-converter-preset><option value="grayscale">単純グレースケール</option><option value="comic">白黒コミック</option><option value="monochrome">単純モノクロ</option><option value="xdog100">XDoG 100</option><option value="custom">カスタム</option></select></label>
-            ${CONTROL_DEFS.map(fieldMarkup).join("")}
+            <label>変換モード<select data-converter-preset><option value="grayscale">単純グレースケール</option><option value="manga_finish">Manga Finish — 高品質漫画仕上げ</option><option value="comic">白黒コミック</option><option value="monochrome">単純モノクロ</option><option value="xdog100">XDoG 100</option><option value="custom">カスタム</option></select></label>
+            <div data-converter-legacy>${CONTROL_DEFS.map(fieldMarkup).join("")}
             <div class="comic-converter-checks">
               <label><input data-converter-check="preserveTones" type="checkbox">階調を残す</label>
               <label><input data-converter-check="solidBlack" type="checkbox">暗部を黒ベタ化</label>
             </div>
             <details class="comic-converter-xdog"><summary>XDoG調整</summary>${XDOG_DEFS.map(fieldMarkup).join("")}</details>
-            <button type="button" data-converter-action="reset">初期設定に戻す</button>
+            <button type="button" data-converter-action="reset">初期設定に戻す</button></div><div data-manga-panel hidden></div>
           </aside>
         </div>
         <footer class="comic-converter-footer">
@@ -432,6 +434,74 @@
       settings = { ...settings, ...saved };
       if (Object.keys(saved).length) currentPreset = "custom";
     } catch {}
+    const manga = root.SpeechBubbleMangaFinishSettings;
+    let activeEngine = "legacy", mangaState = manga.defaults(), fullCache = null;
+    let sourceRevision = 0, sourceLoadRevision = 0, phase = "idle", controller = null;
+    const contextKey = () => options.getContextKey?.() || options.getDocumentId?.() || "";
+    try { mangaState=manga.restore(JSON.parse(localStorage.getItem(manga.contract.storage_key)||"null")); } catch {}
+    const panel=dialog.querySelector("[data-manga-panel]");
+    const labels={auto_tone:["暗部を自動補正","Auto shadow correction"],antialias:["輪郭のなめらかさ","Antialias"],screen_lines:["網点密度","Screen lines"],white_point:["白の基準","White point"],black_point:["黒ベタの基準","Black point"],light_tone:["薄いトーン","Light tone"],dark_tone:["濃いトーン","Dark tone"],gradation:["階調の保持","Gradation"],white_lines:["黒ベタ内の白線","White lines in blacks"],halftone:["45度網点を使用","Use 45 degree screen"]};
+    panel.innerHTML=`<label>${tr("仕上げプリセット","Finish preset")}<select data-manga-preset>${Object.values(manga.presets).map(p=>`<option value="${p.id}">${p.label[document.documentElement.lang==="en"?"en":"ja"]}</option>`).join("")}<option value="custom">${tr("カスタム","Custom")}</option></select></label><small>${tr("標準はMangaScreen既定値。網点密度は画像幅に対する線数です。","Standard uses MangaScreen defaults. Screen lines are counted across image width.")}</small>${Object.entries(manga.contract.fields).map(([k,f])=>f.type==="boolean"?`<label class="manga-check"><input type="checkbox" data-manga-check="${k}">${tr(...labels[k])}</label>`:k==="antialias"?`<label><span>${tr(...labels[k])}</span><select data-manga-number="antialias"><option value="0">${tr("なし","Off")}</option><option value="1">${tr("弱","Light")}</option><option value="2">${tr("標準","Standard")}</option></select></label>`:`<label class="comic-converter-field"><span>${tr(...labels[k])}</span><span class="comic-converter-control"><input aria-label="${tr(...labels[k])}" data-manga-range="${k}" type="range" min="${f.min}" max="${f.max}" step="${f.ui_step}"><input aria-label="${tr(...labels[k])}" data-manga-number="${k}" type="number" min="${f.min}" max="${f.max}" step="${f.ui_step}"></span></label>`).join("")}<button type="button" data-manga-reset>${tr("プリセットをリセット","Reset preset")}</button><p>${tr("簡易プレビュー。網点の仕上がりは原寸確認で確認してください。","Quick preview. Check full resolution to inspect the screen.")}</p><button type="button" data-manga-full>${tr("原寸確認","Check full resolution")}</button><button type="button" data-manga-fit>${tr("全体","Fit")}</button><button type="button" data-manga-zoom>100%</button>`;
+    function localizeManga(){
+      dialog.querySelector("[data-source-drop-hint]").textContent=tr("画像をドロップ／クリックして変更","Drop an image / click to change");
+      for(const [k,f] of Object.entries(manga.contract.fields)){const input=panel.querySelector(f.type==='boolean'?`[data-manga-check="${k}"]`:`[data-manga-number="${k}"]`);const label=input.closest('label');if(f.type==='boolean')label.lastChild.textContent=tr(...labels[k]);else label.querySelector('span').textContent=tr(...labels[k]);}
+      panel.querySelectorAll('[data-manga-number=antialias] option').forEach((option,i)=>option.textContent=tr(['なし','弱','標準'][i],['Off','Light','Standard'][i]));
+      const select=panel.querySelector('[data-manga-preset]');select.parentNode.firstChild.textContent=tr('仕上げプリセット','Finish preset');for(const option of select.options)option.textContent=option.value==='custom'?tr('カスタム','Custom'):manga.presets[option.value].label[document.documentElement.lang==='en'?'en':'ja'];
+      panel.querySelector('small').textContent=tr('標準はMangaScreen既定値。網点密度は画像幅に対する線数です。','Standard uses MangaScreen defaults. Screen lines are counted across image width.');
+      panel.querySelector('p').textContent=tr('簡易プレビュー。網点の仕上がりは原寸確認で確認してください。','Quick preview. Check full resolution to inspect the screen.');
+      panel.querySelector('[data-manga-reset]').textContent=tr('プリセットをリセット','Reset preset');panel.querySelector('[data-manga-full]').textContent=tr('原寸確認','Check full resolution');panel.querySelector('[data-manga-fit]').textContent=tr('全体','Fit');
+    }
+    function syncManga(){for(const [k,f] of Object.entries(manga.contract.fields)){if(f.type==="boolean")panel.querySelector(`[data-manga-check="${k}"]`).checked=mangaState.settings[k];else for(const attr of ['range','number']){const input=panel.querySelector(`[data-manga-${attr}="${k}"]`);if(input)input.value=mangaState.settings[k];}}panel.querySelector('[data-manga-preset]').value=mangaState.custom?'custom':mangaState.basePresetId;}
+    function saveManga(){try{localStorage.setItem(manga.contract.storage_key,JSON.stringify(mangaState));}catch{}}
+    function invalidate(clearCache = true) {
+      ++latestPreviewId;
+      clearTimeout(previewTimer);
+      controller?.abort();
+      controller = null;
+      if (clearCache) fullCache = null;
+      applyButton.disabled = true;
+    }
+    function setPhase(value){phase=value;const locked=value==='full-render'||value==='committing';dialog.querySelectorAll('aside input,aside select,aside button,[data-converter-action="change-source"],[data-converter-action="choose-file"]').forEach(n=>n.disabled=locked);}
+    panel.querySelector('[data-manga-preset]').onchange=e=>{if(!manga.presets[e.target.value])return;mangaState={version:1,basePresetId:e.target.value,custom:false,settings:{...manga.presets[e.target.value].settings}};syncManga();saveManga();schedulePreview();};
+    panel.querySelector('[data-manga-reset]').onclick=()=>{mangaState.settings={...manga.presets[mangaState.basePresetId].settings};mangaState.custom=false;syncManga();saveManga();schedulePreview();};
+    function editManga(e){const k=e.target.dataset.mangaRange||e.target.dataset.mangaNumber||e.target.dataset.mangaCheck;if(!k)return;if(e.target.dataset.mangaNumber && e.type==='input'){invalidate();return;}const value=e.target.type==='checkbox'?e.target.checked:e.target.value;if(value===''){syncManga();schedulePreview();return;}const next=manga.edit(mangaState.settings,k,value);mangaState.settings=next;mangaState.custom=true;syncManga();saveManga();schedulePreview();if(e.target.type!=='checkbox'&&Number(value)!==next[k])status.textContent=tr("値を許容範囲へ補正しました。","Value adjusted to the allowed range.");}
+    panel.addEventListener('input',editManga);panel.addEventListener('change',e=>{if(e.target.dataset.mangaNumber)editManga(e);});panel.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset.mangaNumber){e.preventDefault();e.target.blur();}});
+    async function mangaRequest(blob, full, rev, ctx) {
+      controller?.abort();
+      const own = new AbortController();
+      controller = own;
+      let timedOut = false;
+      const timer = setTimeout(() => { timedOut = true; own.abort(); }, full ? 180000 : 30000);
+      try {
+        const query = new URLSearchParams(Object.entries(mangaState.settings).map(([k,v]) => [k,String(v)]));
+        const response = await fetch((options.mangaApiPath || manga.contract.api_path) + '?' + query, {
+          method: 'POST', headers: {'Content-Type': blob.type || 'application/octet-stream', 'X-SBE-Language': document.documentElement.lang === 'en' ? 'en' : 'ja'},
+          body: blob, signal: own.signal,
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          const error = new Error(data.detail || tr('変換に失敗しました。', 'Conversion failed.') + ` (${response.status})`);
+          error.status = response.status;
+          throw error;
+        }
+        const result = await response.blob();
+        if (rev !== latestPreviewId || ctx !== contextKey()) throw new DOMException('Stale conversion', 'AbortError');
+        return result;
+      } catch (error) {
+        if (timedOut) throw new Error(tr('処理がタイムアウトしました。終了を待って再実行してください。', 'Conversion timed out. Wait for it to finish, then retry.'));
+        throw error;
+      } finally {
+        clearTimeout(timer);
+        if (controller === own) controller = null;
+      }
+    }
+    const canvasBlob=canvas=>new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('PNG failed')),'image/png'));
+    async function showMangaBlob(blob,rev,ctx){const bitmap=await imageForBlob(blob);try{if(rev!==latestPreviewId||ctx!==contextKey())return;resultCanvas.width=bitmap.width||bitmap.naturalWidth;resultCanvas.height=bitmap.height||bitmap.naturalHeight;resultCtx.drawImage(bitmap,0,0);}finally{bitmap.close?.();}}
+    async function fullManga(){const rev=latestPreviewId,ctx=contextKey(),key=manga.key(ctx,sourceRevision,source.width,source.height,mangaState.settings);if(fullCache?.key===key)return fullCache.blob;const blob=await mangaRequest(source.blob,true,rev,ctx);fullCache={key,blob};return blob;}
+    panel.querySelector('[data-manga-full]').onclick=async()=>{if(!source||phase==='full-render'||phase==='committing')return;invalidate(false);const rev=latestPreviewId,ctx=contextKey();setPhase('full-render');applyButton.disabled=true;try{const blob=await fullManga();await showMangaBlob(blob,rev,ctx);if(rev===latestPreviewId){status.textContent=tr('原寸確認完了','Full resolution ready');applyButton.disabled=false;}}catch(e){if(rev===latestPreviewId&&e.name!=='AbortError')status.textContent=e.message;}finally{if(rev===latestPreviewId)setPhase('idle');}};
+    panel.querySelector('[data-manga-zoom]').onclick=()=>resultCanvas.classList.add('manga-actual-size');panel.querySelector('[data-manga-fit]').onclick=()=>resultCanvas.classList.remove('manga-actual-size');
+    dialog.addEventListener('cancel',e=>{if(phase==='committing')e.preventDefault();});syncManga();
+
     const pending = new Map();
 
     worker.onmessage = (event) => {
@@ -441,6 +511,7 @@
       resolve(event.data);
     };
     worker.onerror = (event) => {
+      if(activeEngine!=="legacy"||!dialog.open)return;
       status.textContent = event.message || tr("変換処理でエラーが発生しました。", "A conversion error occurred.");
       status.dataset.level = "error";
     };
@@ -512,9 +583,15 @@
     }
 
     async function setSource(next) {
-      if (!next?.blob) return;
+      if (!next?.blob || phase === "full-render" || phase === "committing") return;
+      invalidate();source=null;closeBitmap();const loadRevision=++sourceLoadRevision;
+      let nextBitmap;
+      try { nextBitmap=await imageForBlob(next.blob); }
+      catch(error) { if(loadRevision===sourceLoadRevision)status.textContent=tr("画像を読み込めません。","Could not load the image."); return; }
+      if(loadRevision!==sourceLoadRevision||!dialog.open){nextBitmap.close?.();return;}
+      ++sourceRevision;
       closeBitmap();
-      sourceBitmap = await imageForBlob(next.blob);
+      sourceBitmap = nextBitmap;
       source = {
         ...next,
         name: sourceDisplayName(next.name),
@@ -599,7 +676,10 @@
       });
     }
 
+    function scheduleMangaPreview(){clearTimeout(previewTimer);invalidate();const rev=latestPreviewId,ctx=contextKey(),deadline=Date.now()+30000;async function run(){if(!source||rev!==latestPreviewId||ctx!==contextKey())return;try{drawSourcePreview();const blob=await canvasBlob(sourceCanvas);if(rev!==latestPreviewId)return;const result=(mangaState.settings.auto_tone||mangaState.settings.antialias)?await fullManga():await mangaRequest(blob,false,rev,ctx);await showMangaBlob(result,rev,ctx);if(rev===latestPreviewId){status.textContent=(mangaState.settings.auto_tone||mangaState.settings.antialias)?tr('原寸処理完了。100%表示で輪郭と網点を確認できます。','Full-resolution processing ready. Inspect edges and screen at 100%.'):tr('簡易プレビュー完了。網点は原寸確認してください。','Quick preview ready. Check full resolution for screen detail.');applyButton.disabled=false;}}catch(e){if(rev!==latestPreviewId||ctx!==contextKey())return;if(e.status===429&&Date.now()<deadline){previewTimer=setTimeout(run,1000);return;}if(e.name!=='AbortError')status.textContent=e.message;}}previewTimer=setTimeout(run,140);}
     function schedulePreview() {
+      if(activeEngine === "manga_finish"){scheduleMangaPreview();return;}
+      invalidate();
       clearTimeout(previewTimer);
       const revision = ++latestPreviewId;
       previewTimer = setTimeout(async () => {
@@ -625,6 +705,7 @@
           status.dataset.level = "ready";
           applyButton.disabled = false;
         } catch (error) {
+          if(revision!==latestPreviewId)return;
           status.textContent = error?.message || tr("プレビュー変換に失敗しました。", "Preview conversion failed.");
           status.dataset.level = "error";
         }
@@ -669,7 +750,7 @@
         empty.textContent = currentMode() === "comic"
           ? tr(
               "画像トレイまたはコマ画像を選択するか、画像ファイルを読み込んでください。",
-              "Select an Image Tray item or panel image, or load an image file.",
+              "Select a Image Tray item or panel image, or load an image file.",
             )
           : tr("一枚画像を読み込んでください。", "Load a Single Image.");
         host.append(empty);
@@ -677,7 +758,9 @@
     }
 
     async function refreshSource() {
+      const ctx=contextKey(),revision=++sourceLoadRevision;
       const candidates = await sourceCandidates();
+      if(!dialog.open||ctx!==contextKey()||revision!==sourceLoadRevision)return;
       const selected = candidates.find((item) => item.selected);
       if (selected) await setSource(selected);
       else {
@@ -689,6 +772,7 @@
     }
 
     async function finalBlob() {
+      if(activeEngine === "manga_finish") return fullManga();
       const full = document.createElement("canvas");
       full.width = source.width;
       full.height = source.height;
@@ -709,7 +793,10 @@
     }
 
     async function applyResult() {
-      if (!source) return;
+      if (!source || phase === "full-render" || phase === "committing") return;
+      const capturedSource=source,ctx=contextKey(),rev=latestPreviewId,doc=options.getDocumentId?.();
+      const canCommit=()=>dialog.open&&rev===latestPreviewId&&ctx===contextKey();
+      setPhase("full-render");let historyId=null;
       const idleLabel =
         currentMode() === "comic" ? tr("画像トレイへ追加", "Add to Image Tray") : tr("一枚画像へ適用", "Apply to Single Image");
       applyButton.disabled = true;
@@ -718,36 +805,44 @@
       status.dataset.level = "info";
       try {
         const blob = await finalBlob();
+        if(!canCommit())return;
+        setPhase("committing");
         const name = `${source.name}-comic.png`;
         if (currentMode() === "comic") {
-          const id = await options.addPageImage?.(blob, name);
-          if (!id) throw new Error(tr("画像トレイへ追加できませんでした。", "Could not add the image to the Image Tray."));
+          const id = await options.addPageImage?.(blob, name, canCommit);
+          if (!id) throw new Error(tr("画像トレイへ追加できませんでした。", "Could not add the image to Image Tray."));
           options.setStatus?.(
-            tr(`${name}を画像トレイへ追加しました。`, `${name} was added to the Image Tray.`),
+            tr(`${name}を画像トレイへ追加しました。`, `${name} was added to Image Tray.`),
             "saved",
           );
         } else {
-          await storeHistory(options.getDocumentId?.(), source.blob, source.name);
-          const applied = await options.applySingleImage?.(blob, name, source);
+          historyId=await storeHistory(doc, capturedSource.blob, capturedSource.name);
+          if(!canCommit())throw new DOMException("Stale conversion","AbortError");
+          const applied = await options.applySingleImage?.(blob, name, capturedSource, canCommit);
           if (!applied) throw new Error(tr("一枚画像へ適用できませんでした。", "Could not apply the conversion to the Single Image."));
           options.setStatus?.(
             tr("白黒変換を一枚画像へ適用しました。", "Black & White Conversion was applied to the Single Image."),
             "saved",
           );
         }
-        dialog.close();
+        historyId=null;dialog.close();
       } catch (error) {
+        if(historyId)await deleteHistoryIds([historyId]);
+        if(!canCommit())return;
         status.textContent = error?.message || tr("白黒変換を適用できませんでした。", "Black & White Conversion could not be applied.");
         status.dataset.level = "error";
       } finally {
-        applyButton.disabled = !source;
-        applyButton.textContent = idleLabel;
+        if (rev === latestPreviewId) {
+          setPhase("idle");
+          applyButton.disabled = !source;
+          applyButton.textContent = idleLabel;
+        }
       }
     }
 
     function resetSettings() {
       currentPreset = "grayscale";
-      settings = { ...PRESET_SETTINGS.comic };
+      settings = { ...PRESET_SETTINGS.grayscale };
       syncControls();
       try {
         localStorage.removeItem(SETTINGS_KEY);
@@ -787,12 +882,28 @@
       } catch {}
     }
 
+    function resetSession() {
+      invalidate();
+      ++sourceLoadRevision;
+      setPhase("idle");
+      source = null;
+      closeBitmap();
+      clearCandidateUrls();
+      resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+    }
+
     function closeDialog() {
+      if(phase === "committing")return;
       saveGeometry();
       dialog.close();
     }
 
     launcher.onclick = async () => {
+      if(dialog.open)return;
+      // The previous native close event may still be queued. Retire its work
+      // before starting this session, even when reopening in the same task.
+      resetSession();
+      localizeManga();
       dialog.querySelector("[data-converter-mode]").textContent =
         currentMode() === "comic" ? tr("4コマ漫画", "4-panel Comic") : tr("一枚画像", "Single Image");
       applyButton.textContent =
@@ -803,7 +914,10 @@
       await refreshSource();
     };
     dialog.querySelector("[data-converter-preset]").addEventListener("change", (event) => {
-      if (event.target.value !== "custom") applyPreset(event.target.value);
+      invalidate();
+      activeEngine=event.target.value==='manga_finish'?'manga_finish':'legacy';
+      panel.hidden=activeEngine!=='manga_finish';dialog.querySelector('[data-converter-legacy]').hidden=!panel.hidden;
+      if(activeEngine==='legacy'){if(event.target.value!=='custom'&&event.target.value!==currentPreset)applyPreset(event.target.value);else{syncControls();schedulePreview();}}else schedulePreview();
     });
 
     dialog.addEventListener("input", (event) => {
@@ -847,20 +961,21 @@
       fileInput.value = "";
       if (file) await setSource({ blob: file, name: file.name, source_kind: "external-file" });
     };
-    const drop = dialog.querySelector("[data-converter-drop]");
-    drop.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      drop.classList.add("drag-active");
-    });
-    drop.addEventListener("dragleave", () => drop.classList.remove("drag-active"));
-    drop.addEventListener("drop", async (event) => {
-      event.preventDefault();
-      drop.classList.remove("drag-active");
-      const file = Array.from(event.dataTransfer?.files || []).find((item) =>
-        /^image\/(?:png|jpeg|webp)$/i.test(item.type),
-      );
-      if (file) await setSource({ blob: file, name: file.name, source_kind: "external-file" });
-    });
+    const sourceDrop=dialog.querySelector('[data-source-drop]');
+    const chooseSource=()=>{if(phase==='idle')fileInput.click();};
+    sourceDrop.addEventListener('click',chooseSource);
+    sourceDrop.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();chooseSource();}});
+    for(const drop of [sourceDrop,dialog.querySelector('[data-converter-drop]')]){
+      drop.addEventListener('dragover',event=>{event.preventDefault();event.stopPropagation();if(phase==='idle'){drop.classList.add('drag-active');event.dataTransfer.dropEffect='copy';}else event.dataTransfer.dropEffect='none';});
+      drop.addEventListener('dragleave',()=>drop.classList.remove('drag-active'));
+      drop.addEventListener('drop',async event=>{
+        event.preventDefault();event.stopPropagation();drop.classList.remove('drag-active');
+        if(phase!=='idle')return;
+        const file=Array.from(event.dataTransfer?.files||[]).find(item=>/^image\/(?:png|jpeg|webp)$/i.test(item.type));
+        if(file)await setSource({blob:file,name:file.name,source_kind:'external-file'});
+        else status.textContent=tr('PNG / JPEG / WebP画像を選択してください。','Choose a PNG, JPEG or WebP image.');
+      });
+    }
     document.addEventListener("paste", async (event) => {
       if (!dialog.open || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
       const item = Array.from(event.clipboardData?.items || []).find(
@@ -894,12 +1009,10 @@
     });
     new ResizeObserver(saveGeometry).observe(dialog);
     dialog.addEventListener("close", () => {
+      // A delayed close event belongs to the old session after a rapid reopen.
+      if (dialog.open) return;
       saveGeometry();
-      clearTimeout(previewTimer);
-      source = null;
-      closeBitmap();
-      clearCandidateUrls();
-      resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+      resetSession();
     });
 
     syncControls();
@@ -917,7 +1030,12 @@
       clearHistory,
       open: () => launcher.click(),
       close: closeDialog,
+      cancelPending() {
+        resetSession();
+        dialog.close();
+      },
       dispose() {
+        invalidate();clearTimeout(previewTimer);++sourceLoadRevision;
         worker.terminate();
         URL.revokeObjectURL(workerUrl);
         closeBitmap();

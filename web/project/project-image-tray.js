@@ -236,10 +236,15 @@
         const preview = document.createElement("div");
         preview.className = "project-image-tray-preview";
         const image = document.createElement("img");
-        image.src = options.imageUrl?.(id) || "";
+        if(!asset.missing)image.src = options.imageUrl?.(id) || "";
         image.alt = "";
         image.draggable = false;
         preview.append(image);
+        if(asset.missing){
+          const missing=document.createElement("span");
+          missing.textContent=tr("画像が見つかりません", "Missing image");
+          preview.append(missing);
+        }
         if (selectedId === id) {
           const selected = document.createElement("span");
           selected.className = "project-image-tray-badge selected-badge";
@@ -270,6 +275,7 @@
         actions.className = "project-image-tray-card-actions";
         actions.innerHTML = `<button type="button" data-project-tray-place></button><button type="button" class="danger" data-project-tray-remove title="${tr("画像を管理", "Manage image")}">×</button>`;
         actions.querySelector("[data-project-tray-place]").textContent = tr("配置", "Place");
+        actions.querySelector("[data-project-tray-place]").disabled = Boolean(asset.missing);
         card.append(preview, accessible, actions);
         return card;
       }));
