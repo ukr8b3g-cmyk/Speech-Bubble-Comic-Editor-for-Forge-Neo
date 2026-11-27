@@ -339,6 +339,7 @@
     let sourceBitmap = null;
     let sourcePixels = null;
     let aiMask = null;
+    let aiMaskModel = null;
     let editedMask = null;
     let maskMode = "auto";
     let maskModeStates = { auto: null, guided: null };
@@ -462,6 +463,10 @@
         image.alt = "";
         thumb.append(image);
       }
+    }
+
+    function updateApplyAvailability() {
+      applyButton.disabled = maskMode === "guided" ? !guidedProcessed || guidedDirty : !editedMask;
     }
 
     function updateHistoryButtons() {
@@ -591,12 +596,15 @@
     function saveActiveMaskModeState() {
       maskModeStates[maskMode] = sourcePixels ? {
         current: editSnapshot(),
+        aiMask,
+        aiMaskModel,
         history: copySnapshotList(history),
         redo: copySnapshotList(redo),
       } : null;
     }
 
     function restoreMaskModeState(state) {
+      if (state) ({ aiMask, aiMaskModel } = state);
       restoreEditSnapshot(state?.current);
       history = state ? copySnapshotList(state.history) : [];
       redo = state ? copySnapshotList(state.redo) : [];
@@ -679,7 +687,9 @@
       if (!['auto', 'guided'].includes(nextMode) || nextMode === maskMode) return;
       saveActiveMaskModeState();
       maskMode = nextMode;
-      if (maskMode === "guided") inferenceRevision += 1;
+      inferenceRevision += 1;
+      processingRequest += 1;
+      processingRunning = false;
       restoreMaskModeState(maskModeStates[maskMode]);
       if (maskMode === "guided" && sourcePixels) initializeGuideMasks();
       if (!editedMask && maskMode === "auto" && aiMask) {
@@ -687,7 +697,7 @@
         markMaskChanged();
       }
       selectTool(maskMode === "guided" ? "keep" : "erase");
-      applyButton.disabled = maskMode === "guided" ? !guidedProcessed || guidedDirty : !editedMask;
+      updateApplyAvailability();
       updateMaskModeUi();
       scheduleRender();
       if (maskMode === "auto" && !editedMask && source?.blob) await runMaskRemoval();
@@ -1001,6 +1011,7 @@
       decontaminateDisplay = 50;
       markSourceChanged();
       aiMask = editedMask = null;
+      aiMaskModel = null;
       maskModeStates = { auto: null, guided: null };
       guideKeepMask = guideRemoveMask = null;
       guidedProcessed = false;
@@ -1204,7 +1215,7 @@
       updateMaskModeUi();
       setStatus(tr("AIで背景を解析しています…", "Analyzing the background with AI…"), "info");
       try {
-        if (requestedMode === "guided" && aiMask) applyGuidedResult();
+        if (requestedMode === "guided" && aiMask && aiMaskModel === modelSelect.value) applyGuidedResult();
         else await ensureModelAndInfer(requestedMode);
       } finally {
         if (request === processingRequest) {
@@ -1222,6 +1233,7 @@
       }
       const requestRevision = ++inferenceRevision;
       const requestSource = source;
+      const requestModel = modelSelect.value;
       processingRunning = true;
       applyButton.disabled = true;
       updateMaskModeUi();
@@ -1242,12 +1254,17 @@
         const maskCanvas = document.createElement("canvas");
         maskCanvas.width = sourceCanvas.width;
         maskCanvas.height = sourceCanvas.height;
-        const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
-        maskContext.drawImage(maskBitmap, 0, 0, maskCanvas.width, maskCanvas.height);
-        const raw = maskContext.getImageData(0, 0, maskCanvas.width, maskCanvas.height).data;
-        aiMask = new Uint8ClampedArray(maskCanvas.width * maskCanvas.height);
-        for (let offset = 0, pixel = 0; pixel < aiMask.length; offset += 4, pixel += 1) aiMask[pixel] = raw[offset];
-        maskBitmap.close?.();
+        const nextMask = new Uint8ClampedArray(maskCanvas.width * maskCanvas.height);
+        try {
+          const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
+          maskContext.drawImage(maskBitmap, 0, 0, maskCanvas.width, maskCanvas.height);
+          const raw = maskContext.getImageData(0, 0, maskCanvas.width, maskCanvas.height).data;
+          for (let offset = 0, pixel = 0; pixel < nextMask.length; offset += 4, pixel += 1) nextMask[pixel] = raw[offset];
+        } finally {
+          maskBitmap.close?.();
+        }
+        aiMask = nextMask;
+        aiMaskModel = requestModel;
         if (targetMode === "guided") return applyGuidedResult();
         editedMask = new Uint8ClampedArray(aiMask);
         markMaskChanged();
@@ -1262,6 +1279,7 @@
       } finally {
         if (requestRevision === inferenceRevision) {
           processingRunning = false;
+          updateApplyAvailability();
           updateMaskModeUi();
         }
       }
@@ -1334,15 +1352,8 @@
       inferenceRevision += 1;
       const request = ++processingRequest;
       processingRunning = false;
-      aiMask = editedMask = null;
-      maskModeStates = { auto: null, guided: null };
-      history = [];
-      redo = [];
-      applyButton.disabled = true;
-      if (maskMode === "guided") guidedProcessed = false;
-      markMaskChanged();
+      updateApplyAvailability();
       updateMaskModeUi();
-      scheduleRender();
       await refreshModelInfo();
       if (dialog.open && request === processingRequest && sourcePixels && maskMode === "auto") await runMaskRemoval();
     });
@@ -1438,7 +1449,7 @@
         redo.push(editSnapshot());
         restoreEditSnapshot(history.pop());
         updateHistoryButtons();
-        applyButton.disabled = maskMode === "guided" ? !guidedProcessed || guidedDirty : !editedMask;
+        updateApplyAvailability();
         updateMaskModeUi();
         scheduleRender();
       } else if (action === "redo" && redo.length) {
@@ -1446,7 +1457,7 @@
         while (history.length > historyLimit()) history.shift();
         restoreEditSnapshot(redo.pop());
         updateHistoryButtons();
-        applyButton.disabled = maskMode === "guided" ? !guidedProcessed || guidedDirty : !editedMask;
+        updateApplyAvailability();
         updateMaskModeUi();
         scheduleRender();
       } else if (action === "reset-mask") {
@@ -1664,6 +1675,7 @@
       closeBitmap();
       source = null;
       aiMask = editedMask = sourcePixels = null;
+      aiMaskModel = null;
       edgeCorrection = edgeCore.defaultSettings();
       decontaminateDisplay = 50;
       markSourceChanged();
