@@ -147,8 +147,9 @@ def _on_ui_settings():
           </details>
 
           <details class="speech-bubble-forge-settings-group" data-speech-bubble-settings-group="model">
-            <summary><span>AI Background Removal Model（AI背景削除モデル）</span><small>isnet-anime・約168 MB</small></summary>
+            <summary><span>AI Background Removal Model（AI背景削除モデル）</span></summary>
             <div class="speech-bubble-forge-settings-group-body speech-bubble-forge-model-card">
+              <label>背景削除方式 <select data-speech-bubble-model-select><option value="inspyrenet">InSPyReNet</option><option value="isnet-anime">isnet-anime</option></select></label>
               <output data-speech-bubble-model-status aria-live="polite">確認待ち</output>
               <progress data-speech-bubble-model-progress max="1" value="0" style="width:100%"></progress>
               <div class="speech-bubble-forge-model-actions">

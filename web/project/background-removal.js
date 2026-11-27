@@ -194,6 +194,9 @@
             </figure>
           </main>
           <aside class="background-removal-tools">
+            <label class="background-removal-control-row"><span data-br-text="removalModel">背景削除方式</span>
+              <select data-br-model data-br-model-select><option value="inspyrenet">InSPyReNet</option><option value="isnet-anime">isnet-anime</option></select>
+            </label>
             <h3 data-br-text="maskMethod">マスク作成方法</h3>
             <div class="background-removal-mask-mode" role="group" aria-label="マスク作成方法">
               <button type="button" class="active" data-br-mask-mode="auto" data-br-text="automaticMask">自動</button>
@@ -273,6 +276,7 @@
     document.body.append(dialog);
 
     const text = {
+      removalModel: ["背景削除方式", "Background removal model"],
       title: ["背景削除", "Background Removal"], subtitle: ["AI背景削除＆マスク編集", "AI background removal & mask editing"],
       maximize: ["最大化", "Maximize"], restore: ["元のサイズ", "Restore"], close: ["閉じる", "Close"],
       changeImage: ["画像を変更", "Change Image"], dropImage: ["PNG / JPEG / WebPをドロップ", "Drop PNG / JPEG / WebP"], chooseFile: ["ファイルを選択", "Choose File"],
@@ -301,6 +305,8 @@
     const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
     const resultContext = resultCanvas.getContext("2d", { willReadFrequently: true });
     const status = dialog.querySelector("[data-br-status]");
+    const modelSelect = dialog.querySelector("[data-br-model-select]");
+    modelSelect.parentElement.hidden = !aiInferenceAvailable;
     const applyButton = dialog.querySelector('[data-br-action="apply"]');
     const brushInput = dialog.querySelector("[data-br-brush-size]");
     const brushNumber = dialog.querySelector("[data-br-brush-number]");
@@ -356,7 +362,7 @@
     let lastClient = null;
     let cursorClient = null;
     let view = { scale: 1, x: 0, y: 0 };
-    let pollTimer = null;
+    let processingRequest = 0;
     let candidateUrls = [];
     let sourceThumbUrl = null;
     let edgeCorrection = edgeCore.defaultSettings();
@@ -979,7 +985,11 @@
       if (!next?.blob || !String(next.blob.type || "").startsWith("image/")) return;
       closeBitmap();
       source = next;
-      sourceBitmap = await imageBitmap(next.blob);
+      inferenceRevision += 1;
+      processingRequest += 1;
+      const loaded = await imageBitmap(next.blob);
+      if (!dialog.open || source !== next) { loaded.close?.(); return; }
+      sourceBitmap = loaded;
       source.width = sourceBitmap.width;
       source.height = sourceBitmap.height;
       sourceCanvas.width = resultCanvas.width = sourceBitmap.width;
@@ -990,7 +1000,6 @@
       edgeCorrection = edgeCore.defaultSettings();
       decontaminateDisplay = 50;
       markSourceChanged();
-      inferenceRevision += 1;
       aiMask = editedMask = null;
       maskModeStates = { auto: null, guided: null };
       guideKeepMask = guideRemoveMask = null;
@@ -1076,16 +1085,21 @@
       }
     }
 
-    async function modelStatus() {
+    function modelUrl(path, id = modelSelect.value) {
+      return `${aiApiBase}/${path}?model=${encodeURIComponent(id)}`;
+    }
+
+    async function modelStatus(id = modelSelect.value) {
       if (!aiInferenceAvailable) {
         return { available: false, ready: false, state: "unavailable", progress: 0 };
       }
-      const response = await fetch(`${aiApiBase}/model`);
+      const response = await fetch(modelUrl("model", id));
       if (!response.ok) throw await responseError(response, tr("モデル状態を取得できません。", "Could not retrieve model status."));
       return response.json();
     }
 
     function displayModelStatus(model) {
+      if (model.model && model.model !== modelSelect.value) return;
       const output = dialog.querySelector("[data-br-model-status]");
       const progress = dialog.querySelector("[data-br-model-progress]");
       const cancel = dialog.querySelector('[data-br-action="cancel-download"]');
@@ -1101,55 +1115,60 @@
       progress.hidden = false;
       cancel.hidden = model.state !== "downloading";
       download.hidden = model.state === "downloading" || model.ready;
-      if (model.ready) output.textContent = tr("isnet-anime：準備完了", "isnet-anime: Ready");
+      if (model.ready) output.textContent = `${model.label || model.model} · ${tr("準備完了", "Ready")}`;
       else if (model.state === "downloading") output.textContent = `${tr("取得中", "Downloading")} ${Math.round(Number(model.progress || 0) * 100)}%`;
-      else output.textContent = root.SpeechBubbleUiMessages?.error(model.error, isEnglish() ? "en" : "ja") || model.error || tr("未取得（約168 MB）", "Not downloaded (about 168 MB)");
+      else output.textContent = root.SpeechBubbleUiMessages?.error(model.error, isEnglish() ? "en" : "ja") || model.error || `${tr("未取得", "Not downloaded")} (${Math.round(model.size / 1048576)} MiB)`;
     }
 
-    async function startModelDownload() {
+    async function startModelDownload(id, current, active) {
       if (!aiInferenceAvailable) throw new Error(text.aiUnavailable[isEnglish() ? 1 : 0]);
-      const consent = confirm(tr(
-        "AI背景削除モデル isnet-anime（約168 MB）を取得します。\n配布元: rembg GitHub Release\nモデル: Apache-2.0\n続行しますか？",
-        "Download the isnet-anime AI background-removal model (about 168 MB)?\nDistribution: rembg GitHub Release\nModel: Apache-2.0",
-      ));
-      if (!consent) return false;
-      const response = await fetch(`${aiApiBase}/model/download`, { method: "POST", body: "{}" });
-      if (!response.ok) throw await responseError(response);
-      displayModelStatus(await response.json());
-      await waitForModel();
-      return true;
-    }
-
-    async function waitForModel() {
-      clearTimeout(pollTimer);
-      const model = await modelStatus();
-      displayModelStatus(model);
-      if (model.ready) return model;
-      if (model.state === "error") throw new Error(root.SpeechBubbleUiMessages?.error(model.error, isEnglish() ? "en" : "ja") || model.error || tr("モデルを取得できませんでした。", "Model download failed."));
-      if (model.state !== "downloading") return model;
-      await new Promise((resolve) => { pollTimer = setTimeout(resolve, 300); });
-      return waitForModel();
+      if (!active()) return false;
+      let model = current;
+      if (model.available === false) throw new Error(model.reason || text.aiUnavailable[isEnglish() ? 1 : 0]);
+      if (!model.ready && model.state !== "downloading") {
+        const name = `${model.label || id} (${Math.round(model.size / 1048576)} MiB, ${model.license})`;
+        if (!confirm(tr(`${name} をダウンロードしますか？`, `Download ${name}?`))) return false;
+        const response = await fetch(modelUrl("model/download", id), {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmed: true }),
+        });
+        if (!response.ok) throw await responseError(response);
+        model = await response.json();
+      }
+      while (active()) {
+        displayModelStatus(model);
+        if (model.ready) return true;
+        if (model.state === "error") throw new Error(model.error || tr("モデルを取得できませんでした。", "Model download failed."));
+        if (model.state !== "downloading") break;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (!active()) break;
+        model = await modelStatus(id);
+      }
+      return false;
     }
 
     async function ensureModelAndInfer(targetMode = maskMode) {
+      const id = modelSelect.value;
+      const request = processingRequest;
+      const active = () => dialog.open && id === modelSelect.value && request === processingRequest && maskMode === targetMode;
       if (!aiInferenceAvailable) {
         setStatus(text.manualMaskEditing[isEnglish() ? 1 : 0], "info");
         return false;
       }
       try {
-        let model = await modelStatus();
+        const model = await modelStatus(id);
+        if (!active()) return false;
         displayModelStatus(model);
         if (!model.ready) {
-          const started = await startModelDownload();
+          const started = await startModelDownload(id, model, active);
+          if (!active()) return false;
           if (!started) {
             setStatus(tr("モデル取得をキャンセルしました。", "Model download was cancelled."), "info");
             return false;
           }
-          model = await modelStatus();
         }
-        if (model.ready && maskMode === targetMode) return infer(targetMode);
+        if (active()) return await infer(targetMode);
       } catch (error) {
-        if (maskMode === targetMode) setStatus(error.message, "error");
+        if (active()) setStatus(error.message, "error");
       }
       return false;
     }
@@ -1180,6 +1199,7 @@
         return;
       }
       const requestedMode = maskMode;
+      const request = ++processingRequest;
       processingRunning = true;
       updateMaskModeUi();
       setStatus(tr("AIで背景を解析しています…", "Analyzing the background with AI…"), "info");
@@ -1187,8 +1207,10 @@
         if (requestedMode === "guided" && aiMask) applyGuidedResult();
         else await ensureModelAndInfer(requestedMode);
       } finally {
-        processingRunning = false;
-        updateMaskModeUi();
+        if (request === processingRequest) {
+          processingRunning = false;
+          updateMaskModeUi();
+        }
       }
     }
 
@@ -1205,7 +1227,7 @@
       updateMaskModeUi();
       setStatus(tr("AIで背景を解析しています…", "Analyzing the background with AI…"), "info");
       try {
-        const response = await fetch(`${aiApiBase}/infer`, {
+        const response = await fetch(modelUrl("infer"), {
           method: "POST",
           headers: { "Content-Type": source.blob.type || "application/octet-stream" },
           body: source.blob,
@@ -1302,11 +1324,35 @@
       dialog.close();
     }
 
+    async function refreshModelInfo() {
+      const id = modelSelect.value;
+      try { displayModelStatus(await modelStatus(id)); }
+      catch (error) { if (dialog.open && id === modelSelect.value) setStatus(error.message, "error"); }
+    }
+
+    modelSelect.addEventListener("change", async () => {
+      inferenceRevision += 1;
+      const request = ++processingRequest;
+      processingRunning = false;
+      aiMask = editedMask = null;
+      maskModeStates = { auto: null, guided: null };
+      history = [];
+      redo = [];
+      applyButton.disabled = true;
+      if (maskMode === "guided") guidedProcessed = false;
+      markMaskChanged();
+      updateMaskModeUi();
+      scheduleRender();
+      await refreshModelInfo();
+      if (dialog.open && request === processingRequest && sourcePixels && maskMode === "auto") await runMaskRemoval();
+    });
+
     launcher.addEventListener("click", async () => {
       dialog.showModal();
       restoreGeometry();
       applyLanguage();
       setStatus(tr("画像を確認しています…", "Checking the image…"));
+      void refreshModelInfo();
       await refreshSource();
     });
 
@@ -1341,13 +1387,16 @@
       else if (action === "choose-file") fileInput.click();
       else if (action === "download-model") {
         try {
-          const started = await startModelDownload();
-          if (started && source && maskMode === "auto") await infer("auto");
+          const id = modelSelect.value;
+          const request = processingRequest;
+          const active = () => dialog.open && modelSelect.value === id && processingRequest === request;
+          const started = await startModelDownload(id, await modelStatus(id), active);
+          if (started && active() && source && maskMode === "auto") await runMaskRemoval();
         } catch (error) {
           setStatus(error.message, "error");
         }
       }
-      else if (action === "cancel-download" && aiInferenceAvailable) await fetch(`${aiApiBase}/model/cancel`, { method: "POST", body: "{}" });
+      else if (action === "cancel-download" && aiInferenceAvailable) displayModelStatus(await (await fetch(modelUrl("model/cancel"), { method: "POST" })).json());
       else if (action === "run-mask") await runMaskRemoval();
       else if (action === "zoom-in") scaleFromViewportCenter(1.2);
       else if (action === "zoom-out") scaleFromViewportCenter(1 / 1.2);
@@ -1609,7 +1658,7 @@
     new ResizeObserver(() => { saveGeometry(); if (dialog.open) requestAnimationFrame(fitView); }).observe(dialog);
     dialog.addEventListener("close", () => {
       inferenceRevision += 1;
-      clearTimeout(pollTimer);
+      processingRequest += 1;
       clearCandidateUrls();
       clearSourceThumbUrl();
       closeBitmap();

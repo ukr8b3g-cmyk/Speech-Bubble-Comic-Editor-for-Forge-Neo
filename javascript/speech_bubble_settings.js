@@ -172,9 +172,15 @@
     }
 
     let modelPollTimer = 0;
+    function modelSelection() {
+        return state.panel.querySelector("[data-speech-bubble-model-select]").value;
+    }
+    function modelUrl(id, action = "") {
+        return `${MODEL_ENDPOINT}${action}?model=${encodeURIComponent(id)}`;
+    }
     function displayModelStatus(model = {}) {
         const panel = state.panel;
-        if (!panel) return;
+        if (!panel || (model.model && model.model !== modelSelection())) return;
         const output = panel.querySelector("[data-speech-bubble-model-status]");
         const progress = panel.querySelector("[data-speech-bubble-model-progress]");
         const download = panel.querySelector("[data-speech-bubble-model-download]");
@@ -183,10 +189,10 @@
         const downloading = model.state === "downloading";
         progress.value = Math.max(0, Math.min(1, Number(model.progress) || 0));
         output.textContent = model.ready
-            ? "isnet-anime：準備完了"
+            ? `${model.label || model.model}：準備完了`
             : downloading
                 ? `取得中 ${Math.round(progress.value * 100)}%`
-                : model.error || "未取得（約168 MB）";
+                : model.error || `未取得（${Math.round(model.size / 1048576)} MiB）`;
         download.hidden = downloading || model.ready === true;
         cancel.hidden = !downloading;
         remove.disabled = downloading || model.ready !== true;
@@ -195,25 +201,31 @@
     }
 
     async function refreshModelStatus() {
+        const id = modelSelection();
         try {
-            displayModelStatus(await apiRequest(MODEL_ENDPOINT));
+            displayModelStatus(await apiRequest(modelUrl(id)));
         } catch (error) {
-            displayModelStatus({ error: error.message });
+            displayModelStatus({ model: id, error: error.message });
         }
     }
 
     async function downloadModel() {
-        if (!confirm("isnet-anime背景削除モデル（約168 MB）を取得しますか？\nモデル: Apache-2.0")) return;
-        displayModelStatus(await apiRequest(`${MODEL_ENDPOINT}/download`, { method: "POST", body: "{}" }));
+        const id = modelSelection();
+        const status = await apiRequest(modelUrl(id));
+        if (id !== modelSelection()) return;
+        if (status.ready || status.state === "downloading") return displayModelStatus(status);
+        if (!confirm(`${status.label}（${Math.round(status.size / 1048576)} MiB、${status.license}）をダウンロードしますか？`)) return;
+        displayModelStatus(await apiRequest(modelUrl(id, "/download"), { method: "POST", body: JSON.stringify({ confirmed: true }) }));
     }
 
     async function cancelModelDownload() {
-        displayModelStatus(await apiRequest(`${MODEL_ENDPOINT}/cancel`, { method: "POST", body: "{}" }));
+        displayModelStatus(await apiRequest(modelUrl(modelSelection(), "/cancel"), { method: "POST", body: "{}" }));
     }
 
     async function deleteModel() {
-        if (!confirm("背景削除モデルを削除しますか？")) return;
-        displayModelStatus(await apiRequest(MODEL_ENDPOINT, { method: "DELETE" }));
+        const id = modelSelection();
+        if (!confirm(`${id} を削除しますか？`)) return;
+        displayModelStatus(await apiRequest(modelUrl(id), { method: "DELETE" }));
     }
 
     function readFileDataUrl(file) {
@@ -2445,6 +2457,7 @@
         panel.querySelector("[data-speech-bubble-diagnostic-run]").addEventListener("click", runDiagnostics);
         panel.querySelector("[data-speech-bubble-diagnostic-show]").addEventListener("click", () => state.lastDiagnostic && renderDiagnostic(state.lastDiagnostic));
         panel.querySelector("[data-speech-bubble-model-refresh]").addEventListener("click", refreshModelStatus);
+        panel.querySelector("[data-speech-bubble-model-select]").addEventListener("change", refreshModelStatus);
         panel.querySelector("[data-speech-bubble-model-download]").addEventListener("click", () => downloadModel().catch((error) => displayModelStatus({ error: error.message })));
         panel.querySelector("[data-speech-bubble-model-cancel]").addEventListener("click", () => cancelModelDownload().catch((error) => displayModelStatus({ error: error.message })));
         panel.querySelector("[data-speech-bubble-model-delete]").addEventListener("click", () => deleteModel().catch((error) => displayModelStatus({ error: error.message })));

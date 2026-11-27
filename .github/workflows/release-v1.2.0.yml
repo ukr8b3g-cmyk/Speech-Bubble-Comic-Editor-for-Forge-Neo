@@ -1,0 +1,58 @@
+name: Release v1.2.0
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: speech-bubble-forge-release-v1.2.0
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.repository == 'ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo' &&
+      github.event.head_commit.message == 'Release v1.2.0'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUTF8: '1'
+      SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Wait for repository validation on this commit
+        run: |
+          set -euo pipefail
+          for attempt in {1..40}; do
+            id=$(gh run list --workflow validate.yml --event push --commit "$GITHUB_SHA" --json databaseId --jq '.[0].databaseId // empty')
+            if [[ -n "$id" ]]; then break; fi
+            sleep 5
+          done
+          test -n "$id"
+          while [[ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq .status)" != completed ]]; do
+            sleep 15
+          done
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq .conclusion)" = success
+      - name: Build and check installable ZIP
+        run: python tools/package_release.py --output dist
+      - name: Publish the new tag and assets
+        run: |
+          set -euo pipefail
+          tag=v1.2.0
+          count=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$tag" --jq 'map(select(.ref == "refs/tags/v1.2.0")) | length')
+          test "$count" = 0
+          gh release create "$tag" dist/Speech-Bubble-Comic-Editor-for-Forge-Neo-v1.2.0.zip dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'v1.2.0 — Background removal model selection' \
+            --notes-file docs/RELEASE_v1.2.0.md --latest

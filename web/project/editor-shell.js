@@ -3103,7 +3103,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     window.addEventListener("blur",()=>{state.spaceDown=false;if(!state.drag)canvas.style.cursor="default";});
     const USER_ASSET_CHANNEL="speech-bubble-editor:user-assets:v1";
     let userAssetBroadcast=null;
-    function initializeUserAssetBroadcast(){if(userAssetBroadcast||!("BroadcastChannel" in window))return;try{userAssetBroadcast=new BroadcastChannel(USER_ASSET_CHANNEL);userAssetBroadcast.addEventListener("message",event=>{const data=event.data||{};if(data.type==="catalog_changed"){loadUserAssetCatalog().then(()=>{refreshQuickSfx();if(document.getElementById("sfxDrawer").classList.contains("open"))renderSfxDrawer();});}else if(data.type==="diagnostic_ping"&&data.nonce){userAssetBroadcast.postMessage({type:"diagnostic_pong",nonce:data.nonce,mode:documentMode,documentId,version:"1.1.0"});}});}catch(error){console.warn("Speech Bubble user preset live updates unavailable",error);userAssetBroadcast=null;}}
+    function initializeUserAssetBroadcast(){if(userAssetBroadcast||!("BroadcastChannel" in window))return;try{userAssetBroadcast=new BroadcastChannel(USER_ASSET_CHANNEL);userAssetBroadcast.addEventListener("message",event=>{const data=event.data||{};if(data.type==="catalog_changed"){loadUserAssetCatalog().then(()=>{refreshQuickSfx();if(document.getElementById("sfxDrawer").classList.contains("open"))renderSfxDrawer();});}else if(data.type==="diagnostic_ping"&&data.nonce){userAssetBroadcast.postMessage({type:"diagnostic_pong",nonce:data.nonce,mode:documentMode,documentId,version:"1.2.0"});}});}catch(error){console.warn("Speech Bubble user preset live updates unavailable",error);userAssetBroadcast=null;}}
     function deferEditorTask(task){if("requestIdleCallback" in window)requestIdleCallback(()=>task(),{timeout:1000});else setTimeout(task,0);}
     let firstPaintDone=false,deferredResourcesStarted=false;
     function startDeferredResources(){if(deferredResourcesStarted)return;deferredResourcesStarted=true;deferEditorTask(loadDeferredEditorResources);}
@@ -3217,7 +3217,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function localizeStaticText(root=document){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);for(let node=walker.nextNode();node;node=walker.nextNode()){const parent=node.parentElement;if(!parent||parent.closest(".palette,.layers,.font-list"))continue;const raw=node.nodeValue,trimmed=raw.trim();if(!trimmed)continue;const translated=localizedPairValue(trimmed,FORGE_UI_TRANSLATIONS);if(translated!==trimmed)node.nodeValue=raw.replace(trimmed,translated);}}
     function applyAccessibleTooltips(){document.querySelectorAll("[title],[aria-label]").forEach(node=>{for(const attribute of ["title","aria-label"]){const value=node.getAttribute(attribute);if(value){const translated=localizedPairValue(localizedPairValue(value,FORGE_TITLE_TRANSLATIONS),FORGE_UI_TRANSLATIONS);if(translated!==value)node.setAttribute(attribute,translated);}}});document.querySelectorAll("button,[role='button']").forEach(node=>{const label=String(node.getAttribute("aria-label")||node.textContent||"").replace(/\s+/g," ").trim();if(!node.title&&label)node.title=label;if(!node.getAttribute("aria-label")&&label)node.setAttribute("aria-label",label);});document.querySelectorAll("input:not([type='hidden']),select,textarea").forEach(node=>{const label=node.closest("label"),labelText=label?[...label.childNodes].filter(child=>child.nodeType===Node.TEXT_NODE).map(child=>child.textContent.trim()).filter(Boolean).join(" "):"";const hint=labelText||node.placeholder||node.name||node.id;if(!node.title&&hint)node.title=hint;if(!node.getAttribute("aria-label")&&hint)node.setAttribute("aria-label",hint);});}
     function applyForgeProjectLanguage(){
-      document.querySelector("header > strong").textContent="Comic Panel Editor 1.1.0";
+      document.querySelector("header > strong").textContent="Comic Panel Editor 1.2.0";
       const labels={
         undo:uiText("元に戻す","Undo"),redo:uiText("やり直す","Redo"),fit:uiText("全体表示","Fit"),
         discardChanges:uiText("変更を破棄","Discard Changes"),saveLayout:uiText("レイアウト保存","Save Layout"),
@@ -3481,7 +3481,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
             if(ready)updateActionState();
           },
           getProjectTitle:()=>forgeProjectTitle,
-          setProjectTitle:title=>{forgeProjectTitle=String(title||"Untitled Comic Project");document.title=`${forgeProjectTitle} — Comic Panel Editor 1.1.0`;},
+          setProjectTitle:title=>{forgeProjectTitle=String(title||"Untitled Comic Project");document.title=`${forgeProjectTitle} — Comic Panel Editor 1.2.0`;},
           markSaved:markForgeProjectSaved,
           onChanged:callback=>window.addEventListener("speech-bubble:document-changed",callback),
         },

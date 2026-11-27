@@ -12,7 +12,16 @@ Unless otherwise stated, the source code, built-in speech bubbles, SFX assets, c
 
 ## Optional AI background-removal model
 
-The `isnet-anime` ONNX model is not bundled with this repository. The editor asks for confirmation when background removal is first used without the model, and downloads it only if the user explicitly approves the in-app download. The downloaded file is verified by expected size and SHA-256 before use. No rembg Python code is included or executed by this extension.
+The editor offers two optional ONNX models. It asks before downloading a missing model and checks the file size and SHA-256 before installation. No rembg Python code is included or executed by this extension.
+
+**InSPyReNet** (default)
+
+- Model project: [InSPyReNet](https://github.com/plemeri/InSPyReNet)
+- Distribution source: [InSPyReNet ONNX release](https://github.com/yashmishra12/inspyrenet-onnx/releases/tag/v1.0.0)
+- Model license: MIT
+- Expected SHA-256: `31b7b16a77407d0c4a0d00c6c0e2790a53dacf8c0baf0eaa8ab0cc094951d016`
+
+**isnet-anime**
 
 - Model project: [anime-segmentation](https://github.com/SkyTNT/anime-segmentation)
 - Distribution source: [rembg releases](https://github.com/danielgatis/rembg/releases)

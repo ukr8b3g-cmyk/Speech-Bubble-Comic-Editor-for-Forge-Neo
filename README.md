@@ -1,6 +1,6 @@
 # Speech Bubble Comic Editor for Forge Neo
 
-Version: **1.1.0** (`1.1.0` in APIs and diagnostics). [Releases](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/releases) · [変更履歴 / Changelog](CHANGELOG.md)
+Version: **1.2.0** · [Releases](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo/releases) · [変更履歴 / Changelog](CHANGELOG.md)
 
 Forge Neoで生成した画像や手元の画像を、一枚絵・4コマ漫画・自由なコマ割りのコミックへ編集・仕上げするローカル漫画エディターです。
 
@@ -11,6 +11,10 @@ Forge Neo上では **Comic Panel Editor** と表示されます。吹き出し�
 v1.1.0の追加機能: [Manga Finish（漫画仕上げ）の操作・仕様・検証](docs/manga-finish.md)。既存の白黒変換に6プリセットのCPU漫画仕上げを追加します。
 
 初めて使う場合は「インストール」「起動」「保存と書き出し」から読み進めてください。個別の編集操作は各機能の節、英語の導入・保存手順は [English](#english) にまとめています。
+
+## v1.2.0 の更新内容（2026-11-27）
+
+［背景削除を開く］の［背景削除方式］で、標準のInSPyReNetと従来のisnet-animeを切り替えられます。モデルが手元にない場合は、初回だけ容量を表示してダウンロードを確認します。すでに取得したisnet-animeもそのまま使えます。方式を切り替えた後は、新しい切り抜きをプレビューしてから［適用］します。
 
 ## v1.1.0 の更新内容（2026-10-24）
 
@@ -66,7 +70,7 @@ JSON APIの受信上限を統一し、プロジェクト新規作成は一時デ
 - 単色、グラデーション、網点、雲、木目、集中線など23種類のCanvas背景
 - グレースケール、白黒コミック、モノクロ、XDoGのコミック変換
 - ベース画像の直接編集、選択マスク、ペイント、対象色別の部分色変更、トーンカーブに対応する簡易レタッチ
-- isnet-animeによるAI背景削除、ブラシ、自動選択、マスク補正
+- InSPyReNet／isnet-animeによるAI背景削除、ブラシ、自動選択、マスク補正
 - フリンジ、不要色、白マット、黒マットのエッジカラー補正
 - Undo／Redo、自動保存、ローカルプロジェクト保存、PNG／JPEG／WebP書き出し
 - 日本語／英語の切り替え、操作ボタンと入力欄のマウスオーバー説明
@@ -346,7 +350,7 @@ Shiftは追加、Altは削除、Shift＋Altは共通部分として一時的に�
 - 白マット削除
 - 黒マット削除
 
-isnet-animeモデル（約168MB）は同梱していません。モデルがない状態で背景削除を初めて実行すると取得確認を表示し、承認した場合だけダウンロードします。Forge Settingsから明示的に「モデルを取得」を押すこともできます。モデル取得後の推論と画像処理はローカルで実行され、画像は外部へ送信されません。
+「背景削除」の「背景削除方式」では、標準の **InSPyReNet**（約377 MiB）と、アニメ向けの **isnet-anime**（約168 MiB）を選べます。選んだモデルが未取得の場合だけ、初回の処理前にダウンロードを確認します。取得済みのモデルは次回もそのまま使えます。Forge Settingsからモデルを個別に取得・削除することもできます。画像処理はローカルで実行します。
 
 ## Forge Settings
 
@@ -411,9 +415,13 @@ SFX／Stamp のユーザー素材は `config/speech-bubble-forge/user-presets/`�
 
 ## English
 
-**Speech Bubble Comic Editor for Forge Neo 1.1.0** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**. APIs and diagnostic build identifiers use `1.1.0`.
+**Speech Bubble Comic Editor for Forge Neo 1.2.0** is a local post-production comic editor for Forge-generated and imported artwork. The Forge UI shows the short name **Comic Panel Editor**.
 
 It provides three independent workspaces—Single Image, 4-Panel Manga, and Comic—plus Page Images, layers, speech bubbles, text and vertical writing, SFX, stamps, frames, emphasis lines, procedural backgrounds, comic conversion, AI background removal, local project persistence, and PNG/JPEG/WebP export.
+
+### Update v1.2.0 (2026-11-27)
+
+Open **Background Removal** to choose **InSPyReNet** (the new default) or **isnet-anime**. The editor shows the download size and asks for confirmation the first time a model is needed. Existing isnet-anime downloads are reused. After switching models, preview the new cutout and click **Apply**.
 
 ### Update v1.1.0 (2026-10-24)
 
@@ -457,7 +465,7 @@ Image export produces PNG, JPEG, WebP or a transparent Overlay PNG. An exported 
 
 Language, Page Images behavior, export, presets, cache, diagnostics, and the optional AI model are managed from `Settings > Comic Panel Editor` in the Forge Neo window. Choose Japanese, English or automatic language detection there.
 
-The optional isnet-anime model is not bundled. It is downloaded only after the user approves the first-use prompt or clicks **Download Model** in Forge Settings. Processing remains local.
+In **Background Removal**, use **Background removal model** to choose **InSPyReNet** (default, about 377 MiB) or **isnet-anime** (about 168 MiB). The editor asks before downloading a missing model, then reuses it for future cutouts. Forge Settings also lets you download or remove each model individually. Images are processed locally.
 
 The target host is Forge Neo. Linux, Windows and Chromium automated checks cover the code and isolated editor/API behavior. Actual Forge Neo host operation and GPU/background-removal inference were not revalidated for 1.0; compatibility with other WebUI hosts is not asserted. This repository distributes a Forge extension, not a Windows standalone-app installer.
 

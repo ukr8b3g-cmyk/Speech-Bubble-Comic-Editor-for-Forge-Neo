@@ -12,6 +12,7 @@ const projectApi = fs.readFileSync("web/project/forge-project-api.js", "utf8");
 const projectBridge = fs.readFileSync("javascript/speech_bubble_project_bridge.js", "utf8");
 const projectSchema = fs.readFileSync("speech_bubble_forge/project_schema.py", "utf8");
 const projectStore = fs.readFileSync("speech_bubble_forge/project_store.py", "utf8");
+const version = /^Version=(.+)$/m.exec(fs.readFileSync("metadata.ini", "utf8"))[1].trim();
 
 new vm.Script(quickRetouch, { filename: "quick-retouch.js" });
 new vm.Script(quickRetouchCore, { filename: "quick-retouch-core.js" });
@@ -59,7 +60,7 @@ assert.match(quickRetouchCss, /data-tool-color-range="apply"[\s\S]*#287a48/);
 assert.match(quickRetouch, /selectionOperationForModifiers/);
 assert.match(quickRetouch, /colorSampleModeForModifiers/);
 assert.match(quickRetouch, /brushRingFrame/);
-assert.match(quickRetouch, /BUILD_VERSION = "1\.1\.0"/);
+assert.ok(quickRetouch.includes(`BUILD_VERSION = "${version}"`));
 assert.match(quickRetouch, /let baseLayerState = \{ visible: true, locked: false \}/);
 assert.match(quickRetouch, /data-retouch-base-lock/);
 assert.doesNotMatch(quickRetouch, /data-retouch-protection-action/);
@@ -104,7 +105,7 @@ assert.match(quickRetouch, /Freehand Lasso|投げ縄選択/);
 assert.match(quickRetouch, /brush-size/);
 assert.match(quickRetouch, /data-retouch-panel=\"selection\"/);
 assert.match(projectApi, /`\$\{this\.base\}\/config`/);
-assert.match(projectBridge, /searchParams\.set\("build", "1\.1\.0"\)/);
+assert.ok(projectBridge.includes(`searchParams.set("build", "${version}")`));
 assert.match(projectSchema, /"retouched"/);
 assert.match(projectStore, /"retouched"/);
 

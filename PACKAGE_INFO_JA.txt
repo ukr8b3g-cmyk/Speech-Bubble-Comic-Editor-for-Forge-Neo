@@ -1,12 +1,12 @@
 Speech Bubble Comic Editor for Forge Neo
-Version: 1.1.0 (2026-10-24)
+Version: 1.2.0 (2026-11-27)
 
-Manga Finish（6プリセットのCPU漫画仕上げ）と保存・読込の安全性を更新しました。
-初期読込失敗後の上書き防止、合成画像とOverlayの保護、出力先の識別、
-変更破棄での画像トレイ復元、欠損画像の参照保持を含みます。
+背景削除にInSPyReNetを追加し、標準の方式にしました。
+同じ画面からisnet-animeも選択できます。各モデルの初回取得時に容量を表示して確認します。
+取得済みのモデルは次回以降も利用できます。
 
 操作・仕様: README.md / docs/manga-finish.md
-変更・制約: CHANGELOG.md / docs/RELEASE_v1.1.0.md
+変更内容: CHANGELOG.md / docs/RELEASE_v1.2.0.md
 検証: .github/workflows/validate.yml / docs/VALIDATION.md
 ZIP内のRELEASE_BUILD.jsonにソースコミットとファイル別SHA-256を記録します。
 作品・設定・素材IDと旧Releaseは保持します。追加必須ランタイム依存はありません。

@@ -135,8 +135,9 @@ assert.match(
 );
 assert.match(metadata, /Name=Speech Bubble Comic Editor for Forge Neo/);
 assert.match(backgroundRemoval, /aiInferenceAvailable/);
-assert.match(backgroundRemoval, /await startModelDownload\(\)/);
-assert.match(backgroundRemoval, /const consent = confirm/);
+assert.match(backgroundRemoval, /data-br-model-select/);
+assert.match(backgroundRemoval, /if \(!confirm\([\s\S]*?return false;[\s\S]*?modelUrl\("model\/download", id\)/);
+assert.match(backgroundRemoval, /JSON\.stringify\(\{ confirmed: true \}\)/);
 assert.match(backgroundRemoval, /manualMaskEditing/);
 assert.doesNotMatch(backgroundRemoval, /\/desktop\/background-removal/);
 

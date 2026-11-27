@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2026-11-27
+
+- Use InSPyReNet by default or select the existing isnet-anime model in the Background Removal dialog.
+- Confirm a missing model's download on first use. Both models run locally and are available individually in Forge Settings.
+- Clear the previous model's preview on switch so Apply uses the result from the selected model.
+
 ## [1.1.0] - 2026-10-24
 
 ### Added
